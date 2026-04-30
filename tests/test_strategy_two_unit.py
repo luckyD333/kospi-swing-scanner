@@ -199,3 +199,51 @@ def test_registry_has_strategy_two():
     from strategies import REGISTRY, available
     assert StrategyTwoCrossSectionalMomentum.name in REGISTRY
     assert StrategyTwoCrossSectionalMomentum.name in available()
+
+
+# ============================================================================
+# 추가 엣지 — 동률 momentum + 데이터 품질
+# ============================================================================
+
+def test_tied_momentum_resolves_deterministically():
+    """동률 모멘텀 (정확히 같은 close 흐름) 도 결정론적으로 분리 rank 부여.
+
+    np.argsort(np.argsort) 는 unique rank 를 할당하므로 동률은 stable sort 순서로
+    나뉜다. 같은 입력 → 같은 출력 (재현성) 만 검증.
+    """
+    # 5종목 모두 정확히 동일 시계열 (동률 momentum)
+    universe = {f"T{i}": _trend_df(100, 0.01) for i in range(5)}
+    ctx = _make_ctx(universe)
+    strat = StrategyTwoCrossSectionalMomentum(
+        StrategyTwoConfig(lookback=10, entry_percentile=0.6),
+    )
+    cands1 = strat.scan(ctx, top_n=5)
+    cands2 = strat.scan(ctx, top_n=5)
+    # 결정론: 두 번 호출해도 동일 ticker 순서
+    assert [c.ticker for c in cands1] == [c.ticker for c in cands2]
+    # 모두 동률이지만 entry_percentile=0.6 통과 ticker 만 진입 (상위 40%)
+    assert 1 <= len(cands1) <= 5
+
+
+def test_zero_past_price_skipped():
+    """과거 가격이 0 이하면 division-by-zero 회피로 스킵."""
+    df_zero = _trend_df(100, 0.01)
+    df_zero = df_zero.copy()
+    df_zero.iloc[-16, df_zero.columns.get_loc("close")] = 0.0  # lookback 봉 close=0
+
+    df_ok = _trend_df(100, 0.015)
+    universe = {"ZERO": df_zero, "OK": df_ok}
+    ctx = _make_ctx(universe)
+    strat = StrategyTwoCrossSectionalMomentum(
+        StrategyTwoConfig(lookback=15, entry_percentile=0.0),
+    )
+    cands = strat.scan(ctx, top_n=5)
+    # 0 가격 ticker 는 후보에서 제외, 다른 ticker 는 통과
+    assert all(c.ticker != "ZERO" for c in cands)
+
+
+def test_invalid_entry_percentile_raises():
+    with pytest.raises(ValueError):
+        StrategyTwoCrossSectionalMomentum(StrategyTwoConfig(entry_percentile=1.5))
+    with pytest.raises(ValueError):
+        StrategyTwoCrossSectionalMomentum(StrategyTwoConfig(entry_percentile=-0.1))

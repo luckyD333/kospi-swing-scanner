@@ -89,14 +89,16 @@ class StrategyThreeTrendFollowing:
                 channel_low = float(low.iloc[-(cfg.lookback + 1):-1].min())
                 close_now = float(close.iloc[-1])
 
-                # 2) 돌파 신호
-                if close_now <= channel_high:
+                # 2) 데이터 품질 가드 (channel_high <= 0 등 비정상 데이터 즉시 배제)
+                if channel_high <= 0 or channel_low <= 0:
                     continue
-                if channel_high <= 0:
+
+                # 3) 돌파 신호
+                if close_now <= channel_high:
                     continue
                 breakout_pct = (close_now - channel_high) / channel_high
 
-                # 3) ATR 필터
+                # 4) ATR 필터
                 atr_series = calc_atr(high, low, close, period=cfg.atr_period)
                 atr_now = float(atr_series.iloc[-1])
                 if pd.isna(atr_now) or atr_now <= 0:
@@ -105,11 +107,14 @@ class StrategyThreeTrendFollowing:
                     if (close_now - channel_high) < atr_now * cfg.atr_filter_multiplier:
                         continue
 
-                # 4) Score = 돌파 강도 (cap [0, 1])
+                # 5) Score = 돌파 강도 (cap [0, 1])
                 score = float(min(1.0, max(0.0, breakout_pct * cfg.score_scale)))
 
-                # 5) SL = max(채널 저점 보존, 진입가 -2.5%)
-                #    더 보수적(=진입가에 가까운) 쪽 선택
+                # 6) SL = max(채널 저점 -1%, 진입가 -2.5%)
+                #    더 보수적(=진입가에 가까운) 쪽 선택.
+                #    0.99 배수: 채널 저점이 정확한 지지선이 아닐 수 있으므로 1% safety
+                #    margin 을 추가해 채널 저점을 살짝 하회. 채널이 깊을 때는 자연스럽게
+                #    -2.5% 손절이 더 빡빡하므로 그쪽이 채택됨.
                 sl_channel = channel_low * 0.99
                 sl_pct = close_now * (1 - cfg.stop_loss_pct)
                 stop_loss = max(sl_channel, sl_pct)

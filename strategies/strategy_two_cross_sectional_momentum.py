@@ -82,7 +82,8 @@ class StrategyTwoCrossSectionalMomentum:
                 if pd.isna(mom):
                     continue
 
-                # volume filter
+                # volume filter — 짧은 히스토리(< volume_filter_window)면 사용 가능한
+                # 기간만큼 평균 사용 (보수적 동작; lookback+1 봉은 이미 통과했으므로 안전).
                 if cfg.require_volume_above_avg:
                     vol_window = min(cfg.volume_filter_window, len(vol))
                     avg_vol = float(vol.iloc[-vol_window:].mean())
@@ -101,6 +102,11 @@ class StrategyTwoCrossSectionalMomentum:
         # 2) Cross-sectional percentile rank
         moms = np.array([m for _, m, _ in rows], dtype=float)
         # rank: 작은 값=낮은 rank → 1/N..N/N (cumulative density)
+        # NOTE: np.argsort(np.argsort(...)) 는 unique rank 를 할당 (tied rank average 아님).
+        #       동률 ticker 는 stable sort 순서대로 분할되어 0.5/0.75 식으로 나뉨.
+        #       Jegadeesh-Titman 원전의 month-level decile 와 미세 차이가 있으나, 일봉
+        #       1~3일 보유 + Long-only 맥락에서 분리 정렬이 결정론적 진입 우선순위에
+        #       유리 (동률 다수 = 시장 정체 = 신호 신뢰도 낮음 → 일부 배제 효과).
         order = np.argsort(np.argsort(moms))
         ranks = (order + 1) / len(moms)  # 1/N..1.0
 
