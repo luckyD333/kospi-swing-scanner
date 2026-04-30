@@ -1,0 +1,55 @@
+# KOSPI Swing Scanner
+
+KOSPI/KOSDAQ 일봉 기반 1~3일 보유 단기 스윙 매수 후보 자동 스크리닝 시스템 (Strategy D v2: RSI + 볼린저 밴드 + 쌍바닥 + 장악형 양봉).
+
+## Tech Stack
+- **Runtime**: Python 3.10+
+- **Core**: pandas, numpy, scipy
+- **Data sources**: KRX Proxy (1차), 네이버 금융 siseJson (2차), pykrx / FinanceDataReader (fallback)
+- **Test**: pytest
+
+## Project Structure
+- `daily_only_scanner.py` — CLI 진입점 (실전 스캐너)
+- `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
+- `backtest_engine/tests/` — 엔진 단위 테스트 (58개)
+- `tests/` — 통합 테스트 (KRX Proxy mock, strict mode E2E, scanner E2E)
+- `docs/` — 전략 스펙 + 데이터 소스 가이드
+- `scan_results/` — JSON 결과 저장 (gitignored)
+
+## Commands
+```bash
+# 의존성 설치
+pip install -r requirements.txt
+
+# 단위 테스트 (전체)
+pytest backtest_engine/tests/ -v
+python tests/test_krx_proxy_mock.py
+python tests/test_strict_mode_e2e.py
+python tests/test_daily_scanner_mock.py
+
+# 백테스트 데모
+python -m backtest_engine.demo
+
+# 실전 스캔 (KRX 장애 시 즉시 중단)
+python daily_only_scanner.py --market KOSPI --strict
+```
+
+## Verification
+변경 후: `pytest backtest_engine/tests/ -v` 통과 + 영향 범위에 따라 `tests/test_*` 실행. 80개 이상 테스트가 통과해야 함.
+
+## Conventions
+- 한국어 응답·주석 (technical term은 영어 유지)
+- 외부 네트워크 의존 코드는 mock 테스트 작성 (실제 KRX/네이버 호출 금지)
+- `--strict` 모드는 KRX Proxy 실패 시 fail-fast (실전 안전 보호)
+
+## Documentation Index
+전문 작업 시 관련 문서를 먼저 읽으세요:
+- [Strategy D v2 spec](./docs/strategy_d_v2_spec.md) — 전략 진입/청산 규칙, 지표 파라미터
+- [Korean stock data sources](./docs/korean_stock_data_sources_guide.md) — KRX/네이버/pykrx 비교 + 우선순위
+- [Backtest engine](./backtest_engine/README.md) — 엔진 모듈 사용법
+- [Detailed README](./README.md) — CLI 옵션, 환경변수, 트러블슈팅
+
+*비핵심 문서는 필요 시에만 읽으세요.*
+
+## Safety Note
+이 파일은 완전하지 않아요. 복잡한 작업 전 관련 디렉토리를 검색해서 최신 컨텍스트를 확인하세요. 데이터 소스 변경(KRX/네이버 API 응답 포맷)은 코드보다 테스트 mock에 먼저 영향을 주므로 회귀 시 mock fixture부터 점검할 것.
