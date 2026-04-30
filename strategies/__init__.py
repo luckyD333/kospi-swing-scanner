@@ -14,11 +14,13 @@ from core.strategy_base import Strategy
 
 from .strategy_one_d_v2 import StrategyOneDv2
 from .strategy_two_cross_sectional_momentum import StrategyTwoCrossSectionalMomentum
+from .strategy_three_trend_following import StrategyThreeTrendFollowing
 
 # 등록된 전략. 키 = CLI 에서 노출되는 이름.
 REGISTRY: Dict[str, Type[Strategy]] = {
     StrategyOneDv2.name: StrategyOneDv2,
     StrategyTwoCrossSectionalMomentum.name: StrategyTwoCrossSectionalMomentum,
+    StrategyThreeTrendFollowing.name: StrategyThreeTrendFollowing,
 }
 
 
