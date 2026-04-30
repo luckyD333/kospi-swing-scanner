@@ -1,38 +1,39 @@
 """
-test_daily_scanner_mock.py — 일봉 스크리너 end-to-end 검증
+test_daily_scanner_mock.py — 스크리너 end-to-end 검증 + Mock 데이터 소스 fixture.
 
-실제 pykrx/네이버 없이 Mock 데이터 소스로 스크리너 전체 흐름을 검증한다.
-합성 시나리오(perfect_double_bottom 등)를 다양한 "가상 종목"에 주입하여
-진입 조건 만족 종목을 정확히 탐지하는지 확인.
+본 모듈은 두 역할을 겸한다:
+  1. MockKOSPIDataSource — 다른 테스트(_strategy_one_regression, _strict_mode_e2e,
+     _cli, _integration)가 import 해 사용하는 결정론적 KOSPI mock 소스
+  2. test_scanner_end_to_end — ScanRunner + StrategyOneDv2 통합 시나리오 검증
 """
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 from typing import List
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from daily_only_scanner import (
-    DataClient,
-    DailyDataSource,
-    DailyOnlyScanner,
-    ScanConfig,
-    print_results,
-)
 from backtest_engine.scenarios import ScenarioBuilder
+from core.data_fetch import DataClient
+from core.data_sources.base import DailyDataSource
+from core.runner import RunnerConfig, ScanRunner
+from output.formatters import format_table
+from strategies.strategy_one_d_v2 import StrategyOneDv2
 
 
 # ============================================================================
-# Mock 데이터 소스
+# Mock 데이터 소스 (다른 테스트의 fixture 로 import 됨)
 # ============================================================================
 
 class MockKOSPIDataSource(DailyDataSource):
-    """가상 KOSPI 유니버스를 반환하는 Mock 소스"""
+    """가상 KOSPI 유니버스를 반환하는 결정론적 Mock 소스."""
     name = "mock_kospi"
 
-    # 가상 종목: (종목코드, 종목명, 시총(억), 사용할 시나리오 빌더)
+    # (종목코드, 종목명, 시총(억), 시나리오 키)
     MOCK_UNIVERSE = [
         ("005930", "삼성전자",         3500_00, "perfect"),      # 350조 (제외: 너무 큼)
         ("000660", "SK하이닉스",        1200_00, "perfect"),      # 120조 (제외: 너무 큼)
@@ -78,18 +79,17 @@ class MockKOSPIDataSource(DailyDataSource):
             return pd.DataFrame()
         _, _, scenario_key = info
         scenario_func = self._scenarios[scenario_key]
-        # 각 종목별 다른 seed로 약간 다른 데이터 생성
+        # 각 종목별 다른 seed 로 약간 다른 데이터
         seed = int(ticker) % 1000
         scenario = scenario_func(seed=seed)
         df = scenario.df
-        # 실전 재현: "오늘"이 진입봉이 되도록 잘라서 반환
-        # perfect/fake 시나리오의 진입봉은 idx 32이므로 0~32까지만
+        # 진입봉 이후 cut: snapshot 캡처와 동일 슬라이싱
         if scenario_key in ("perfect", "fake"):
             df = df.iloc[:33]
         return df
 
     def get_market_cap(self, market: str, target_date: str) -> pd.DataFrame:
-        """Mock 시가총액 DataFrame 반환 (pykrx 형식 모방)"""
+        """Mock 시가총액 DataFrame (pykrx 형식 모방)."""
         data = {
             ticker: {"시가총액": cap * 100_000_000, "종목명": name}
             for ticker, name, cap, _ in self.MOCK_UNIVERSE
@@ -98,93 +98,59 @@ class MockKOSPIDataSource(DailyDataSource):
 
 
 # ============================================================================
-# 테스트 실행
+# E2E 검증
 # ============================================================================
 
 def test_scanner_end_to_end():
-    """
-    Mock 데이터로 전체 스크리너 파이프라인 검증.
-
-    기대 결과:
-      - 시총 필터 (2천억~3조) 통과 종목만 분석
-      - perfect_double_bottom 시나리오 가진 종목만 시그널 발생
-      - confidence 순 정렬된 결과 반환
-      - 매수/손절/익절 가격 합리적
-    """
-    print("\n" + "=" * 90)
-    print("  🧪 스크리너 end-to-end 검증 (Mock 데이터)")
-    print("=" * 90 + "\n")
-
-    # Mock 소스만 사용하도록 구성 (KRX Proxy 비활성화)
+    """ScanRunner + StrategyOneDv2 + Mock 데이터로 전체 파이프라인 검증."""
     mock = MockKOSPIDataSource()
     client = DataClient(
         ticker_list_sources=[mock],
         ohlcv_sources=[mock],
-        use_krx_for_universe=False,  # Mock 테스트에선 실제 네트워크 접근 안 함
+        use_krx_for_universe=False,
     )
-
-    # 시총 2천억~3조 필터 적용
-    config = ScanConfig(
-        market="KOSPI",
-        min_market_cap_bil=2000.0,
-        max_market_cap_bil=30000.0,
-        top_n=10,
-        detector_name="simple",
+    runner = ScanRunner(
+        client,
+        RunnerConfig(
+            market="KOSPI",
+            min_market_cap_bil=2000.0,
+            max_market_cap_bil=30000.0,
+            min_daily_volume=100_000,
+            top_n=10,
+        ),
     )
-    scanner = DailyOnlyScanner(client=client, config=config)
+    strategy = StrategyOneDv2()
+    result = runner.run([strategy], target_date="20260418")
+    candidates = result.candidates_by_strategy[strategy.name]
 
-    candidates = scanner.scan(target_date="20260418")
+    # 시각 확인용 출력 (capsys 가 받음 — 실패 시 디버깅에 유용)
+    print(format_table(candidates, "20260418"))
 
-    print_results(candidates, "20260418")
-
-    # 검증 항목
-    print("  🔎 검증 결과")
-    print("  " + "─" * 86)
-
-    # 1) 시총 필터 제대로 작동? (삼성전자 350조, SK하이닉스 120조는 제외되어야)
+    # 1) 시총 필터 — 삼성전자(350조), SK하이닉스(120조)는 제외돼야
     tickers_found = [c.ticker for c in candidates]
     assert "005930" not in tickers_found, "삼성전자(350조)는 시총 필터로 제외되어야"
     assert "000660" not in tickers_found, "SK하이닉스(120조)는 시총 필터로 제외되어야"
-    print("  ✓ 시총 필터 정상 (초대형주 제외)")
 
-    # 2) 진입 시그널이 나올 수 있는 시나리오는 perfect/fake (진입 시점 동일)
-    # uptrend/choppy는 시그널 안 나와야 함
+    # 2) perfect/fake 시나리오만 시그널 발생
     for c in candidates:
         info = mock._lookup[c.ticker]
         scenario_key = info[2]
         assert scenario_key in ("perfect", "fake"), (
             f"{c.ticker}({info[0]})는 {scenario_key} 시나리오인데 시그널 발생!"
         )
-    print(f"  ✓ perfect/fake 시나리오 종목만 시그널 ({len(candidates)}개)")
-    print(f"     (진입 시점엔 동일, 이후 가격 흐름으로 승패 결정)")
 
-    # 3) confidence 내림차순 정렬 확인
-    confs = [c.confidence for c in candidates]
-    assert confs == sorted(confs, reverse=True), "confidence 정렬 오류"
-    print("  ✓ confidence 내림차순 정렬")
+    # 3) score 내림차순
+    scores = [c.score for c in candidates]
+    assert scores == sorted(scores, reverse=True)
 
-    # 4) 가격 로직 검증
+    # 4) 가격 순서 + 비율
     for c in candidates:
-        assert c.stop_loss < c.entry_price < c.target_1 < c.target_2, (
-            f"{c.ticker} 가격 순서 오류: sl={c.stop_loss}, e={c.entry_price}, "
-            f"t1={c.target_1}, t2={c.target_2}"
-        )
-        assert 2.0 < c.risk_pct < 3.0, f"{c.ticker} 손절 폭 이상: {c.risk_pct:.2f}%"
-        assert 2.5 < c.reward_pct_t1 < 3.5, f"{c.ticker} 1차 목표 이상"
-        assert 4.5 < c.reward_pct_t2 < 5.5, f"{c.ticker} 2차 목표 이상"
-    print("  ✓ 진입가/손절/목표가 로직 정상 (-2.5% / +3% / +5%)")
+        assert c.stop_loss < c.entry_price < c.target_1 <= c.target_2
+        assert 2.0 < c.risk_pct < 3.0
+        assert 2.5 < c.reward_pct_t1 < 3.5
+        assert 4.5 < c.reward_pct_t2 < 5.5
 
-    # 5) 모든 후보에 conditions_met 기록 존재
+    # 5) 진입 조건 기록
     for c in candidates:
-        assert len(c.conditions_met) > 0, f"{c.ticker} 조건 기록 없음"
-        assert c.conditions_met.get("double_bottom", False), f"{c.ticker} 쌍바닥 미기록"
-    print("  ✓ 진입 조건 기록 정상")
-
-    print("\n  🎉 모든 검증 통과!\n")
-    return candidates
-
-
-if __name__ == "__main__":
-    # ScanConfig 한글 필드명 이슈 임시 패치
-    from dataclasses import fields
-    candidates = test_scanner_end_to_end()
+        assert len(c.conditions_met) > 0
+        assert c.conditions_met.get("double_bottom"), f"{c.ticker} 쌍바닥 미기록"

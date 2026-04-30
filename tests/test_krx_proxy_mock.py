@@ -21,7 +21,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from daily_only_scanner import KRXProxySource, CircuitBreaker, CircuitBreakerOpen
+from core.data_sources.krx_proxy import KRXProxySource, CircuitBreaker, CircuitBreakerOpen
 
 
 # ============================================================================

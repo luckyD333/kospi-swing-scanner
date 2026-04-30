@@ -1,262 +1,238 @@
-# KOSPI Swing Scanner — Strategy D v2
+# KOSPI Swing Scanner — Multi-Strategy
 
-KOSPI/KOSDAQ 일봉 기반 단기 스윙(1~3일 보유) 매수 후보 자동 스크리닝 시스템.
+KOSPI/KOSDAQ 일봉 기반 단기 스윙 매수 후보 자동 스크리닝 시스템.
+plug-and-play 가능한 전략 아키텍처(Strategy Protocol)를 채택해 신규 패러다임을
+파일 추가만으로 등록할 수 있다.
 
-- **Strategy**: 로스 카메론의 RSI + 볼린저 밴드 + 쌍바닥 + 장악형 양봉
-- **데이터**: KRX Proxy(공식) + 네이버 금융(수정주가) + pykrx(보조)
+- **Strategy 1 (포함)**: Strategy D v2 — RSI + 볼린저 밴드 + 쌍바닥 + 장악형 양봉
+- **Strategy 2·3 (예정)**: Phase 1 학술·실무 리서치 후 별도 plan 으로 추가
+- **데이터**: KRX Proxy(공식) → 네이버 금융(수정주가) → pykrx → FDR fallback 체인
 - **타깃**: 시총 2천억~3조원 중소형주, Long Only, 1~3일 보유
 
 ## 🚀 빠른 시작 (5분)
 
-### 1. 프로젝트 받기
+### 1. Python 가상환경
 
 ```bash
-# 옵션 A: zip 압축 해제 후 디렉토리로 이동
 cd kospi-swing-scanner
 
-# 옵션 B: 빈 디렉토리에서 시작 (수동 다운로드 시)
-mkdir kospi-swing-scanner && cd kospi-swing-scanner
-# (파일 리스트는 아래 "📁 파일 구조" 참고)
-```
-
-### 2. Python 가상환경 생성
-
-```bash
-# Python 3.10+ 권장
 python3 -m venv .venv
+source .venv/bin/activate              # macOS/Linux
+# .venv\Scripts\Activate.ps1           # Windows PowerShell
 
-# 활성화 (macOS/Linux)
-source .venv/bin/activate
-
-# 활성화 (Windows PowerShell)
-.venv\Scripts\Activate.ps1
-```
-
-### 3. 의존성 설치
-
-```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. 동작 검증 (실제 네트워크 없이 mock 테스트)
+### 2. 동작 검증 (실제 네트워크 없이)
 
 ```bash
-# [1] 백테스트 엔진 단위 테스트 (58개)
-pytest backtest_engine/tests/ -v
-
-# [2] KRX Proxy + Circuit Breaker 테스트 (18개)
-python tests/test_krx_proxy_mock.py
-
-# [3] Strict 모드 엔드투엔드 검증 (3개)
-python tests/test_strict_mode_e2e.py
-
-# [4] 전체 스캐너 mock 데이터 테스트
-python tests/test_daily_scanner_mock.py
-
-# [5] 백테스트 엔진 데모 (6가지 시나리오)
-python -m backtest_engine.demo
+# 전체 테스트 (153+ tests)
+pytest backtest_engine/tests/ tests/ -v
 ```
 
-전부 통과하면 셋업 완료. 4개 스위트 합계 **80개 이상의 테스트**가 통과해야 합니다.
-
-### 5. 실전 스캔 실행 (실제 KRX 데이터)
+### 3. 실전 스캔 실행
 
 ```bash
-# 일반 모드 (KRX 실패 시 네이버 fallback)
-python daily_only_scanner.py --market KOSPI --top 20
+# 단일 전략 (기본)
+python cli.py --strategy strategy_one_d_v2 --market KOSPI --top 20
 
-# 엄격 모드 (KRX 장애 시 즉시 중단 — 실전 권장)
-python daily_only_scanner.py --market KOSPI --strict
+# 출력 포맷 변경 (table | json | csv | markdown)
+python cli.py --strategy strategy_one_d_v2 --format json --top 30
 
-# KRX 비활성화 (네이버만)
-python daily_only_scanner.py --no-krx --market KOSPI
+# 멀티 전략 동시 실행 (등록된 전략 모두) — 비교 테이블 출력
+python cli.py --strategy all --top 10 --format markdown
 
-# 특정 날짜 기준
-python daily_only_scanner.py --date 20260418 --top 30
+# 엄격 모드 (KRX Proxy 장애 시 즉시 중단)
+python cli.py --strategy strategy_one_d_v2 --strict
 
-# 시총 범위 조정 (기본 2천억~3조)
-python daily_only_scanner.py --min-cap 1000 --max-cap 50000
+# 특정 날짜
+python cli.py --date 20260418 --top 30
 
-# 다른 쌍바닥 detector 사용
-python daily_only_scanner.py --detector fractal
-python daily_only_scanner.py --detector prominence
+# 결과 파일 저장
+python cli.py --strategy strategy_one_d_v2 --output-dir scan_results
+
+# 전체 옵션
+python cli.py --help
 ```
 
-### 6. 결과 확인
+## 🧠 멀티 전략 아키텍처
 
-스캔 완료 후 콘솔에 매수 후보 + 진입가/손절/목표가가 출력되며, `scan_results/` 디렉토리에 JSON으로 저장됩니다.
+### 핵심 컨셉
 
 ```
-────── #1  [005930] 삼성전자  ──────
-   시총               :        3,500,000 억원
-   20일 평균 거래량    :       12,345,678 주
-   Confidence          :          75.0%
-
-   💰 진입가 (매수)    :           75,000 원
-   🛑 손절가           :           73,125 원 (-2.50%)
-   🎯 1차 목표 (익절)  :           77,250 원 (+3.00%)
-   🎯 2차 목표 (익절)  :           78,750 원 (+5.00%)
-   ⏰ 최대 보유        : 3 거래일 (미도달 시 시간 손절)
+   ┌──────────────────────────────────────────────────────────┐
+   │   cli.py  (argparse + 출력 포맷)                          │
+   └────────────────────────┬─────────────────────────────────┘
+                            │
+                            ▼
+   ┌──────────────────────────────────────────────────────────┐
+   │  ScanRunner            (단일 fetch → N전략 격리 실행)      │
+   │   ├─ build_universe    (시총·유동성·관리종목 필터)          │
+   │   ├─ OhlcvCache        (ticker 당 1회 fetch, 메모리)       │
+   │   └─ Strategy.scan()   ×  N개 전략                          │
+   └────────────────────────┬─────────────────────────────────┘
+                            │
+                            ▼
+   ┌──────────────────────────────────────────────────────────┐
+   │  strategies/  (Strategy Protocol 구현체들)                  │
+   │   ├─ strategy_one_d_v2    Mean Reversion + Confluence     │
+   │   ├─ (전략 2 — 후속 plan)                                  │
+   │   └─ (전략 3 — 후속 plan)                                  │
+   └──────────────────────────────────────────────────────────┘
 ```
+
+- 동일 `ScanContext` (universe + OHLCV + 시총) 입력에서 모든 전략이 동일 데이터를 본다.
+- `OhlcvCache` 가 같은 (ticker, start, end) 키 재요청을 캐시 처리하여 **fetch 1회**.
+- 각 전략 실행은 격리되어, 한 전략의 예외가 다른 전략을 막지 않는다.
+
+### 새 전략 추가 가이드 (OCP)
+
+기존 코드 수정 없이 신규 전략을 plug-in:
+
+1. `strategies/<name>.py` 작성 — `Strategy` Protocol 충족 (`name` 속성 + `scan(ctx, top_n) -> list[Candidate]`).
+   ```python
+   from core.strategy_base import Candidate, ScanContext
+
+   class MyStrategy:
+       name = "my_strategy"
+       def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
+           ...
+   ```
+2. `strategies/__init__.py` 에 한 줄 추가:
+   ```python
+   from .my_strategy import MyStrategy
+   REGISTRY[MyStrategy.name] = MyStrategy
+   ```
+3. 단위 테스트 + `tests/test_ocp.py` 통과 확인.
+
+이후 `python cli.py --strategy my_strategy` 또는 `--strategy all` 로 자동 노출.
 
 ## 📁 파일 구조
 
 ```
 kospi-swing-scanner/
-├── README.md                      # 이 문서
-├── requirements.txt               # Python 의존성
-├── .gitignore                     # Git 제외 파일
+├── README.md                         # 이 문서
+├── requirements.txt
+├── .gitignore
+├── CLAUDE.md
 │
-├── daily_only_scanner.py          # 메인 실전 스캐너 (CLI 진입점)
+├── cli.py                            # CLI 진입점
 │
-├── backtest_engine/               # Strategy D v2 백테스트 엔진
-│   ├── __init__.py
-│   ├── README.md
-│   ├── core.py                    # 타입 + 지표 (RSI, BB, MACD, ATR)
-│   ├── detectors.py               # 쌍바닥 감지 3가지 구현
-│   ├── scenarios.py               # 가상 OHLCV 시나리오 6가지
-│   ├── strategy.py                # Strategy D v2 진입/청산 로직
-│   ├── engine.py                  # 백테스트 실행 엔진
-│   ├── screener.py                # 다중 타임프레임 스크리너
-│   ├── demo.py                    # 통합 실행 데모
-│   └── tests/
-│       ├── __init__.py
-│       ├── conftest.py            # pytest fixture
-│       ├── test_core.py           # 8개 테스트
-│       ├── test_detectors.py      # 11개 테스트
-│       ├── test_strategy.py       # 17개 테스트
-│       ├── test_engine.py         # 13개 테스트
-│       └── test_screener.py       # 9개 테스트
+├── core/                             # 공통 모듈
+│   ├── data_sources/                 #   데이터 소스 ABC + 4종 구현
+│   │   ├── base.py                   #     DailyDataSource ABC
+│   │   ├── pykrx.py
+│   │   ├── fdr.py
+│   │   ├── krx_proxy.py              #     CircuitBreaker 포함
+│   │   └── naver.py
+│   ├── data_fetch.py                 #   DataClient (fallback) + OhlcvCache
+│   ├── universe.py                   #   build_universe + UniverseFilter
+│   ├── indicators.py                 #   RSI/BB/MACD/ATR/MA/모멘텀/거래량 z-score
+│   ├── strategy_base.py              #   Strategy Protocol + ScanContext + Candidate
+│   └── runner.py                     #   ScanRunner (단일 fetch, N전략)
 │
-├── tests/                         # 통합 테스트 (mock 데이터)
-│   ├── test_krx_proxy_mock.py     # KRX Proxy + Circuit Breaker (18개)
-│   ├── test_strict_mode_e2e.py    # Strict mode 동작 검증 (3개)
-│   └── test_daily_scanner_mock.py # 스캐너 end-to-end (5개 검증)
+├── strategies/                       # 전략 구현체들 (plug-in)
+│   ├── __init__.py                   #   REGISTRY dict + register/unregister
+│   └── strategy_one_d_v2.py          #   Strategy 1: Mean Reversion + Confluence
+│
+├── output/                           # 출력 포맷터
+│   ├── formatters.py                 #   table / json / csv / markdown (단일)
+│   └── comparison.py                 #   markdown / csv / json (멀티 전략 비교)
+│
+├── backtest_engine/                  # 백테스트 엔진 (변경 없음)
+│   ├── core.py                       #   타입 + 지표 (RSI, BB, MACD, ATR)
+│   ├── detectors.py                  #   쌍바닥 3가지 구현
+│   ├── scenarios.py                  #   가상 OHLCV 시나리오
+│   ├── strategy.py                   #   Strategy D v2 진입/청산
+│   ├── engine.py                     #   백테스트 실행 엔진
+│   ├── screener.py                   #   다중 타임프레임 스크리너
+│   ├── demo.py                       #   통합 데모
+│   └── tests/                        #   엔진 단위 테스트 (71개)
+│
+├── tests/                            # 통합 테스트
+│   ├── fixtures/
+│   │   └── legacy_scanner_snapshot.json   회귀 baseline (Sub-0 immutable)
+│   ├── test_core_*.py                #   core/ 모듈 단위 테스트
+│   ├── test_strategy_one_*.py        #   전략 1 회귀 + 단위
+│   ├── test_ocp.py                   #   Open-Closed 검증
+│   ├── test_cli.py                   #   CLI E2E
+│   ├── test_integration.py           #   멀티 전략 비교
+│   ├── test_krx_proxy_mock.py        #   KRX Proxy + Circuit Breaker
+│   ├── test_strict_mode_e2e.py       #   strict_mode 엔드투엔드
+│   └── test_daily_scanner_mock.py    #   MockKOSPIDataSource fixture + E2E
 │
 └── docs/
-    ├── strategy_d_v2_spec.md           # 전략 설계 문서
-    └── korean_stock_data_sources_guide.md   # 데이터 소스 비교 가이드
+    ├── strategy_d_v2_spec.md
+    ├── korean_stock_data_sources_guide.md
+    └── superpowers/plans/                 # 진행/완료 plan 보관
 ```
-
-## 📋 다운로드해야 할 파일 목록 (전체 22개)
-
-수동으로 받는 경우 아래 순서대로 디렉토리/파일을 만드세요.
-
-### 루트 (3개)
-
-- [ ] `README.md` — 이 문서
-- [ ] `requirements.txt`
-- [ ] `.gitignore`
-
-### CLI 메인 (1개)
-
-- [ ] `daily_only_scanner.py`
-
-### `backtest_engine/` (9개)
-
-- [ ] `backtest_engine/__init__.py` (빈 파일)
-- [ ] `backtest_engine/README.md`
-- [ ] `backtest_engine/core.py`
-- [ ] `backtest_engine/detectors.py`
-- [ ] `backtest_engine/scenarios.py`
-- [ ] `backtest_engine/strategy.py`
-- [ ] `backtest_engine/engine.py`
-- [ ] `backtest_engine/screener.py`
-- [ ] `backtest_engine/demo.py`
-
-### `backtest_engine/tests/` (7개)
-
-- [ ] `backtest_engine/tests/__init__.py` (빈 파일)
-- [ ] `backtest_engine/tests/conftest.py`
-- [ ] `backtest_engine/tests/test_core.py`
-- [ ] `backtest_engine/tests/test_detectors.py`
-- [ ] `backtest_engine/tests/test_strategy.py`
-- [ ] `backtest_engine/tests/test_engine.py`
-- [ ] `backtest_engine/tests/test_screener.py`
-
-### `tests/` (3개)
-
-- [ ] `tests/test_krx_proxy_mock.py`
-- [ ] `tests/test_strict_mode_e2e.py`
-- [ ] `tests/test_daily_scanner_mock.py`
-
-### `docs/` (2개)
-
-- [ ] `docs/strategy_d_v2_spec.md`
-- [ ] `docs/korean_stock_data_sources_guide.md`
-
-**합계: 25개 파일** (빈 `__init__.py` 2개 포함)
 
 ## ⚙️ 환경변수 (선택)
 
 ```bash
 # KRX Proxy URL 변경 (기본: https://k-skill-proxy.nomadamas.org)
 export KSKILL_PROXY_BASE_URL="https://your-proxy.example.com"
-
-# 로그 레벨 (Python logging)
-export LOG_LEVEL=DEBUG
 ```
 
 ## 🛠 데이터 소스 우선순위
 
 | 단계 | 소스 | 역할 |
 |------|------|------|
-| 1차 | KRX Proxy `trade-info` | 공식 시총 + 종가 (유니버스 필터) |
-| 2차 | 네이버 `siseJson` | N일 OHLCV 시계열 (지표 계산) |
+| 1차 | KRX Proxy `trade-info` | 공식 시총 + 종가 (유니버스 보강) |
+| 2차 | 네이버 `siseJson` | N일 OHLCV 시계열 (수정주가) |
 | 3차 | pykrx | KRX 라이브러리 (백업) |
 | 4차 | FinanceDataReader | 추가 fallback |
 
-`--strict` 옵션을 사용하면 KRX Proxy 장애 시 **스캔 전체 중단**합니다 (실전 안전 모드).
+`--strict` 옵션은 KRX Proxy 장애 시 **스캔 전체 중단** (실전 안전 모드).
 
-## 🧪 테스트 결과 (예상)
+## 🧪 테스트 구성
 
 ```
-============================== 58 passed in 5s ===============================
-🎉 모든 KRX Proxy 테스트 통과! (18개)
-🎉 엄격 모드 동작 검증 완료 (3개)
-🎉 모든 검증 통과! (Daily Scanner E2E)
-
-총 80개 이상 테스트 통과
+backtest_engine/tests/   71 tests   엔진 단위 (core/detectors/strategy/engine/screener)
+tests/test_core_*        ~30 tests   core/ 모듈 단위 (indicators/data_fetch/universe/runner/strategy_base)
+tests/test_strategy_*    ~12 tests   Strategy 1 회귀 + 단위
+tests/test_ocp.py         6 tests    Open-Closed (신규 전략 등록·실행)
+tests/test_cli.py         12 tests   CLI argparse + 4종 출력 포맷 + main() E2E
+tests/test_integration    5 tests    멀티 전략 fetch 공유 + 비교 테이블
+tests/test_*_mock         18 tests   KRX Proxy mock + Circuit Breaker
+tests/test_strict_mode    3 tests    strict_mode 엔드투엔드
+tests/test_daily_scanner_mock  1     E2E 시나리오
 ```
 
-## 🆘 문제 해결
+전체 153+ 통과해야 셋업 완료.
 
-### `ModuleNotFoundError: No module named 'backtest_engine'`
+## 🆘 트러블슈팅
 
-테스트 실행 시 프로젝트 루트에서 실행하세요:
+### `ModuleNotFoundError: No module named 'core'`
+프로젝트 루트에서 실행하세요:
 ```bash
 cd kospi-swing-scanner
 PYTHONPATH=. pytest tests/
 ```
 
 ### `pykrx` 설치 실패
-
-pykrx는 KRX 사이트 변경에 민감합니다. 실패 시 `--no-krx` 옵션으로 회피:
 ```bash
-python daily_only_scanner.py --no-krx
+python cli.py --no-krx
 ```
 
 ### KRX Proxy 503 에러
-
-서버 측 API 키 문제일 수 있습니다. 잠시 후 재시도하거나 `--no-krx` 옵션 사용:
+서버 측 일시 장애일 수 있습니다.
 ```bash
-python daily_only_scanner.py --no-krx --market KOSPI
+python cli.py --no-krx --market KOSPI
 ```
-
-### 네이버 크롤링 차단
-
-너무 많은 요청을 보내면 네이버에서 임시 차단할 수 있습니다. 잠시 대기 후 재시도하세요.
 
 ## 📚 문서
 
 - [`docs/strategy_d_v2_spec.md`](docs/strategy_d_v2_spec.md) — Strategy D v2 전략 설계
 - [`docs/korean_stock_data_sources_guide.md`](docs/korean_stock_data_sources_guide.md) — 데이터 소스 비교
 - [`backtest_engine/README.md`](backtest_engine/README.md) — 백테스트 엔진 사용법
+- [`docs/superpowers/plans/`](docs/superpowers/plans/) — 구현 plan 이력
 
 ## ⚠️ 면책 조항
 
-본 도구는 정보 제공 및 학습 목적이며, 투자 조언이 아닙니다. 실제 투자 결정과 그 결과는 사용자 본인의 책임입니다. KRX 공식 데이터 기준이지만 데이터 정확성을 보증하지 않습니다.
+본 도구는 정보 제공 및 학습 목적이며, 투자 조언이 아닙니다. 실제 투자 결정과 그 결과는
+사용자 본인의 책임입니다. KRX 공식 데이터 기준이지만 데이터 정확성을 보증하지 않습니다.
 
 ## 라이선스
 
