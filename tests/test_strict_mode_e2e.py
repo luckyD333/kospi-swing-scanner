@@ -59,8 +59,8 @@ def test_strict_mode_aborts_on_krx_503():
 
     aborted = False
     err_msg = None
-    with patch("daily_only_scanner.requests.get", side_effect=always_503), \
-         patch("daily_only_scanner.time.sleep"):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=always_503), \
+         patch("core.data_sources.krx_proxy.time.sleep"):
         try:
             scanner.scan(target_date="20260418")
         except RuntimeError as e:
@@ -97,8 +97,8 @@ def test_non_strict_mode_falls_back_on_krx_503():
     )
     scanner = DailyOnlyScanner(client=client, config=config)
 
-    with patch("daily_only_scanner.requests.get", side_effect=always_503), \
-         patch("daily_only_scanner.time.sleep"):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=always_503), \
+         patch("core.data_sources.krx_proxy.time.sleep"):
         candidates = scanner.scan(target_date="20260418")
 
     assert candidates is not None
@@ -133,7 +133,7 @@ def test_strict_mode_allows_no_krx():
     scanner = DailyOnlyScanner(client=client, config=config)
 
     # requests.get이 호출되지 않아야 하므로 예외 발생 시 테스트 실패
-    with patch("daily_only_scanner.requests.get", side_effect=unreachable):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=unreachable):
         candidates = scanner.scan(target_date="20260418")
 
     assert len(candidates) > 0

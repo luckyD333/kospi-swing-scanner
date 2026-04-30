@@ -173,7 +173,7 @@ def _fake_get_factory(fail_status=None, fail_count=0):
 def test_search_returns_items_array():
     """search는 items 배열 + proxy meta 반환"""
     src = KRXProxySource()
-    with patch("daily_only_scanner.requests.get", side_effect=_fake_get_factory()):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=_fake_get_factory()):
         items, proxy = src.search(query="삼성전자", bas_dd="20260418")
     assert len(items) == 1
     assert items[0]["code"] == "005930"
@@ -185,7 +185,7 @@ def test_search_returns_items_array():
 def test_search_degraded_warning():
     """upstream.degraded=true 응답 처리"""
     src = KRXProxySource()
-    with patch("daily_only_scanner.requests.get", side_effect=_fake_get_factory()):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=_fake_get_factory()):
         items, proxy = src.search(query="degraded")
     assert len(items) == 1
     assert proxy["upstream"]["degraded"] is True
@@ -195,7 +195,7 @@ def test_search_degraded_warning():
 
 def test_search_not_found():
     src = KRXProxySource()
-    with patch("daily_only_scanner.requests.get", side_effect=_fake_get_factory()):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=_fake_get_factory()):
         items, _ = src.search(query="UNKNOWN")
     assert items == []
     print("  ✓ search() 404 → 빈 리스트")
@@ -204,7 +204,7 @@ def test_search_not_found():
 def test_get_base_info_returns_item_singular():
     """base-info는 단수 item (market_cap 없음)"""
     src = KRXProxySource()
-    with patch("daily_only_scanner.requests.get", side_effect=_fake_get_factory()):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=_fake_get_factory()):
         info = src.get_base_info(market="KOSPI", code="005930", bas_dd="20260418")
     assert info is not None
     assert info["name"] == "삼성전자"
@@ -216,7 +216,7 @@ def test_get_base_info_returns_item_singular():
 def test_get_trade_info_has_market_cap():
     """trade-info만 market_cap 포함 — 시총 필터링 핵심"""
     src = KRXProxySource()
-    with patch("daily_only_scanner.requests.get", side_effect=_fake_get_factory()):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=_fake_get_factory()):
         data = src.get_trade_info(market="KOSPI", code="005930", bas_dd="20260418")
     assert data is not None
     assert data["market_cap"] == 500_000_000_000_000
@@ -311,8 +311,8 @@ def test_retry_on_500_then_success():
             return _mock_response(MOCK_TRADE_INFO_RESPONSES["005930"])
         return _mock_response(None, status_code=404)
 
-    with patch("daily_only_scanner.requests.get", side_effect=flaky), \
-         patch("daily_only_scanner.time.sleep"):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=flaky), \
+         patch("core.data_sources.krx_proxy.time.sleep"):
         data = src.get_trade_info(market="KOSPI", code="005930", bas_dd="20260418")
 
     assert data is not None
@@ -324,9 +324,9 @@ def test_503_no_retry_opens_cb():
     """503 한 번에 circuit OPEN (재시도 없음)"""
     src = KRXProxySource()
     with patch(
-        "daily_only_scanner.requests.get",
+        "core.data_sources.krx_proxy.requests.get",
         side_effect=_fake_get_factory(fail_status=503, fail_count=99),
-    ), patch("daily_only_scanner.time.sleep"):
+    ), patch("core.data_sources.krx_proxy.time.sleep"):
         try:
             src.get_trade_info(market="KOSPI", code="005930", bas_dd="20260418")
             assert False
@@ -343,8 +343,8 @@ def test_503_no_retry_opens_cb():
 def test_enrich_normal():
     src = KRXProxySource()
     with patch(
-        "daily_only_scanner.requests.get", side_effect=_fake_get_factory(),
-    ), patch("daily_only_scanner.time.sleep"):
+        "core.data_sources.krx_proxy.requests.get", side_effect=_fake_get_factory(),
+    ), patch("core.data_sources.krx_proxy.time.sleep"):
         result = src.enrich_with_trade_info(
             tickers=["005930", "035720", "035420"],
             market="KOSPI", bas_dd="20260418", rate_limit_sec=0,
@@ -360,9 +360,9 @@ def test_enrich_stops_on_503():
     tickers = [f"TEST{i:04d}" for i in range(100)]
 
     with patch(
-        "daily_only_scanner.requests.get",
+        "core.data_sources.krx_proxy.requests.get",
         side_effect=_fake_get_factory(fail_status=503, fail_count=999),
-    ), patch("daily_only_scanner.time.sleep"):
+    ), patch("core.data_sources.krx_proxy.time.sleep"):
         try:
             src.enrich_with_trade_info(
                 tickers=tickers, market="KOSPI",
@@ -383,7 +383,7 @@ def test_enrich_handles_keyboard_interrupt():
     def interrupting(url, params=None, **kwargs):
         raise KeyboardInterrupt()
 
-    with patch("daily_only_scanner.requests.get", side_effect=interrupting):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=interrupting):
         try:
             src.enrich_with_trade_info(
                 tickers=["005930", "035720"],
@@ -399,8 +399,8 @@ def test_enrich_market_cap_filter():
     """보강 결과로 시총 필터링"""
     src = KRXProxySource()
     with patch(
-        "daily_only_scanner.requests.get", side_effect=_fake_get_factory(),
-    ), patch("daily_only_scanner.time.sleep"):
+        "core.data_sources.krx_proxy.requests.get", side_effect=_fake_get_factory(),
+    ), patch("core.data_sources.krx_proxy.time.sleep"):
         result = src.enrich_with_trade_info(
             tickers=["005930", "035720", "035420"],
             market="KOSPI", bas_dd="20260418", rate_limit_sec=0,
@@ -434,7 +434,7 @@ def test_holiday_fallback():
             return _mock_response(MOCK_TRADE_INFO_RESPONSES["005930"])
         return _mock_response(None, status_code=404)
 
-    with patch("daily_only_scanner.requests.get", side_effect=holiday_get):
+    with patch("core.data_sources.krx_proxy.requests.get", side_effect=holiday_get):
         data = src.get_trade_info_with_fallback(
             market="KOSPI", code="005930", bas_dd="20260418"
         )
