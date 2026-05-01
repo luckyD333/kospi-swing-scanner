@@ -5,7 +5,6 @@ core/data_sources/pykrx.py — pykrx 기반 일봉 데이터 소스.
 """
 from __future__ import annotations
 
-from typing import List
 
 import pandas as pd
 
@@ -15,17 +14,27 @@ from .base import DailyDataSource
 class PykrxSource(DailyDataSource):
     name = "pykrx"
 
-    def get_tickers(self, market: str, target_date: str) -> List[str]:
+    def get_tickers(self, market: str, target_date: str) -> list[str]:
         from pykrx import stock
+        if market == "ETF":
+            return stock.get_etf_ticker_list(target_date)
         return stock.get_market_ticker_list(target_date, market=market)
 
     def get_ticker_name(self, ticker: str) -> str:
         from pykrx import stock
         return stock.get_market_ticker_name(ticker)
 
-    def get_ohlcv(self, ticker: str, start: str, end: str) -> pd.DataFrame:
+    def get_ohlcv(
+        self, ticker: str, start: str, end: str, timeframe: str = "1D"
+    ) -> pd.DataFrame:
+        if timeframe != "1D":
+            raise NotImplementedError(
+                f"PykrxSource: timeframe={timeframe!r} 미지원 (일봉만)"
+            )
         from pykrx import stock
         df = stock.get_market_ohlcv_by_date(start, end, ticker)
+        if df is None or df.empty:
+            df = stock.get_etf_ohlcv_by_date(start, end, ticker)
         if df is None or df.empty:
             return pd.DataFrame()
         df = df.rename(columns={

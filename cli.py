@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--market", default="KOSPI", choices=["KOSPI", "KOSDAQ", "KRX"],
+        "--market", default="KOSPI", choices=["KOSPI", "KOSDAQ", "KRX", "ETF"],
     )
     parser.add_argument("--date", help="기준일 YYYYMMDD. 미지정 시 최근 영업일")
     parser.add_argument("--top", type=int, default=20, help="상위 N개")
