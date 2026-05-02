@@ -177,3 +177,43 @@ def test_ranked_candidate_dataclass_fields():
     assert isinstance(rc.final_score, float)
     assert isinstance(rc.contributions, dict)
     assert "per" in rc.contributions
+
+
+# ---------------------------------------------------------------------------
+# PR #1 metric bridge 통합 (PR #2)
+# ---------------------------------------------------------------------------
+
+def test_aggregate_with_rr_ratio_priority():
+    """PR #1 metric bridge 의 rr_ratio metadata 를 priority key 로 사용."""
+    cfg = WeightConfig(
+        priorities=[
+            Priority("rr_ratio", 100.0, "higher_better", "손익비"),
+        ],
+    )
+    cands = [
+        _make_cand("A", rr_ratio=2.5),  # sweet spot 위
+        _make_cand("B", rr_ratio=1.5),  # below
+        _make_cand("C", rr_ratio=2.2),  # sweet spot
+    ]
+    ranked = aggregate_candidates(cands, cfg)
+    # rr_ratio 가 큰 A 가 1위
+    assert ranked[0].candidate.ticker == "A"
+    assert ranked[-1].candidate.ticker == "B"
+
+
+def test_aggregate_must_have_excludes_by_source_strategy():
+    """must_have 의 string DSL 로 특정 전략 후보 배제 (PR #1 source_strategy 활용)."""
+    cfg = WeightConfig(
+        priorities=[Priority("score", 100.0, "higher_better", "점수")],
+        must_have=["source_strategy!=closing_strength_top"],
+    )
+    cands = [
+        _make_cand("A", score=900.0),
+        _make_cand("B", score=500.0),
+    ]
+    cands[0].metadata["source_strategy"] = "gap_up_momentum_top"
+    cands[1].metadata["source_strategy"] = "closing_strength_top"
+    ranked = aggregate_candidates(cands, cfg)
+    tickers = [r.candidate.ticker for r in ranked]
+    assert "A" in tickers
+    assert "B" not in tickers

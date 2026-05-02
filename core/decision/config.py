@@ -4,8 +4,13 @@ core/decision/config.py — 가중치 + 필수 조건 데이터 모델.
 Phase 2 의사결정 프레임워크의 사용자 설정. weights.yml 로드/저장 + must_have DSL.
 
 DSL 형식:
-  "<key><op><value>"  e.g. "per<30", "ensemble_count>=2", "roe>=5"
+  "<key><op><value>"  e.g.
+    "per<30"                                    (numeric)
+    "ensemble_count>=2"                         (numeric)
+    "source_strategy==gap_up_momentum_top"      (string, ==/!= 만)
+    "is_high_quality==True"                     (boolean)
 연산자: <, <=, >, >=, ==, !=
+부등호(<, <=, >, >=)는 numeric 전용. string/boolean 에는 ==/!= 만.
 """
 from __future__ import annotations
 
@@ -18,12 +23,32 @@ from typing import Callable
 import yaml
 
 VALID_DIRECTIONS = ("lower_better", "higher_better")
-_DSL_RE = re.compile(r"^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s*(<=|>=|==|!=|<|>)\s*(-?\d+(?:\.\d+)?)\s*$")
+# value 는 numeric/string/boolean 모두 허용 — 임의 word 매칭 후 parse 단계에서 type 분기.
+_DSL_RE = re.compile(
+    r"^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s*(<=|>=|==|!=|<|>)\s*(.+?)\s*$"
+)
 _OPS: dict[str, Callable[[float, float], bool]] = {
     "<": operator.lt, "<=": operator.le,
     ">": operator.gt, ">=": operator.ge,
     "==": operator.eq, "!=": operator.ne,
 }
+_NUMERIC_ONLY_OPS = ("<", "<=", ">", ">=")
+
+
+def _coerce_value(raw: str) -> float | str | bool:
+    """DSL value 를 type-aware 로 변환.
+
+    'True'/'False' → boolean, 숫자 문자열 → float, 그 외 → string.
+    """
+    s = raw.strip()
+    if s == "True":
+        return True
+    if s == "False":
+        return False
+    try:
+        return float(s)
+    except ValueError:
+        return s
 
 
 @dataclass
@@ -47,10 +72,15 @@ class MustHaveOp:
 
     optional=True면 메트릭이 후보에 없을 때 *조건 자체를 skip*해서 통과로 간주.
     DSL: '?per<30' (key 앞 '?' prefix)는 optional. 'per<30' 는 필수.
+
+    value 타입:
+      - numeric (float): 모든 연산자 사용 가능
+      - string: ==/!= 만 (부등호는 numeric only)
+      - boolean (True/False): ==/!= 만
     """
     key: str
     op: str
-    value: float
+    value: float | str | bool
     optional: bool = False
 
 
@@ -116,7 +146,12 @@ class WeightConfig:
 # ---------------------------------------------------------------------------
 
 def parse_must_have(expr: str) -> MustHaveOp:
-    """'per<30' → MustHaveOp(...). '?per<30' → optional=True (결측 시 통과)."""
+    """'per<30' → MustHaveOp(...). '?per<30' → optional=True (결측 시 통과).
+
+    string/boolean value 도 지원: 'source_strategy==gap_up_momentum_top',
+    'is_high_quality==True'. 부등호(<, >, <=, >=)는 numeric 전용이므로
+    string/boolean value 와 함께 쓰면 eval 단계에서 평가 실패해 탈락 처리.
+    """
     raw = expr.strip()
     optional = False
     if raw.startswith("?"):
@@ -129,7 +164,7 @@ def parse_must_have(expr: str) -> MustHaveOp:
             "형식: '[?]<key><op><value>' (op: <, <=, >, >=, ==, !=). "
             "'?' prefix는 메트릭 결측 시 조건 skip."
         )
-    key, op, value = m.group(1), m.group(2), float(m.group(3))
+    key, op, value = m.group(1), m.group(2), _coerce_value(m.group(3))
     return MustHaveOp(key=key, op=op, value=value, optional=optional)
 
 
@@ -139,6 +174,11 @@ def eval_must_have(exprs: list[str], metrics: dict) -> bool:
     결측/None 메트릭 처리:
       - 필수 조건('per<30'): 결측 → False (보수적, 평가 불가 = 탈락)
       - 옵션 조건('?per<30'): 결측 → 조건 skip (통과로 간주)
+
+    Type 처리:
+      - 부등호(<, <=, >, >=): numeric 전용. value 가 string/boolean 이거나
+        actual 이 float 변환 불가 시 False (탈락).
+      - ==/!=: type-aware 직접 비교 (numeric/string/boolean 모두 가능).
     """
     for expr in exprs:
         op = parse_must_have(expr)
@@ -147,9 +187,20 @@ def eval_must_have(exprs: list[str], metrics: dict) -> bool:
             if op.optional:
                 continue  # optional 조건은 결측 시 skip
             return False
-        try:
-            if not _OPS[op.op](float(actual), op.value):
+        if op.op in _NUMERIC_ONLY_OPS:
+            # 부등호는 numeric 전용. value 가 string/boolean 이면 평가 불가 → 탈락
+            if isinstance(op.value, str) or isinstance(op.value, bool):
                 return False
-        except (TypeError, ValueError):
-            return False
+            try:
+                if not _OPS[op.op](float(actual), float(op.value)):
+                    return False
+            except (TypeError, ValueError):
+                return False
+        else:
+            # ==/!= : type-aware 직접 비교
+            try:
+                if not _OPS[op.op](actual, op.value):
+                    return False
+            except TypeError:
+                return False
     return True

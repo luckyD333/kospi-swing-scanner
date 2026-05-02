@@ -219,3 +219,54 @@ def test_eval_must_have_required_still_fails_on_missing():
     """일반 (non-optional) 조건은 결측 시 여전히 탈락 (기존 동작 유지)."""
     metrics = {"per": 25.0}
     assert eval_must_have(["momentum_pct>10"], metrics) is False
+
+
+# ---------------------------------------------------------------------------
+# DSL 확장 — string / boolean value (PR #2)
+# ---------------------------------------------------------------------------
+
+def test_parse_must_have_string_value():
+    """string value 비교 지원 — 'source_strategy==gap_up_momentum_top'."""
+    op = parse_must_have("source_strategy==gap_up_momentum_top")
+    assert op.key == "source_strategy"
+    assert op.op == "=="
+    assert op.value == "gap_up_momentum_top"
+    assert op.optional is False
+
+
+def test_parse_must_have_boolean_value():
+    """boolean value 비교 — 'is_high_quality==True' / '==False'."""
+    op_true = parse_must_have("is_high_quality==True")
+    assert op_true.value is True
+    op_false = parse_must_have("is_high_quality==False")
+    assert op_false.value is False
+
+
+def test_eval_must_have_string_equals_and_not_equals():
+    """string DSL: '==' 통과/탈락, '!=' 통과/탈락."""
+    metrics = {"source_strategy": "gap_up_momentum_top"}
+    assert eval_must_have(
+        ["source_strategy==gap_up_momentum_top"], metrics) is True
+    assert eval_must_have(
+        ["source_strategy==closing_strength_top"], metrics) is False
+    assert eval_must_have(
+        ["source_strategy!=closing_strength_top"], metrics) is True
+    assert eval_must_have(
+        ["source_strategy!=gap_up_momentum_top"], metrics) is False
+
+
+def test_eval_must_have_boolean_value():
+    """boolean DSL: True/False 비교."""
+    assert eval_must_have(
+        ["is_high_quality==True"], {"is_high_quality": True}) is True
+    assert eval_must_have(
+        ["is_high_quality==True"], {"is_high_quality": False}) is False
+    assert eval_must_have(
+        ["is_high_quality==False"], {"is_high_quality": False}) is True
+
+
+def test_eval_must_have_string_inequality_op_rejected():
+    """string value 에 부등호(<, >, <=, >=) 적용 시 평가 실패 → 탈락 (numeric 전용)."""
+    metrics = {"source_strategy": "abc"}
+    # '<' 등 부등호는 numeric 전용 → 평가 실패 시 False
+    assert eval_must_have(["source_strategy<gap"], metrics) is False
