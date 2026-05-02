@@ -118,6 +118,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--scan-results-dir", default="scan_results",
         help="scan_results 루트 (manifest.json 위치)",
     )
+    decision_grp.add_argument(
+        "--dynamic-weights",
+        action="store_true",
+        help=".cache/dynamic_weights.json 로드 (없으면 --weights fallback)",
+    )
     return parser
 
 
@@ -372,11 +377,17 @@ def _run_decide(args) -> int:
     target_date = args.date or datetime.now().strftime("%Y%m%d")
     scan_root = Path(args.scan_results_dir)
 
+    # dynamic_weights 경로 설정
+    dynamic_weights_path = None
+    if getattr(args, "dynamic_weights", False):
+        dynamic_weights_path = Path(args.cache_root or ".cache") / "dynamic_weights.json"
+
     if args.select:
         tickers = [t.strip() for t in args.select.split(",") if t.strip()]
         paths = run_decide_journal(
             scan_root=scan_root, target_date=target_date,
             tickers=tickers, weight_config=weight_config, notes=args.notes,
+            dynamic_weights_path=dynamic_weights_path,
         )
         if not paths:
             logger.warning("생성된 Journal 없음 (선택한 ticker가 후보 풀에 없음)")
@@ -388,6 +399,7 @@ def _run_decide(args) -> int:
     out_path = run_decide_ranking(
         scan_root=scan_root, target_date=target_date,
         top_n=args.top_n, weight_config=weight_config,
+        dynamic_weights_path=dynamic_weights_path,
     )
     print(f"📝 {out_path}")
     return 0

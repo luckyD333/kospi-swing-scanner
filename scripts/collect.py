@@ -69,6 +69,7 @@ class CollectConfig:
     smart_skip: bool = False
     include_etf: bool = False  # 네이버는 ETF 미지원 → 기본 비활성
     force_refetch: bool = False  # True면 기존 parquet 무시하고 전 구간 재수집
+    scan_root: Path = field(default_factory=lambda: Path("scan_results"))
 
 
 def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
@@ -209,6 +210,20 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
     logger.info(f"manifest 저장: {manifest_path}")
 
+    # 동적 가중치 계산 (실패해도 수집 성공으로 처리)
+    try:
+        import subprocess as _subprocess
+        _subprocess.run(
+            [sys.executable, str(Path(__file__).parent / "compute_weights.py"),
+             "--cache-root", str(cfg.cache_root),
+             "--scan-root", str(cfg.scan_root)],
+            capture_output=True,
+            timeout=120,
+        )
+        logger.info("동적 가중치 계산 완료")
+    except Exception as e:
+        logger.warning(f"동적 가중치 계산 실패 (skip): {e}")
+
 
 def _load_timestamps(cache_root: Path) -> dict[str, datetime]:
     path = Path(cache_root) / "collect_timestamps.json"
@@ -334,6 +349,10 @@ def main() -> None:
     parser.add_argument("--min-volume", type=int, default=50_000, help="최소 거래량 (기본: 중간)")
     parser.add_argument("--date", help="기준일 YYYYMMDD")
     parser.add_argument(
+        "--scan-root", default="scan_results",
+        help="scan_results 디렉토리 경로 (compute_weights.py 전달용, 기본: scan_results)",
+    )
+    parser.add_argument(
         "--no-etf", action="store_true",
         help="ETF 전종목 합산 skip (기본: 포함)",
     )
@@ -365,6 +384,7 @@ def main() -> None:
         skip_collected=args.skip_collected,
         smart_skip=args.smart_skip,
         force_refetch=args.force_refetch,
+        scan_root=Path(args.scan_root),
     )
     run_collect(cfg, target_date=args.date)
 

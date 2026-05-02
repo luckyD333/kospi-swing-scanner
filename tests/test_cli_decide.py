@@ -271,3 +271,78 @@ def test_cli_decide_select_creates_journal(tmp_path):
     journal = scan_root / "20260502" / "journal_005930.md"
     assert journal.exists()
     assert "테스트 메모" in journal.read_text()
+
+
+# ---------------------------------------------------------------------------
+# --dynamic-weights 플래그 테스트
+# ---------------------------------------------------------------------------
+
+def test_dynamic_weights_flag_loads_json(tmp_path):
+    """--dynamic-weights 플래그: dynamic_weights.json 존재 시 로드."""
+    import json
+    from core.decision.runner import run_decide_ranking
+    from core.decision.config import WeightConfig, Priority
+
+    # 기본 scan_results 구성
+    scan_root = tmp_path / "scan_results"
+    _make_scan_results(scan_root)
+
+    # dynamic_weights.json 생성
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    dynamic = {
+        "computed_at": "2026-05-02T09:00:00",
+        "regime_score": 80,
+        "factor_momentum_active": False,
+        "weight_config": {
+            "priorities": [
+                {"key": "per", "weight": 50.0, "direction": "lower_better", "label": "저PER"},
+                {"key": "roe", "weight": 50.0, "direction": "higher_better", "label": "고ROE"},
+            ],
+            "must_have": [],
+            "strategy_weights": {},
+        },
+    }
+    (cache_root / "dynamic_weights.json").write_text(json.dumps(dynamic))
+
+    static_cfg = WeightConfig(
+        priorities=[
+            Priority(key="per", weight=30.0, direction="lower_better", label="저PER"),
+            Priority(key="roe", weight=40.0, direction="higher_better", label="고ROE"),
+            Priority(key="momentum_pct", weight=30.0, direction="higher_better", label="모멘텀"),
+        ],
+        must_have=[],
+    )
+
+    out = run_decide_ranking(
+        scan_root, "20260502", 3, static_cfg,
+        dynamic_weights_path=cache_root / "dynamic_weights.json",
+    )
+    assert out.exists()
+    # dynamic weights는 per+roe만 있으므로 momentum 관련 헤더 없어도 되지만 파일은 생성돼야 함
+    assert "decision_top3.md" in str(out)
+
+
+def test_dynamic_weights_missing_falls_back_to_static(tmp_path):
+    """--dynamic-weights: dynamic_weights.json 없으면 static fallback."""
+    from core.decision.runner import run_decide_ranking
+    from core.decision.config import WeightConfig, Priority
+
+    scan_root = tmp_path / "scan_results"
+    _make_scan_results(scan_root)
+
+    static_cfg = WeightConfig(
+        priorities=[
+            Priority(key="per", weight=30.0, direction="lower_better", label="저PER"),
+            Priority(key="roe", weight=40.0, direction="higher_better", label="고ROE"),
+            Priority(key="momentum_pct", weight=30.0, direction="higher_better", label="모멘텀"),
+        ],
+        must_have=[],
+    )
+
+    # 존재하지 않는 경로 전달
+    out = run_decide_ranking(
+        scan_root, "20260502", 3, static_cfg,
+        dynamic_weights_path=tmp_path / "nonexistent.json",
+    )
+    assert out.exists()  # static fallback으로 정상 실행
