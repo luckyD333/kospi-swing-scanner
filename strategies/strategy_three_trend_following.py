@@ -139,6 +139,20 @@ class StrategyThreeTrendFollowing:
                 avg_vol_20 = float(df["volume"].iloc[-20:].mean()) \
                     if len(df) >= 20 else float(df["volume"].mean())
 
+                # 신규 metadata 키 계산
+                risk_pct = (close_now - stop_loss) / close_now * 100
+                reward_pct_t2 = (t2 - close_now) / close_now * 100
+                rr_ratio = 0.0 if risk_pct == 0 else reward_pct_t2 / risk_pct
+                if rr_ratio < 2.0:
+                    rr_band = "below"
+                elif rr_ratio < 2.5:
+                    rr_band = "sweet"
+                else:
+                    rr_band = "over"
+
+                # ATR 14일은 이미 계산했으므로 재사용
+                atr_14 = float(atr_now) if atr_now is not None else None
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -164,6 +178,10 @@ class StrategyThreeTrendFollowing:
                         "atr": atr_now,
                         "lookback": cfg.lookback,
                         "market": ctx.market,
+                        "source_strategy": self.name,
+                        "rr_ratio": rr_ratio,
+                        "rr_band": rr_band,
+                        "atr_14": atr_14,
                     },
                 ))
             except Exception as e:

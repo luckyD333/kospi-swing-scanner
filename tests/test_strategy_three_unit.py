@@ -226,3 +226,30 @@ def test_registry_has_strategy_three():
     from strategies import REGISTRY, available
     assert StrategyThreeTrendFollowing.name in REGISTRY
     assert StrategyThreeTrendFollowing.name in available()
+
+
+def test_candidate_metadata_has_bridge_keys():
+    """Candidate.metadata에 source_strategy, rr_ratio, rr_band, atr_14 키 포함."""
+    universe = {
+        f"T{i}": _consolidation_then_breakout(breakout_close=115 + i)
+        for i in range(3)
+    }
+    ctx = _make_ctx(universe)
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    candidates = strat.scan(ctx, top_n=10)
+
+    assert len(candidates) > 0
+    for c in candidates:
+        # 신규 4개 키 검증
+        assert "source_strategy" in c.metadata
+        assert c.metadata["source_strategy"] == "strategy_three_trend_following"
+
+        assert "rr_ratio" in c.metadata
+        assert isinstance(c.metadata["rr_ratio"], (int, float))
+        assert c.metadata["rr_ratio"] >= 0.0
+
+        assert "rr_band" in c.metadata
+        assert c.metadata["rr_band"] in ("sweet", "over", "below")
+
+        assert "atr_14" in c.metadata
+        assert c.metadata["atr_14"] is None or isinstance(c.metadata["atr_14"], (int, float))

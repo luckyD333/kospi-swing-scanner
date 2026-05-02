@@ -258,3 +258,29 @@ def test_invalid_entry_percentile_raises():
         StrategyTwoCrossSectionalMomentum(StrategyTwoConfig(entry_percentile=1.5))
     with pytest.raises(ValueError):
         StrategyTwoCrossSectionalMomentum(StrategyTwoConfig(entry_percentile=-0.1))
+
+
+def test_candidate_metadata_has_bridge_keys():
+    """Candidate.metadata에 source_strategy, rr_ratio, rr_band, atr_14 키 포함."""
+    universe = {f"T{i}": _trend_df(100, 0.01 + i * 0.002) for i in range(5)}
+    ctx = _make_ctx(universe)
+    strat = StrategyTwoCrossSectionalMomentum(
+        StrategyTwoConfig(lookback=10, entry_percentile=0.0)
+    )
+    candidates = strat.scan(ctx, top_n=10)
+
+    assert len(candidates) > 0
+    for c in candidates:
+        # 신규 4개 키 검증
+        assert "source_strategy" in c.metadata
+        assert c.metadata["source_strategy"] == "strategy_two_cross_sectional_momentum"
+
+        assert "rr_ratio" in c.metadata
+        assert isinstance(c.metadata["rr_ratio"], (int, float))
+        assert c.metadata["rr_ratio"] >= 0.0
+
+        assert "rr_band" in c.metadata
+        assert c.metadata["rr_band"] in ("sweet", "over", "below")
+
+        assert "atr_14" in c.metadata
+        assert c.metadata["atr_14"] is None or isinstance(c.metadata["atr_14"], (int, float))

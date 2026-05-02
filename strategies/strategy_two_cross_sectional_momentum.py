@@ -25,6 +25,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from backtest_engine.core import calc_atr
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,25 @@ class StrategyTwoCrossSectionalMomentum:
             avg_vol_20 = float(df["volume"].iloc[-cfg.volume_filter_window:].mean()) \
                 if len(df) >= cfg.volume_filter_window else float(df["volume"].mean())
 
+            # 신규 metadata 키 계산
+            risk_pct = (close_now - sl) / close_now * 100
+            reward_pct_t2 = (t2 - close_now) / close_now * 100
+            rr_ratio = 0.0 if risk_pct == 0 else reward_pct_t2 / risk_pct
+            if rr_ratio < 2.0:
+                rr_band = "below"
+            elif rr_ratio < 2.5:
+                rr_band = "sweet"
+            else:
+                rr_band = "over"
+
+            # ATR 14일 계산 (NaN이면 None)
+            atr_series = calc_atr(df["high"], df["low"], df["close"], period=14)
+            atr_val = atr_series.iloc[-1]
+            if atr_val is not None and (atr_val != atr_val):  # NaN 체크
+                atr_14 = None
+            else:
+                atr_14 = float(atr_val) if atr_val is not None else None
+
             candidates.append(Candidate(
                 ticker=ticker,
                 name=ctx.names.get(ticker, ticker),
@@ -159,6 +179,10 @@ class StrategyTwoCrossSectionalMomentum:
                     # top-level Candidate.rank(int 순위)와 충돌 회피 위해 명시적 명명.
                     "percentile_rank": float(rank),
                     "market": ctx.market,
+                    "source_strategy": self.name,
+                    "rr_ratio": rr_ratio,
+                    "rr_band": rr_band,
+                    "atr_14": atr_14,
                 },
             ))
 

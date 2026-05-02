@@ -93,3 +93,31 @@ def test_empty_universe_returns_empty():
     ctx = _make_ctx({})
     strat = StrategyOneDv2()
     assert strat.scan(ctx, top_n=10) == []
+
+
+def test_candidate_metadata_has_bridge_keys():
+    """Candidate.metadata에 source_strategy, rr_ratio, rr_band, atr_14 키 포함."""
+    scenario = ScenarioBuilder.perfect_double_bottom(seed=42)
+    df = scenario.df.iloc[:33]
+    ctx = _make_ctx({"TEST": df})
+
+    strat = StrategyOneDv2()
+    candidates = strat.scan(ctx, top_n=5)
+
+    assert len(candidates) == 1
+    c = candidates[0]
+
+    # 신규 4개 키 검증
+    assert "source_strategy" in c.metadata
+    assert c.metadata["source_strategy"] == "strategy_one_d_v2"
+
+    assert "rr_ratio" in c.metadata
+    assert isinstance(c.metadata["rr_ratio"], (int, float))
+    assert c.metadata["rr_ratio"] >= 0.0
+
+    assert "rr_band" in c.metadata
+    assert c.metadata["rr_band"] in ("sweet", "over", "below")
+
+    assert "atr_14" in c.metadata
+    # atr_14은 float 또는 None 가능 (데이터 부족 시)
+    assert c.metadata["atr_14"] is None or isinstance(c.metadata["atr_14"], (int, float))

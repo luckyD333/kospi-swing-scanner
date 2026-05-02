@@ -37,6 +37,8 @@ _CSV_FIELDS = [
     "rank", "ticker", "name", "strategy", "signal_date", "score",
     "current_price", "entry_price", "stop_loss", "target_1", "target_2",
     "market_cap_bil", "volume_20d_avg", "risk_pct", "reward_pct_t1", "reward_pct_t2",
+    # 신규 metric (PR #1)
+    "rr_ratio", "rr_band", "atr_14", "source_strategy",
     # 펀더멘털 (Phase 1, runner 사후 주입). UI에서 활용.
     "per", "roe", "foreign_pct", "naver_url",
 ]
@@ -44,6 +46,8 @@ _CSV_FIELDS = [
 
 def _candidate_to_row(c: Candidate, rank: int) -> dict:
     meta = c.metadata or {}
+    rr_ratio_val = meta.get("rr_ratio")
+    atr_14_val = meta.get("atr_14")
     return {
         "rank": rank,
         "ticker": c.ticker,
@@ -61,6 +65,10 @@ def _candidate_to_row(c: Candidate, rank: int) -> dict:
         "risk_pct": round(c.risk_pct, 2),
         "reward_pct_t1": round(c.reward_pct_t1, 2),
         "reward_pct_t2": round(c.reward_pct_t2, 2),
+        "rr_ratio": round(rr_ratio_val, 2) if rr_ratio_val is not None else "",
+        "rr_band": meta.get("rr_band", ""),
+        "atr_14": round(atr_14_val, 2) if atr_14_val is not None else "",
+        "source_strategy": meta.get("source_strategy", ""),
         "per": meta.get("per"),
         "roe": meta.get("roe"),
         "foreign_pct": meta.get("foreign_pct"),
@@ -223,7 +231,7 @@ def format_csv(candidates: list[Candidate], target_date: str) -> str:
 # ============================================================================
 
 def format_markdown(candidates: list[Candidate], target_date: str) -> str:
-    """단일 전략 결과 markdown 테이블 (펀더멘털 컬럼 포함)."""
+    """단일 전략 결과 markdown 테이블 (펀더멘털 + RR/ATR 컬럼 포함)."""
     if not candidates:
         return f"# {target_date} 매수 후보 없음\n"
 
@@ -239,8 +247,8 @@ def format_markdown(candidates: list[Candidate], target_date: str) -> str:
     lines = [
         f"# {target_date} 매수 후보 ({len(candidates)}건)",
         "",
-        "| 순위 | 종목 | 이름 | Score | PER | ROE | 외인% | 현재가 | 진입 | 손절 | 목표1 | 목표2 | R:R |",
-        "|---:|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| 순위 | 종목 | 이름 | Score | PER | ROE | 외인% | R:R | ATR14 | RR대역 | 전략 | 현재가 | 진입 | 손절 | 목표1 | 목표2 |",
+        "|---:|:---|:---|---:|---:|---:|---:|---:|---:|:---|:---|---:|---:|---:|---:|---:|",
     ]
     for i, c in enumerate(candidates, 1):
         rr = c.reward_pct_t2 / c.risk_pct if c.risk_pct > 0 else 0
@@ -248,11 +256,15 @@ def format_markdown(candidates: list[Candidate], target_date: str) -> str:
         per = _meta_num(c.metadata, "per")
         roe = _meta_num(c.metadata, "roe")
         fp = _meta_num(c.metadata, "foreign_pct")
+        atr_14 = _meta_num(c.metadata, "atr_14", "{:.0f}")
+        rr_band = (c.metadata or {}).get("rr_band", "N/A")
+        source_strat = (c.metadata or {}).get("source_strategy", "")
         lines.append(
             f"| {i} | {c.ticker} | {c.name} | {c.score:.1f} | "
             f"{per} | {roe} | {fp} | "
+            f"1:{rr:.1f} | {atr_14} | {rr_band} | {source_strat} | "
             f"{cur} | {c.entry_price:,.0f} | {c.stop_loss:,.0f} | "
-            f"{c.target_1:,.0f} | {c.target_2:,.0f} | 1:{rr:.1f} |"
+            f"{c.target_1:,.0f} | {c.target_2:,.0f} |"
         )
     return "\n".join(lines) + "\n"
 

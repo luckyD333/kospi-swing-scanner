@@ -15,6 +15,7 @@ import logging
 import math
 from dataclasses import dataclass
 
+from backtest_engine.core import calc_atr
 from backtest_engine.detectors import (
     DoubleBottomDetector,
     DoubleBottomFractal,
@@ -154,6 +155,25 @@ class StrategyOneDv2:
                 target_1 = entry_price * (1 + engine_cfg.target_1_pct)
                 target_2 = entry_price * (1 + engine_cfg.target_2_pct)
 
+                # 신규 metadata 키 계산
+                risk_pct = (entry_price - stop_loss) / entry_price * 100
+                reward_pct_t2 = (target_2 - entry_price) / entry_price * 100
+                rr_ratio = 0.0 if risk_pct == 0 else reward_pct_t2 / risk_pct
+                if rr_ratio < 2.0:
+                    rr_band = "below"
+                elif rr_ratio < 2.5:
+                    rr_band = "sweet"
+                else:
+                    rr_band = "over"
+
+                # ATR 14일 계산 (NaN이면 None)
+                atr_series = calc_atr(df["high"], df["low"], df["close"], period=14)
+                atr_val = atr_series.iloc[-1]
+                if atr_val is not None and (atr_val != atr_val):  # NaN 체크
+                    atr_14 = None
+                else:
+                    atr_14 = float(atr_val) if atr_val is not None else None
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -168,7 +188,13 @@ class StrategyOneDv2:
                     market_cap_bil=cap_bil,
                     volume_20d_avg=avg_volume,
                     conditions_met=dict(signal.conditions_met),
-                    metadata={"market": ctx.market},
+                    metadata={
+                        "market": ctx.market,
+                        "source_strategy": self.name,
+                        "rr_ratio": rr_ratio,
+                        "rr_band": rr_band,
+                        "atr_14": atr_14,
+                    },
                 ))
             except Exception as e:
                 failed += 1

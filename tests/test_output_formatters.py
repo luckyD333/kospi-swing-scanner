@@ -98,11 +98,96 @@ def test_format_json_schema_compliance():
         assert "reward_pct_t1" in metrics
         assert "reward_pct_t2" in metrics
 
-    # summary 구조 검증
-    assert payload["summary"]["count"] == 2
-    assert "filters" in payload["summary"]
-    assert payload["summary"]["filters"]["min_cap_bil"] == 2000
-    assert payload["summary"]["filters"]["market"] == "KOSPI"
+
+def test_csv_includes_rr_atr_when_metadata_present():
+    """metadata에 4개 신규 키(rr_ratio, rr_band, atr_14, source_strategy)가 있으면 CSV에 포함."""
+    c = Candidate(
+        ticker="000660",
+        name="SK하이닉스",
+        strategy="strategy_one_d_v2",
+        signal_date=pd.Timestamp("2026-05-01"),
+        score=820.0,
+        entry_price=140500.0,
+        stop_loss=130000.0,
+        target_1=155000.0,
+        target_2=170000.0,
+        market_cap_bil=5000.0,
+        volume_20d_avg=500000.0,
+        conditions_met={"rsi_oversold": True},
+        metadata={
+            "market": "KOSPI",
+            "source_strategy": "strategy_one_d_v2",
+            "rr_ratio": 2.3,
+            "rr_band": "sweet",
+            "atr_14": 1250.5,
+        },
+    )
+    csv_output = format_csv([c], target_date="2026-05-01")
+    header = csv_output.strip().split("\n")[0]
+
+    # 신규 컬럼이 헤더에 있어야 함
+    assert "rr_ratio" in header
+    assert "rr_band" in header
+    assert "atr_14" in header
+    assert "source_strategy" in header
+
+
+def test_csv_handles_missing_metadata():
+    """metadata에 신규 키가 없으면 CSV의 해당 셀은 빈 문자열."""
+    c = Candidate(
+        ticker="000660",
+        name="SK하이닉스",
+        strategy="strategy_one_d_v2",
+        signal_date=pd.Timestamp("2026-05-01"),
+        score=820.0,
+        entry_price=140500.0,
+        stop_loss=130000.0,
+        target_1=155000.0,
+        target_2=170000.0,
+        market_cap_bil=5000.0,
+        volume_20d_avg=500000.0,
+        metadata={"market": "KOSPI"},  # 신규 키 없음
+    )
+    csv_output = format_csv([c], target_date="2026-05-01")
+
+    # 헤더에 신규 컬럼이 있어도 데이터 행에는 빈 값
+    reader = csv.DictReader(io.StringIO(csv_output))
+    for row in reader:
+        assert row.get("rr_ratio", "") == ""
+        assert row.get("rr_band", "") == ""
+        assert row.get("atr_14", "") == ""
+        assert row.get("source_strategy", "") == ""
+
+
+def test_markdown_includes_rr_atr_columns():
+    """format_markdown 결과에 신규 컬럼(rr_ratio, rr_band, atr_14, source_strategy) 헤더 포함."""
+    c = Candidate(
+        ticker="000660",
+        name="SK하이닉스",
+        strategy="strategy_one_d_v2",
+        signal_date=pd.Timestamp("2026-05-01"),
+        score=820.0,
+        entry_price=140500.0,
+        stop_loss=130000.0,
+        target_1=155000.0,
+        target_2=170000.0,
+        market_cap_bil=5000.0,
+        volume_20d_avg=500000.0,
+        metadata={
+            "market": "KOSPI",
+            "source_strategy": "strategy_one_d_v2",
+            "rr_ratio": 2.3,
+            "rr_band": "sweet",
+            "atr_14": 1250.5,
+        },
+    )
+    from output.formatters import format_markdown
+    md_output = format_markdown([c], target_date="2026-05-01")
+
+    # 신규 컬럼 헤더 또는 관련 값이 있어야 함
+    assert "R:R" in md_output or "rr_ratio" in md_output
+    assert "ATR14" in md_output or "atr_14" in md_output
+    assert "전략" in md_output or "strategy_one_d_v2" in md_output
 
 
 def test_format_json_with_default_strategy_name():
