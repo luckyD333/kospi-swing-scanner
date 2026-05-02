@@ -369,3 +369,179 @@ class TestRRFilter:
         assert hasattr(signal, 'metadata'), "TradeSignal에 metadata 필드 없음"
         assert 'rr_ratio' in signal.metadata, "metadata에 rr_ratio 없음"
         assert 'rr_band' in signal.metadata, "metadata에 rr_band 없음"
+
+
+class TestATRStops:
+    """ATR 기반 동적 손절·목표가 테스트 (PR #4)"""
+
+    def test_atr_stop_uses_max_when_atr_wider(self):
+        """고변동성 종목: ATR×1.5 > fixed% → ATR 손절 채택"""
+        # close 수열로 고변동 OHLCV 생성
+        closes = [100.0] * 20 + [95.0, 94.0, 93.0, 94.5, 95.5, 96.0, 96.5]
+        from backtest_engine.scenarios import _make_ohlcv_from_closes
+        df = _make_ohlcv_from_closes(
+            closes,
+            pd.Timestamp("2026-01-17"),
+            freq="D",
+            noise_pct=0.05,  # 고변동성 (±5%)
+            seed=42,
+        )
+
+        from backtest_engine.core import calc_atr
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=14,
+                use_atr_stops=True,
+                atr_stop_mult=1.5,
+                stop_loss_pct=0.025,
+                atr_min_threshold=0.0,
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(df)
+
+        # ATR 계산 확인
+        atr_series = calc_atr(df["high"], df["low"], df["close"], 14)
+        atr_at_idx = float(atr_series.iloc[-1])
+        assert atr_at_idx > 0, "ATR 계산 실패"
+
+        # entry 직전 봉에서 진입 시뮬레이션
+        entry_price = float(df.iloc[-1]["close"])
+        fixed_stop_distance = entry_price * 0.025
+        atr_stop_distance = atr_at_idx * 1.5
+
+        # ATR 손절이 더 넓어야 함 (고변동성)
+        assert atr_stop_distance > fixed_stop_distance, \
+            f"ATR {atr_stop_distance:.2f} > fixed {fixed_stop_distance:.2f}"
+
+    def test_atr_stop_uses_max_when_pct_wider(self):
+        """저변동성 종목: fixed% > ATR×1.5 → fixed% 손절 채택"""
+        # 저변동성 데이터
+        closes = [100.0] * 30 + [100.1, 100.05, 99.95, 100.0, 100.05]
+        from backtest_engine.scenarios import _make_ohlcv_from_closes
+        df = _make_ohlcv_from_closes(
+            closes,
+            pd.Timestamp("2026-01-17"),
+            freq="D",
+            noise_pct=0.001,  # 저변동성 (±0.1%)
+            seed=42,
+        )
+
+        from backtest_engine.core import calc_atr
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=14,
+                use_atr_stops=True,
+                atr_stop_mult=1.5,
+                stop_loss_pct=0.025,
+                atr_min_threshold=0.0,
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(df)
+
+        # ATR 계산 확인
+        atr_series = calc_atr(df["high"], df["low"], df["close"], 14)
+        atr_at_idx = float(atr_series.iloc[-1])
+
+        entry_price = float(df.iloc[-1]["close"])
+        fixed_stop_distance = entry_price * 0.025
+        atr_stop_distance = atr_at_idx * 1.5
+
+        # fixed% 손절이 더 넓어야 함 (저변동성)
+        assert fixed_stop_distance > atr_stop_distance, \
+            f"fixed {fixed_stop_distance:.2f} > ATR {atr_stop_distance:.2f}"
+
+    def test_atr_target_uses_atr_mult(self):
+        """target_2 = entry + ATR×3.0"""
+        closes = [100.0] * 20 + [95.0, 94.0, 93.0, 94.5, 95.5, 96.0, 96.5]
+        from backtest_engine.scenarios import _make_ohlcv_from_closes
+        df = _make_ohlcv_from_closes(
+            closes,
+            pd.Timestamp("2026-01-17"),
+            freq="D",
+            noise_pct=0.05,
+            seed=42,
+        )
+
+        from backtest_engine.core import calc_atr
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=14,
+                use_atr_stops=True,
+                atr_target_mult=3.0,
+                target_2_pct=0.05,
+                atr_min_threshold=0.0,
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(df)
+
+        atr_series = calc_atr(df["high"], df["low"], df["close"], 14)
+        atr_at_idx = float(atr_series.iloc[-1])
+        entry_price = float(df.iloc[-1]["close"])
+
+        expected_target_2_atr = entry_price + atr_at_idx * 3.0
+        fixed_target_2 = entry_price * (1 + 0.05)
+
+        # ATR 목표가가 fixed보다 높아야 함 (고변동성)
+        assert expected_target_2_atr > fixed_target_2
+
+    def test_atr_nan_falls_back_to_fixed_pct(self):
+        """상장 직후 < 14봉: ATR NaN → fixed% fallback"""
+        # 짧은 데이터 (< 14봉)
+        closes = [100.0, 100.5, 101.0, 100.8, 100.2, 100.5, 99.8, 100.3]
+        from backtest_engine.scenarios import _make_ohlcv_from_closes
+        df = _make_ohlcv_from_closes(
+            closes,
+            pd.Timestamp("2026-01-17"),
+            freq="D",
+        )
+
+        from backtest_engine.core import calc_atr
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=2,
+                use_atr_stops=True,
+                atr_stop_mult=1.5,
+                stop_loss_pct=0.025,
+                atr_min_threshold=0.0,
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(df)
+
+        atr_series = calc_atr(df["high"], df["low"], df["close"], 14)
+        # ATR가 NaN이어야 함 (lookback 부족)
+        atr_at_idx = atr_series.iloc[-1]
+        assert pd.isna(atr_at_idx), "짧은 데이터에서 ATR이 NaN이 아님"
+
+    def test_atr_below_threshold_falls_back(self):
+        """ATR < threshold: fixed% fallback"""
+        closes = [100.0] * 30 + [100.1, 100.05, 99.95, 100.0, 100.05]
+        from backtest_engine.scenarios import _make_ohlcv_from_closes
+        df = _make_ohlcv_from_closes(
+            closes,
+            pd.Timestamp("2026-01-17"),
+            freq="D",
+            noise_pct=0.001,
+        )
+
+        from backtest_engine.core import calc_atr
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=14,
+                use_atr_stops=True,
+                atr_stop_mult=1.5,
+                stop_loss_pct=0.025,
+                atr_min_threshold=0.5,  # 높은 threshold
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(df)
+
+        atr_series = calc_atr(df["high"], df["low"], df["close"], 14)
+        atr_at_idx = float(atr_series.iloc[-1])
+
+        # ATR이 threshold 미만이어야 함 (저변동성)
+        assert atr_at_idx < 0.5, f"ATR {atr_at_idx} >= threshold 0.5"

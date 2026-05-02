@@ -15,6 +15,7 @@ from .core import (
     ExitReason,
     Position,
     TradeSignal,
+    calc_atr,
     calc_bollinger,
     calc_macd,
     calc_rsi,
@@ -42,6 +43,36 @@ def _check_engulf(df: pd.DataFrame, idx: int, strict: bool) -> bool:
     if strict:
         return bool(curr["open"] <= prev["close"] and curr["close"] >= prev["open"])
     return bool(curr["close"] >= prev["close"] * 1.005)
+
+
+def _compute_stops_and_targets(
+    entry_price: float,
+    atr14: float | None,
+    config: StrategyDConfig,
+) -> tuple[float, float, float, float | None]:
+    """
+    손절가, target_1, target_2, 사용된 ATR 반환.
+
+    use_atr_stops=True 일 때:
+    - stop_loss = entry - max(fixed_pct, ATR×mult)
+    - target_2 = entry + ATR×mult
+
+    NaN 또는 threshold 미달 시 fixed% 로 fallback.
+    """
+    fixed_stop_distance = entry_price * config.stop_loss_pct
+    fixed_target_2 = entry_price * (1 + config.target_2_pct)
+    target_1 = entry_price * (1 + config.target_1_pct)
+
+    if not config.use_atr_stops:
+        return entry_price - fixed_stop_distance, target_1, fixed_target_2, None
+
+    if atr14 is None or pd.isna(atr14) or atr14 < config.atr_min_threshold:
+        return entry_price - fixed_stop_distance, target_1, fixed_target_2, None
+
+    # ATR 모드: max(fixed_pct, ATR×mult) 결합
+    stop_distance = max(fixed_stop_distance, atr14 * config.atr_stop_mult)
+    atr_target_2 = entry_price + atr14 * config.atr_target_mult
+    return entry_price - stop_distance, target_1, atr_target_2, atr14
 
 
 @dataclass
@@ -75,6 +106,12 @@ class StrategyDConfig:
     min_rr_ratio: float = 2.0    # 최소 손익비
     sweet_spot_rr_low: float = 2.0   # sweet spot 하한
     sweet_spot_rr_high: float = 2.5  # sweet spot 상한
+
+    # ATR 기반 동적 손절·목표가 (PR #4)
+    use_atr_stops: bool = False   # ATR 손절 활성화 여부
+    atr_stop_mult: float = 1.5    # 손절 = entry - max(fixed_pct, ATR×mult)
+    atr_target_mult: float = 3.0  # 목표가2 = entry + ATR×mult
+    atr_min_threshold: float = 0.0 # 저유동성 가드 (ATR < threshold 시 fixed% 사용)
 
     # 유니버스
     min_lookback_bars: int = 40
@@ -220,9 +257,17 @@ class StrategyD:
 
         # 진입가/손절/목표
         entry_price = float(current["close"])
-        stop_loss = entry_price * (1 - self.config.stop_loss_pct)
-        target_1 = entry_price * (1 + self.config.target_1_pct)
-        target_2 = entry_price * (1 + self.config.target_2_pct)
+
+        # ATR 계산 (use_atr_stops=True 이면)
+        atr14 = None
+        if self.config.use_atr_stops:
+            atr_series = calc_atr(df["high"], df["low"], df["close"], 14)
+            atr14 = atr_series.iloc[idx]
+
+        # 손절/목표가 계산 (ATR 또는 fixed%)
+        stop_loss, target_1, target_2, atr_used = _compute_stops_and_targets(
+            entry_price, atr14, self.config
+        )
 
         # RR 계산
         risk_pct = self.config.stop_loss_pct
@@ -257,6 +302,7 @@ class StrategyD:
             confidence=round(confidence, 4),
             conditions_met=conditions,
             metadata=signal_metadata,
+            atr_at_entry=atr_used,
         )
 
     # ------------------------------------------------------------------
