@@ -96,7 +96,15 @@ class StrategyDConfig:
     target_2_pct: float = 0.05   # +5% (2차 목표)
     stop_loss_pct: float = 0.025 # -2.5% (고정 손절)
     gap_down_pct: float = 0.03   # -3% 갭다운 손절
-    time_stop_bars: int = 3      # N봉 경과 시간 손절
+
+    # 조건부 시간 손절 (PR #5)
+    use_conditional_time_stop: bool = False
+    conditional_time_stop_bars: int = 3
+    min_progress_pct: float = 0.01  # 1%
+
+    # 기존 무조건 시간 손절 (backward compatible)
+    time_stop_bars: int = 3      # 호환성: force_time_stop_bars 미설정 시 폴백
+    force_time_stop_bars: int | None = None  # 신규 명시적 무조건 시간 손절
 
     # 진입 조건 — engulfing 엄격도
     engulf_strict: bool = True  # False: curr["close"] >= prev["close"] * 1.005
@@ -317,13 +325,19 @@ class StrategyD:
         """
         현재 봉에서 청산 조건 충족 여부 체크.
 
-        순서: 갭다운 → 손절 → 익절 → 시간 손절
+        우선순위:
+        1) GAP_DOWN (시가 기준, bars_held >= 1)
+        2) STOP_LOSS (저가 기준)
+        3) TARGET_1 / TARGET_2 (고가 기준)
+        4) CONDITIONAL_TIME_STOP (시간 + 조건)
+        5) TIME_STOP (시간, 무조건 또는 강제)
         """
         open_price = float(bar["open"])
         high_price = float(bar["high"])
         low_price = float(bar["low"])
+        close_price = float(bar["close"])
 
-        # 1) 갭다운 손절 (시가 기준 -3% 이상 갭다운)
+        # 1) 갭다운 손절 (시가 기준 -3% 이상 갭다운, 보유 1봉 이상만)
         gap_threshold = position.entry_price * (1 - self.config.gap_down_pct)
         if open_price <= gap_threshold and bars_held >= 1:
             return ExitReason.GAP_DOWN
@@ -340,8 +354,17 @@ class StrategyD:
         if high_price >= position.target_1:
             return ExitReason.TARGET_1
 
-        # 5) 시간 손절
-        if bars_held >= self.config.time_stop_bars:
+        # 5) 조건부 시간 손절
+        if (self.config.use_conditional_time_stop
+            and bars_held >= self.config.conditional_time_stop_bars):
+            current_pnl_pct = (close_price - position.entry_price) / position.entry_price
+            if current_pnl_pct < self.config.min_progress_pct:
+                return ExitReason.CONDITIONAL_TIME_STOP
+
+        # 6) 무조건 시간 손절
+        force_n = self.config.force_time_stop_bars
+        effective_n = force_n if force_n is not None else self.config.time_stop_bars
+        if bars_held >= effective_n:
             return ExitReason.TIME_STOP
 
         return None
@@ -361,6 +384,8 @@ class StrategyD:
             return position.target_1
         elif reason == ExitReason.TARGET_2:
             return position.target_2
+        elif reason == ExitReason.CONDITIONAL_TIME_STOP:
+            return float(bar["close"])
         elif reason == ExitReason.TIME_STOP:
             return float(bar["close"])
         return float(bar["close"])

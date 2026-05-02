@@ -545,3 +545,123 @@ class TestATRStops:
 
         # ATR이 threshold 미만이어야 함 (저변동성)
         assert atr_at_idx < 0.5, f"ATR {atr_at_idx} >= threshold 0.5"
+
+
+class TestConditionalTimeStop:
+    """조건부 시간 손절 테스트 (PR #5)"""
+
+    def _make_position(self, entry_price: float = 10000.0) -> Position:
+        """테스트용 포지션"""
+        return Position(
+            ticker="TEST",
+            entry_time=pd.Timestamp("2026-01-17"),
+            entry_price=entry_price,
+            shares=100,
+            stop_loss=entry_price * 0.975,  # -2.5%
+            target_1=entry_price * 1.03,     # +3%
+            target_2=entry_price * 1.05,     # +5%
+        )
+
+    def test_conditional_time_stop_triggers_on_no_progress(self):
+        """3봉 경과 + PnL < 1% → CONDITIONAL_TIME_STOP 발동"""
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                use_conditional_time_stop=True,
+                conditional_time_stop_bars=3,
+                min_progress_pct=0.01,
+            )
+        )
+        pos = self._make_position(entry_price=10000.0)
+        # 현재 종가 = 10000 + (10000 * 0.005) = 10050 → PnL = +0.5% (< 1% threshold)
+        bar = pd.Series({
+            "open": 10020.0,
+            "high": 10100.0,
+            "low": 9950.0,
+            "close": 10050.0,
+        })
+        reason = strategy.check_exit(pos, bar, bars_held=3)
+        assert reason == ExitReason.CONDITIONAL_TIME_STOP
+
+    def test_conditional_time_stop_skipped_with_progress(self):
+        """3봉 경과 + PnL >= 1% → CONDITIONAL_TIME_STOP 미발동"""
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                use_conditional_time_stop=True,
+                conditional_time_stop_bars=3,
+                min_progress_pct=0.01,
+                time_stop_bars=999,  # 무조건 시간 손절을 무한으로 설정하여 미발동
+            )
+        )
+        pos = self._make_position(entry_price=10000.0)
+        # 현재 종가 = 10000 + (10000 * 0.015) = 10150 → PnL = +1.5% (>= 1% threshold)
+        bar = pd.Series({
+            "open": 10050.0,
+            "high": 10200.0,
+            "low": 10000.0,
+            "close": 10150.0,
+        })
+        reason = strategy.check_exit(pos, bar, bars_held=3)
+        # 다른 조건 미충족 → None (청산 신호 없음)
+        assert reason is None
+
+    def test_conditional_time_stop_disabled_default(self):
+        """use_conditional_time_stop=False (디폴트) 시 미발동 (회귀 가드)"""
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                use_conditional_time_stop=False,  # 명시적 OFF
+                conditional_time_stop_bars=3,
+                min_progress_pct=0.01,
+            )
+        )
+        pos = self._make_position(entry_price=10000.0)
+        # PnL = +0.5%, bars_held=3 인데도 조건부 시간 손절 미발동
+        bar = pd.Series({
+            "open": 10020.0,
+            "high": 10100.0,
+            "low": 9950.0,
+            "close": 10050.0,
+        })
+        reason = strategy.check_exit(pos, bar, bars_held=3)
+        # CONDITIONAL_TIME_STOP 아님
+        assert reason != ExitReason.CONDITIONAL_TIME_STOP
+
+    def test_force_time_stop_alias_still_works(self):
+        """force_time_stop_bars 설정 시 무조건 시간 손절 발동 (alias 호환성)"""
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                use_conditional_time_stop=False,
+                force_time_stop_bars=3,
+                time_stop_bars=999,  # 이 값은 무시됨
+            )
+        )
+        pos = self._make_position()
+        # bars_held=3, 다른 조건 미충족
+        bar = pd.Series({
+            "open": 10050.0,
+            "high": 10150.0,
+            "low": 9900.0,
+            "close": 10100.0,
+        })
+        reason = strategy.check_exit(pos, bar, bars_held=3)
+        assert reason == ExitReason.TIME_STOP
+
+    def test_priority_stop_loss_beats_conditional_time_stop(self):
+        """같은 봉에 STOP_LOSS + CONDITIONAL_TIME_STOP 모두 조건 충족 → STOP_LOSS 우선"""
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                use_conditional_time_stop=True,
+                conditional_time_stop_bars=2,
+                min_progress_pct=0.01,
+            )
+        )
+        pos = self._make_position(entry_price=10000.0)
+        # 저가 = 9700 (손절가 9750 미만) + PnL = +0.5% + bars_held = 2
+        bar = pd.Series({
+            "open": 9800.0,
+            "high": 10100.0,
+            "low": 9700.0,
+            "close": 10050.0,
+        })
+        reason = strategy.check_exit(pos, bar, bars_held=2)
+        # STOP_LOSS가 우선순위 높음
+        assert reason == ExitReason.STOP_LOSS

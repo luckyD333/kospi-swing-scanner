@@ -305,7 +305,7 @@ print('ATR on :', run(StrategyDConfig(use_atr_stops=True)))
 - [x] 2026-05-02 PR #2 구현 (must_have DSL string/boolean + recipes, 383 passed, +7)
 - [x] 2026-05-02 PR #3 구현 (백테스트 RR 필터, 387 passed, +4)
 - [x] 2026-05-02 PR #4 구현 (백테스트 ATR 손절, 392 passed, +5)
-- [ ] PR #5 구현 (백테스트 조건부 시간 손절)
+- [x] 2026-05-02 PR #5 구현 (백테스트 조건부 시간 손절, 397 passed, +5)
 - [ ] 통합 회귀 검증
 
 ## Decision Log

@@ -25,6 +25,7 @@ class ExitReason(Enum):
     TARGET_2 = "target_2"       # 2차 목표 (+5%)
     STOP_LOSS = "stop_loss"     # 고정 손절 (-2.5%)
     GAP_DOWN = "gap_down"       # 갭다운 손절 (시초가 -3%)
+    CONDITIONAL_TIME_STOP = "conditional_time_stop"  # 조건부 시간 손절 (수익률 미달 시)
     TIME_STOP = "time_stop"     # 시간 손절 (N봉 경과)
 
 
