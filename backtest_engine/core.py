@@ -39,6 +39,7 @@ class TradeSignal:
     target_2: float
     confidence: float
     conditions_met: dict[str, bool] = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
         assert 0 <= self.confidence <= 1.0, f"confidence out of range: {self.confidence}"

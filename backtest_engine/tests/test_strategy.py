@@ -254,3 +254,118 @@ class TestStrategyDAllDetectors:
                 break
 
         assert signal_found, f"{detector_cls.__name__}으로 완벽 시나리오 진입 실패"
+
+
+class TestRRFilter:
+    """RR sweet spot 진입 필터 테스트 (PR #3)"""
+
+    def test_rr_filter_excludes_below_min(self, perfect_double_bottom_scenario):
+        """RR < min_rr_ratio 시그널은 use_rr_filter=True 시 reject"""
+        scenario = perfect_double_bottom_scenario
+        # 낮은 RR을 강제하기 위해 target_2를 낮게 설정
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=25,
+                use_rr_filter=True,
+                min_rr_ratio=2.0,
+                target_2_pct=0.02,  # +2%, stop_loss_pct=0.025 → RR=0.02/0.025=0.8 < 2.0
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(scenario.df)
+
+        signal = None
+        for idx in range(30, min(35, len(df))):
+            s = strategy.check_entry(df, idx)
+            if s is not None:
+                signal = s
+                break
+
+        assert signal is None, "RR < min_rr_ratio 시그널이 reject되지 않음"
+
+    def test_rr_filter_allows_sweet_spot(self, perfect_double_bottom_scenario):
+        """RR이 sweet spot 범위(2.0~2.5)인 시그널은 accept + rr_band='sweet'"""
+        scenario = perfect_double_bottom_scenario
+        # RR을 sweet spot 범위로 설정: target_2=0.05, stop_loss_pct=0.025 → RR=0.05/0.025=2.0
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=25,
+                use_rr_filter=True,
+                min_rr_ratio=2.0,
+                sweet_spot_rr_low=2.0,
+                sweet_spot_rr_high=2.5,
+                target_2_pct=0.05,
+                stop_loss_pct=0.025,
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(scenario.df)
+
+        signal = None
+        for idx in range(30, min(35, len(df))):
+            s = strategy.check_entry(df, idx)
+            if s is not None:
+                signal = s
+                break
+
+        assert signal is not None, "sweet spot RR 시그널이 accept되지 않음"
+        assert hasattr(signal, 'metadata'), "TradeSignal에 metadata 필드 없음"
+        assert signal.metadata.get('rr_band') == 'sweet', \
+            f"rr_band='sweet' 기대, 실제: {signal.metadata.get('rr_band')}"
+
+    def test_rr_filter_allows_above_sweet_spot(self, perfect_double_bottom_scenario):
+        """RR >= sweet_spot_rr_high인 시그널은 accept + rr_band='over'"""
+        scenario = perfect_double_bottom_scenario
+        # RR을 over범위로 설정: target_2=0.075, stop_loss_pct=0.025 → RR=0.075/0.025=3.0
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=25,
+                use_rr_filter=True,
+                min_rr_ratio=2.0,
+                sweet_spot_rr_low=2.0,
+                sweet_spot_rr_high=2.5,
+                target_2_pct=0.075,
+                stop_loss_pct=0.025,
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(scenario.df)
+
+        signal = None
+        for idx in range(30, min(35, len(df))):
+            s = strategy.check_entry(df, idx)
+            if s is not None:
+                signal = s
+                break
+
+        assert signal is not None, "over RR 시그널이 accept되지 않음"
+        assert signal.metadata.get('rr_band') == 'over', \
+            f"rr_band='over' 기대, 실제: {signal.metadata.get('rr_band')}"
+
+    def test_rr_filter_disabled_default(self, perfect_double_bottom_scenario):
+        """use_rr_filter=False(디폴트) 시 낮은 RR도 accept (회귀 가드)"""
+        scenario = perfect_double_bottom_scenario
+        # 낮은 RR 설정
+        strategy = StrategyD(
+            config=StrategyDConfig(
+                min_lookback_bars=25,
+                use_rr_filter=False,  # 명시적으로 OFF
+                target_2_pct=0.02,    # RR=0.02/0.025=0.8
+                stop_loss_pct=0.025,
+            ),
+            double_bottom_detector=DoubleBottomSimple(),
+        )
+        df = strategy.prepare(scenario.df)
+
+        signal = None
+        for idx in range(30, min(35, len(df))):
+            s = strategy.check_entry(df, idx)
+            if s is not None:
+                signal = s
+                break
+
+        assert signal is not None, "use_rr_filter=False일 때 낮은 RR 시그널이 reject됨"
+        # metadata에 rr_ratio, rr_band 있어야 함 (정보 제공용)
+        assert hasattr(signal, 'metadata'), "TradeSignal에 metadata 필드 없음"
+        assert 'rr_ratio' in signal.metadata, "metadata에 rr_ratio 없음"
+        assert 'rr_band' in signal.metadata, "metadata에 rr_band 없음"

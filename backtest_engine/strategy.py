@@ -23,7 +23,6 @@ from .detectors import (
     DoubleBottomDetector,
     DoubleBottomSimple,
     count_consecutive_bearish,
-    is_bullish_engulfing,
     is_today_bullish,
 )
 
@@ -70,6 +69,12 @@ class StrategyDConfig:
 
     # 진입 조건 — engulfing 엄격도
     engulf_strict: bool = True  # False: curr["close"] >= prev["close"] * 1.005
+
+    # RR sweet spot 필터 (PR #3)
+    use_rr_filter: bool = False  # RR 필터 활성화 여부
+    min_rr_ratio: float = 2.0    # 최소 손익비
+    sweet_spot_rr_low: float = 2.0   # sweet spot 하한
+    sweet_spot_rr_high: float = 2.5  # sweet spot 상한
 
     # 유니버스
     min_lookback_bars: int = 40
@@ -219,6 +224,29 @@ class StrategyD:
         target_1 = entry_price * (1 + self.config.target_1_pct)
         target_2 = entry_price * (1 + self.config.target_2_pct)
 
+        # RR 계산
+        risk_pct = self.config.stop_loss_pct
+        reward_pct_t2 = self.config.target_2_pct
+        rr_ratio = reward_pct_t2 / max(risk_pct, 1e-9)  # 0 분할 방지
+
+        # RR band 분류
+        if rr_ratio < self.config.sweet_spot_rr_low:
+            rr_band = "below"
+        elif rr_ratio < self.config.sweet_spot_rr_high:
+            rr_band = "sweet"
+        else:
+            rr_band = "over"
+
+        # RR 필터 적용
+        if self.config.use_rr_filter and rr_ratio < self.config.min_rr_ratio:
+            return None
+
+        # metadata 구성
+        signal_metadata = {
+            "rr_ratio": round(rr_ratio, 4),
+            "rr_band": rr_band,
+        }
+
         return TradeSignal(
             timestamp=df.index[idx],
             ticker=ticker,
@@ -228,6 +256,7 @@ class StrategyD:
             target_2=target_2,
             confidence=round(confidence, 4),
             conditions_met=conditions,
+            metadata=signal_metadata,
         )
 
     # ------------------------------------------------------------------

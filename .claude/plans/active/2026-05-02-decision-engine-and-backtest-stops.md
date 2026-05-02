@@ -303,7 +303,7 @@ print('ATR on :', run(StrategyDConfig(use_atr_stops=True)))
 - [x] 2026-05-02 사용자 최종 승인 (PR #1 부터 구현 시작)
 - [x] 2026-05-02 PR #1 구현 + commit `28e3c0c` (376 passed, +6)
 - [x] 2026-05-02 PR #2 구현 (must_have DSL string/boolean + recipes, 383 passed, +7)
-- [ ] PR #3 구현 (백테스트 RR 필터)
+- [x] 2026-05-02 PR #3 구현 (백테스트 RR 필터, 387 passed, +4)
 - [ ] PR #4 구현 (백테스트 ATR 손절)
 - [ ] PR #5 구현 (백테스트 조건부 시간 손절)
 - [ ] 통합 회귀 검증
