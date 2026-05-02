@@ -24,7 +24,7 @@ from .config import WeightConfig
 from .ensemble import (
     apply_minimax_regret,
     auto_volatility_scenarios,
-    compute_ensemble_count,
+    compute_weighted_ensemble_score,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,18 +120,24 @@ def _candidate_from_json(obj: dict, default_strategy: str) -> Candidate:
 
 def _build_unique_pool(
     by_strategy: dict[str, list[Candidate]],
+    strategy_weights: dict[str, float] | None = None,
 ) -> list[Candidate]:
-    """ticker별 1개 후보만 유지 (가장 높은 score 우선). ensemble_count 메타 주입."""
-    counts = compute_ensemble_count(by_strategy)
+    """ticker별 1개 후보만 유지 (가장 높은 score 우선). ensemble 메타 주입."""
+    sw = strategy_weights or {}
+    weighted_scores = compute_weighted_ensemble_score(by_strategy, sw)
     chosen: dict[str, Candidate] = {}
     for cands in by_strategy.values():
         for c in cands:
             existing = chosen.get(c.ticker)
             if existing is None or c.score > existing.score:
                 chosen[c.ticker] = c
-    # ensemble_count 메타 주입
     for ticker, cand in chosen.items():
-        cand.metadata = {**(cand.metadata or {}), "ensemble_count": counts.get(ticker, 1)}
+        ws = weighted_scores.get(ticker, 1.0)
+        cand.metadata = {
+            **(cand.metadata or {}),
+            "ensemble_count": int(round(ws)),   # 표시용 (decision_journal.py 기존 코드 호환)
+            "ensemble_score": ws,               # aggregator percentile 정렬용 (float)
+        }
     return list(chosen.values())
 
 
@@ -140,12 +146,20 @@ def run_decide_ranking(
     target_date: str,
     top_n: int,
     weight_config: WeightConfig,
+    *,
+    dynamic_weights_path: Path | None = None,
 ) -> Path:
     """후보 통합 ranking → scan_results/{date}/decision_top{N}.md 저장."""
     from output.decision_journal import format_ranking_report
 
+    if dynamic_weights_path is not None and dynamic_weights_path.exists():
+        try:
+            weight_config = WeightConfig.load_dynamic(dynamic_weights_path)
+        except (FileNotFoundError, ValueError) as e:
+            logger.warning(f"dynamic_weights 로드 실패, static fallback: {e}")
+
     by_strategy = load_candidates_from_manifest(scan_root)
-    pool = _build_unique_pool(by_strategy)
+    pool = _build_unique_pool(by_strategy, strategy_weights=weight_config.strategy_weights)
     ranked = aggregate_candidates(pool, weight_config)
     # Minimax Regret (자동 변동성 시나리오) 보조 정렬
     if ranked:
@@ -166,12 +180,20 @@ def run_decide_journal(
     tickers: list[str],
     weight_config: WeightConfig,
     notes: str | None = None,
+    *,
+    dynamic_weights_path: Path | None = None,
 ) -> list[Path]:
     """선택 ticker별 Decision Journal 파일 생성."""
     from output.decision_journal import format_decision_journal
 
+    if dynamic_weights_path is not None and dynamic_weights_path.exists():
+        try:
+            weight_config = WeightConfig.load_dynamic(dynamic_weights_path)
+        except (FileNotFoundError, ValueError) as e:
+            logger.warning(f"dynamic_weights 로드 실패, static fallback: {e}")
+
     by_strategy = load_candidates_from_manifest(scan_root)
-    pool = _build_unique_pool(by_strategy)
+    pool = _build_unique_pool(by_strategy, strategy_weights=weight_config.strategy_weights)
     ranked = aggregate_candidates(pool, weight_config)
     if ranked:
         regret_fn = auto_volatility_scenarios(ranked)

@@ -14,6 +14,7 @@ DSL 형식:
 """
 from __future__ import annotations
 
+import json
 import operator
 import re
 from dataclasses import dataclass, field
@@ -123,7 +124,11 @@ class WeightConfig:
             for item in data.get("priorities", [])
         ]
         must_have = list(data.get("must_have", []))
-        return cls(priorities=priorities, must_have=must_have)
+        strategy_weights = {
+            str(k): float(v)
+            for k, v in data.get("strategy_weights", {}).items()
+        }
+        return cls(priorities=priorities, must_have=must_have, strategy_weights=strategy_weights)
 
     def save(self, path: Path | str) -> None:
         p = Path(path)
@@ -136,10 +141,50 @@ class WeightConfig:
             ],
             "must_have": list(self.must_have),
         }
+        if self.strategy_weights:
+            payload["strategy_weights"] = dict(self.strategy_weights)
         p.write_text(
             yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
             encoding="utf-8",
         )
+
+    @classmethod
+    def load_dynamic(cls, path: Path | str) -> "WeightConfig":
+        """dynamic_weights.json → WeightConfig.
+
+        JSON 스키마:
+        {
+          "weight_config": {
+            "priorities": [{"key": "per", "weight": 28.5, "direction": "lower_better", "label": "저PER"}],
+            "must_have": ["per<30"],
+            "strategy_weights": {"strategy_one_d_v2": 2.0}
+          }
+        }
+        파일 없거나 파싱 실패 시 FileNotFoundError / ValueError raise.
+        """
+        p = Path(path)
+        if not p.exists():
+            raise FileNotFoundError(f"dynamic_weights 파일 없음: {p}")
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            raise ValueError(f"dynamic_weights 파싱 실패: {e}") from e
+        wc = data.get("weight_config", {})
+        priorities = [
+            Priority(
+                key=item["key"],
+                weight=float(item["weight"]),
+                direction=item["direction"],
+                label=item.get("label", item["key"]),
+            )
+            for item in wc.get("priorities", [])
+        ]
+        must_have = list(wc.get("must_have", []))
+        strategy_weights = {
+            str(k): float(v)
+            for k, v in wc.get("strategy_weights", {}).items()
+        }
+        return cls(priorities=priorities, must_have=must_have, strategy_weights=strategy_weights)
 
 
 # ---------------------------------------------------------------------------

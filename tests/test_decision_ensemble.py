@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import pandas as pd
 
+import pytest
+
 from core.decision.aggregator import RankedCandidate
 from core.decision.ensemble import (
     apply_minimax_regret,
     auto_volatility_scenarios,
     compute_ensemble_count,
+    compute_weighted_ensemble_score,
 )
 from core.strategy_base import Candidate
 
@@ -150,3 +153,47 @@ def test_auto_volatility_scenarios_basic():
     assert b_regret["bull"] >= a_regret["bull"]
     # bear 시나리오: B 의 risk(-5%) 가 더 큼 → B 의 손실 후회 더 큼
     assert b_regret["bear"] >= a_regret["bear"]
+
+
+# ---------------------------------------------------------------------------
+# compute_weighted_ensemble_score
+# ---------------------------------------------------------------------------
+
+def test_weighted_ensemble_score_strategy_one_d_v2_alone():
+    """strategy_one_d_v2 단독 등장 → score 2.0."""
+    by_strat = {"strategy_one_d_v2": [_cand("005930")]}
+    scores = compute_weighted_ensemble_score(
+        by_strat, {"strategy_one_d_v2": 2.0}
+    )
+    assert scores["005930"] == pytest.approx(2.0)
+
+
+def test_weighted_ensemble_score_two_low_weight_strategies():
+    """strategy_two(1.0) + strategy_three(1.0) → score 2.0."""
+    by_strat = {
+        "strategy_two": [_cand("005930")],
+        "strategy_three": [_cand("005930")],
+    }
+    scores = compute_weighted_ensemble_score(
+        by_strat,
+        {"strategy_two": 1.0, "strategy_three": 1.0},
+    )
+    assert scores["005930"] == pytest.approx(2.0)
+
+
+def test_weighted_ensemble_fallback_unknown_strategy():
+    """strategy_weights에 없는 전략 → 가중치 1.0."""
+    by_strat = {"unknown_strategy": [_cand("005930")]}
+    scores = compute_weighted_ensemble_score(by_strat, {})
+    assert scores["005930"] == pytest.approx(1.0)
+
+
+def test_weighted_ensemble_empty_weights_equals_count():
+    """strategy_weights 빈 dict → compute_ensemble_count 와 동일."""
+    by_strat = {
+        "strat_a": [_cand("005930"), _cand("000660")],
+        "strat_b": [_cand("005930")],
+    }
+    scores = compute_weighted_ensemble_score(by_strat, {})
+    assert scores["005930"] == pytest.approx(2.0)
+    assert scores["000660"] == pytest.approx(1.0)

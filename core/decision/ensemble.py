@@ -36,6 +36,27 @@ def compute_ensemble_count(
     return counts
 
 
+def compute_weighted_ensemble_score(
+    candidates_by_strategy: dict[str, list[Candidate]],
+    strategy_weights: dict[str, float],
+) -> dict[str, float]:
+    """ticker → weighted_ensemble_score (float).
+
+    각 전략의 등장에 strategy_weights[strategy_name] 만큼의 가중치를 부여.
+    strategy_weights 에 없는 전략은 1.0 으로 처리.
+    strategy_weights 가 비어있으면 compute_ensemble_count 와 동일 (모두 1.0).
+    """
+    scores: dict[str, float] = {}
+    for strategy_name, cands in candidates_by_strategy.items():
+        w = strategy_weights.get(strategy_name, 1.0)
+        seen_in_strategy: set[str] = set()
+        for c in cands:
+            if c.ticker not in seen_in_strategy:
+                scores[c.ticker] = scores.get(c.ticker, 0.0) + w
+                seen_in_strategy.add(c.ticker)
+    return scores
+
+
 def apply_minimax_regret(
     ranked: list[RankedCandidate],
     regret_fn: RegretFn,

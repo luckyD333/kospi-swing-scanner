@@ -5,6 +5,7 @@ Phase 2 의사결정 프레임워크의 가중치/필수 조건 데이터 모델
 """
 from __future__ import annotations
 
+import json
 
 import pytest
 
@@ -270,3 +271,71 @@ def test_eval_must_have_string_inequality_op_rejected():
     metrics = {"source_strategy": "abc"}
     # '<' 등 부등호는 numeric 전용 → 평가 실패 시 False
     assert eval_must_have(["source_strategy<gap"], metrics) is False
+
+
+# ---------------------------------------------------------------------------
+# strategy_weights — YAML 파싱 + save 왕복
+# ---------------------------------------------------------------------------
+
+def test_strategy_weights_yaml_roundtrip(tmp_path):
+    """strategy_weights 포함 YAML 저장/로드 왕복."""
+    yaml_path = tmp_path / "weights.yml"
+    cfg = WeightConfig(
+        priorities=[
+            Priority(key="per", weight=60.0, direction="lower_better", label="저PER"),
+            Priority(key="roe", weight=40.0, direction="higher_better", label="고ROE"),
+        ],
+        must_have=["per<30"],
+        strategy_weights={"strategy_one_d_v2": 2.0, "strategy_two": 1.0},
+    )
+    cfg.save(yaml_path)
+    loaded = WeightConfig.load(yaml_path)
+    assert loaded.strategy_weights == {"strategy_one_d_v2": 2.0, "strategy_two": 1.0}
+    assert loaded.must_have == ["per<30"]
+
+
+def test_save_excludes_empty_strategy_weights(tmp_path):
+    """strategy_weights 빈 dict → YAML에 strategy_weights 키 없음."""
+    import yaml as _yaml
+    yaml_path = tmp_path / "weights.yml"
+    cfg = WeightConfig(
+        priorities=[
+            Priority(key="per", weight=100.0, direction="lower_better", label="저PER"),
+        ],
+        must_have=[],
+        strategy_weights={},
+    )
+    cfg.save(yaml_path)
+    raw = _yaml.safe_load(yaml_path.read_text())
+    assert "strategy_weights" not in raw
+
+
+def test_load_dynamic_returns_weight_config(tmp_path):
+    """load_dynamic() — dynamic_weights.json → WeightConfig."""
+    dynamic = {
+        "computed_at": "2026-05-02T09:00:00",
+        "regime_score": 72,
+        "weight_config": {
+            "priorities": [
+                {"key": "per", "weight": 28.5, "direction": "lower_better", "label": "저PER"},
+                {"key": "roe", "weight": 30.0, "direction": "higher_better", "label": "고ROE"},
+                {"key": "momentum_pct", "weight": 41.5, "direction": "higher_better", "label": "모멘텀"},
+            ],
+            "must_have": ["per<30"],
+            "strategy_weights": {"strategy_one_d_v2": 2.0},
+        },
+    }
+    p = tmp_path / "dynamic_weights.json"
+    p.write_text(json.dumps(dynamic))
+
+    cfg = WeightConfig.load_dynamic(p)
+    assert len(cfg.priorities) == 3
+    assert abs(sum(x.weight for x in cfg.priorities) - 100.0) < 0.01
+    assert cfg.strategy_weights == {"strategy_one_d_v2": 2.0}
+    assert cfg.must_have == ["per<30"]
+
+
+def test_load_dynamic_missing_file_raises(tmp_path):
+    """존재하지 않는 파일 → FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        WeightConfig.load_dynamic(tmp_path / "nonexistent.json")
