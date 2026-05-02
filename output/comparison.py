@@ -8,24 +8,23 @@ from __future__ import annotations
 import csv
 import io
 import json
-from typing import Dict, List
 
 from core.strategy_base import Candidate
 
 
-def _normalize(results: Dict[str, List[Candidate]]) -> Dict[str, List[Candidate]]:
+def _normalize(results: dict[str, list[Candidate]]) -> dict[str, list[Candidate]]:
     """전략명 정렬 + None 제거."""
     return {k: list(v or []) for k, v in sorted(results.items())}
 
 
-def overlap_summary(results: Dict[str, List[Candidate]]) -> Dict[str, List[str]]:
+def overlap_summary(results: dict[str, list[Candidate]]) -> dict[str, list[str]]:
     """
     전략 간 ticker 교집합 요약.
 
     Returns:
       {ticker: [strategy_name, ...]}  — 2개 이상 전략에서 등장한 ticker 만
     """
-    by_ticker: Dict[str, List[str]] = {}
+    by_ticker: dict[str, list[str]] = {}
     for strat, cands in results.items():
         for c in cands:
             by_ticker.setdefault(c.ticker, []).append(strat)
@@ -33,7 +32,7 @@ def overlap_summary(results: Dict[str, List[Candidate]]) -> Dict[str, List[str]]
 
 
 def format_markdown_comparison(
-    results: Dict[str, List[Candidate]],
+    results: dict[str, list[Candidate]],
     target_date: str,
     top_n: int = 10,
 ) -> str:
@@ -57,7 +56,7 @@ def format_markdown_comparison(
             cands = norm[strat]
             if i < len(cands):
                 c = cands[i]
-                cells.append(f"{c.ticker} {c.name} ({c.score:.2f})")
+                cells.append(f"{c.ticker} {c.name} ({c.score:.1f}pt)")
             else:
                 cells.append("—")
         lines.append(f"| {i+1} | " + " | ".join(cells) + " |")
@@ -78,7 +77,7 @@ def format_markdown_comparison(
 
 
 def format_csv_comparison(
-    results: Dict[str, List[Candidate]],
+    results: dict[str, list[Candidate]],
     target_date: str,
 ) -> str:
     """flat CSV: 행 = 전략 × 후보."""
@@ -92,7 +91,7 @@ def format_csv_comparison(
     for strat, cands in norm.items():
         for i, c in enumerate(cands, 1):
             writer.writerow([
-                target_date, strat, i, c.ticker, c.name, round(c.score, 4),
+                target_date, strat, i, c.ticker, c.name, round(c.score, 1),
                 round(c.entry_price, 2), round(c.stop_loss, 2),
                 round(c.target_1, 2), round(c.target_2, 2),
             ])
@@ -100,7 +99,7 @@ def format_csv_comparison(
 
 
 def format_json_comparison(
-    results: Dict[str, List[Candidate]],
+    results: dict[str, list[Candidate]],
     target_date: str,
     indent: int = 2,
 ) -> str:
@@ -114,7 +113,7 @@ def format_json_comparison(
                     "rank": i + 1,
                     "ticker": c.ticker,
                     "name": c.name,
-                    "score": round(c.score, 4),
+                    "score": round(c.score, 1),
                     "entry_price": round(c.entry_price, 2),
                     "stop_loss": round(c.stop_loss, 2),
                     "target_1": round(c.target_1, 2),

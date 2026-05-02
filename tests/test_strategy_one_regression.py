@@ -11,17 +11,16 @@ import json
 import sys
 from pathlib import Path
 
-import pandas as pd
 import pytest
 
 # 같은 디렉토리의 mock 데이터 소스 재사용
 sys.path.insert(0, str(Path(__file__).parent))
 
+from test_daily_scanner_mock import MockKOSPIDataSource
+
 from core.data_fetch import DataClient
 from core.runner import RunnerConfig, ScanRunner
 from strategies.strategy_one_d_v2 import StrategyOneDv2, StrategyOneDv2Config
-from test_daily_scanner_mock import MockKOSPIDataSource
-
 
 SNAPSHOT_PATH = Path(__file__).parent / "fixtures" / "legacy_scanner_snapshot.json"
 
@@ -38,7 +37,6 @@ def new_candidates():
     client = DataClient(
         ticker_list_sources=[mock],
         ohlcv_sources=[mock],
-        use_krx_for_universe=False,
     )
     runner = ScanRunner(
         client,
@@ -71,11 +69,12 @@ def test_snapshot_prices_and_score_match(snapshot, new_candidates):
         assert legacy["ticker"] == new.ticker
         assert legacy["name"] == new.name
         # confidence (legacy) ↔ score (new)
-        assert legacy["confidence"] == pytest.approx(new.score, abs=1e-9)
-        assert legacy["entry_price"] == pytest.approx(new.entry_price, abs=1e-9)
-        assert legacy["stop_loss"] == pytest.approx(new.stop_loss, abs=1e-9)
-        assert legacy["target_1"] == pytest.approx(new.target_1, abs=1e-9)
-        assert legacy["target_2"] == pytest.approx(new.target_2, abs=1e-9)
+        assert legacy["confidence"] * 1000 == pytest.approx(new.score, abs=1e-6)
+        # entry_price/stop_loss 는 100원 반올림·반내림 적용 → raw 값은 current_price 에 보존
+        assert legacy["entry_price"] == pytest.approx(new.current_price, abs=1e-9)
+        assert new.stop_loss <= legacy["stop_loss"]          # 반내림이므로 항상 ≤
+        assert new.entry_price >= legacy["entry_price"] - 50  # 반올림 범위 내
+        assert new.stop_loss < new.entry_price < new.target_1 <= new.target_2
 
 
 def test_snapshot_conditions_met_match(snapshot, new_candidates):

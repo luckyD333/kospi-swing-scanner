@@ -1,14 +1,14 @@
 """strategy.py 테스트: Strategy D v2 진입/청산 로직"""
-import pytest
 import pandas as pd
+import pytest
 
-from backtest_engine.strategy import StrategyD, StrategyDConfig
-from backtest_engine.core import Position, ExitReason, TradeSignal
+from backtest_engine.core import ExitReason, Position
 from backtest_engine.detectors import (
-    DoubleBottomSimple,
     DoubleBottomFractal,
     DoubleBottomProminence,
+    DoubleBottomSimple,
 )
+from backtest_engine.strategy import StrategyD, StrategyDConfig
 
 
 class TestStrategyDEntry:

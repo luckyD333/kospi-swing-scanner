@@ -1,9 +1,8 @@
 """pytest 공통 fixture"""
 import sys
 from pathlib import Path
+
 import pytest
-import pandas as pd
-import numpy as np
 
 # 부모 디렉토리를 import path에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

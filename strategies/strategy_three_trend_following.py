@@ -25,15 +25,19 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import List
 
-import numpy as np
 import pandas as pd
 
 from core.indicators import calc_atr
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
+
+_TF_NAMES: dict[str, str] = {
+    "1D": "strategy_three_trend_following",
+    "1h": "strategy_three_1h",
+    "30m": "strategy_three_30m",
+}
 
 
 @dataclass(frozen=True)
@@ -44,7 +48,7 @@ class StrategyThreeConfig:
     stop_loss_pct: float = 0.025        # 진입가 -2.5% (보수적 SL 한계)
     target_1_pct: float = 0.03          # +3%
     target_2_pct: float = 0.05          # +5%
-    score_scale: float = 20.0           # breakout_pct × scale → score (0..1 cap)
+    score_scale: float = 20000.0        # breakout_pct × scale → score (0..1000 cap; 5% 돌파 = 1000점)
 
 
 class StrategyThreeTrendFollowing:
@@ -52,7 +56,9 @@ class StrategyThreeTrendFollowing:
 
     name = "strategy_three_trend_following"
 
-    def __init__(self, config: StrategyThreeConfig | None = None):
+    def __init__(self, config: StrategyThreeConfig | None = None, timeframe: str = "1D"):
+        if timeframe not in _TF_NAMES:
+            raise ValueError(f"unsupported timeframe: {timeframe}. 지원: {list(_TF_NAMES)}")
         cfg = config or StrategyThreeConfig()
         if cfg.lookback <= 0:
             raise ValueError(f"lookback must be positive, got {cfg.lookback}")
@@ -63,19 +69,22 @@ class StrategyThreeTrendFollowing:
                 f"atr_filter_multiplier must be ≥ 0, got {cfg.atr_filter_multiplier}"
             )
         self.config = cfg
+        self.timeframe = timeframe
+        self.name = _TF_NAMES[timeframe]
 
     # ------------------------------------------------------------------
     # Strategy Protocol
     # ------------------------------------------------------------------
 
-    def scan(self, ctx: ScanContext, top_n: int) -> List[Candidate]:
+    def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
         cfg = self.config
         # 채널 산출에 lookback+1, ATR 산출에 atr_period+1 봉 필요.
         min_bars = max(cfg.lookback + 1, cfg.atr_period + 1)
 
-        candidates: List[Candidate] = []
+        tf_data = ctx.ohlcv_by_tf.get(self.timeframe, {}) or ctx.ohlcv
+        candidates: list[Candidate] = []
         for ticker in ctx.universe:
-            df = ctx.ohlcv.get(ticker)
+            df = tf_data.get(ticker)
             if df is None or len(df) < min_bars:
                 continue
 
@@ -108,7 +117,7 @@ class StrategyThreeTrendFollowing:
                         continue
 
                 # 5) Score = 돌파 강도 (cap [0, 1])
-                score = float(min(1.0, max(0.0, breakout_pct * cfg.score_scale)))
+                score = float(min(1000.0, max(0.0, breakout_pct * cfg.score_scale)))
 
                 # 6) SL = max(채널 저점 -1%, 진입가 -2.5%)
                 #    더 보수적(=진입가에 가까운) 쪽 선택.

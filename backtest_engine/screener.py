@@ -6,22 +6,16 @@ screener.py — 다중 타임프레임 스크리너
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 from datetime import datetime
 
-import numpy as np
 import pandas as pd
 
-from .core import TradeSignal
-from .strategy import StrategyD, StrategyDConfig
 from .detectors import (
     DoubleBottomDetector,
     DoubleBottomSimple,
-    DoubleBottomFractal,
-    DoubleBottomProminence,
 )
-
+from .strategy import StrategyD, StrategyDConfig
 
 # 지원 타임프레임
 SUPPORTED_TIMEFRAMES = ["30m", "1h", "2h", "4h", "1D"]
@@ -38,7 +32,7 @@ class ScreenerHit:
     target_1: float
     target_2: float
     confidence: float
-    conditions_met: Dict[str, bool]
+    conditions_met: dict[str, bool]
 
     @property
     def risk_pct(self) -> float:
@@ -58,7 +52,7 @@ class ScreenerHit:
             return 0.0
         return self.reward_pct_target_2 / self.risk_pct
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "ticker": self.ticker,
             "timeframe": self.timeframe,
@@ -81,17 +75,17 @@ class ScreenerResult:
     """전체 스크리닝 결과"""
     scan_time: datetime
     total_scanned: int
-    hits: List[ScreenerHit]
+    hits: list[ScreenerHit]
 
-    def top_by_confidence(self, n: int = 10) -> List[ScreenerHit]:
+    def top_by_confidence(self, n: int = 10) -> list[ScreenerHit]:
         return sorted(self.hits, key=lambda h: h.confidence, reverse=True)[:n]
 
-    def filter_by_timeframe(self, timeframe: str) -> List[ScreenerHit]:
+    def filter_by_timeframe(self, timeframe: str) -> list[ScreenerHit]:
         return [h for h in self.hits if h.timeframe == timeframe]
 
-    def multi_timeframe_confluence(self, min_timeframes: int = 2) -> List[str]:
+    def multi_timeframe_confluence(self, min_timeframes: int = 2) -> list[str]:
         """여러 타임프레임에서 동시에 시그널 난 종목"""
-        by_ticker: Dict[str, List[str]] = {}
+        by_ticker: dict[str, list[str]] = {}
         for h in self.hits:
             by_ticker.setdefault(h.ticker, []).append(h.timeframe)
         return [
@@ -121,9 +115,9 @@ class MultiTimeframeScreener:
 
     def __init__(
         self,
-        strategy_config: Optional[StrategyDConfig] = None,
-        detector: Optional[DoubleBottomDetector] = None,
-        timeframes: Optional[List[str]] = None,
+        strategy_config: StrategyDConfig | None = None,
+        detector: DoubleBottomDetector | None = None,
+        timeframes: list[str] | None = None,
     ):
         self.strategy_config = strategy_config or StrategyDConfig(min_lookback_bars=25)
         self.detector_factory = detector
@@ -136,8 +130,8 @@ class MultiTimeframeScreener:
     def scan_single_ticker(
         self,
         ticker: str,
-        data_by_timeframe: Dict[str, pd.DataFrame],
-    ) -> List[ScreenerHit]:
+        data_by_timeframe: dict[str, pd.DataFrame],
+    ) -> list[ScreenerHit]:
         """단일 종목의 여러 타임프레임 스캔"""
         hits = []
         for tf, df in data_by_timeframe.items():
@@ -153,7 +147,7 @@ class MultiTimeframeScreener:
         ticker: str,
         timeframe: str,
         df: pd.DataFrame,
-    ) -> Optional[ScreenerHit]:
+    ) -> ScreenerHit | None:
         """단일 종목 × 단일 타임프레임 스캔 (최신 봉에서 진입 조건 체크)"""
         strategy = self._get_strategy()
         prepared = strategy.prepare(df)
@@ -180,7 +174,7 @@ class MultiTimeframeScreener:
 
     def scan_multi(
         self,
-        universe: Dict[str, Dict[str, pd.DataFrame]],
+        universe: dict[str, dict[str, pd.DataFrame]],
     ) -> ScreenerResult:
         """
         여러 종목 × 여러 타임프레임 스캔.
@@ -191,7 +185,7 @@ class MultiTimeframeScreener:
         Returns:
             ScreenerResult
         """
-        hits: List[ScreenerHit] = []
+        hits: list[ScreenerHit] = []
         for ticker, data_by_tf in universe.items():
             ticker_hits = self.scan_single_ticker(ticker, data_by_tf)
             hits.extend(ticker_hits)

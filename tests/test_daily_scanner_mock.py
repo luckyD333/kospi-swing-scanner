@@ -10,9 +10,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List
 
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -23,7 +21,6 @@ from core.data_sources.base import DailyDataSource
 from core.runner import RunnerConfig, ScanRunner
 from output.formatters import format_table
 from strategies.strategy_one_d_v2 import StrategyOneDv2
-
 
 # ============================================================================
 # Mock 데이터 소스 (다른 테스트의 fixture 로 import 됨)
@@ -66,7 +63,7 @@ class MockKOSPIDataSource(DailyDataSource):
         }
         self._lookup = {t: (n, c, s) for t, n, c, s in self.MOCK_UNIVERSE}
 
-    def get_tickers(self, market: str, target_date: str) -> List[str]:
+    def get_tickers(self, market: str, target_date: str) -> list[str]:
         return [t for t, _, _, _ in self.MOCK_UNIVERSE]
 
     def get_ticker_name(self, ticker: str) -> str:
@@ -89,7 +86,7 @@ class MockKOSPIDataSource(DailyDataSource):
         return df
 
     def get_market_cap(self, market: str, target_date: str) -> pd.DataFrame:
-        """Mock 시가총액 DataFrame (pykrx 형식 모방)."""
+        """Mock 시가총액 DataFrame (네이버 형식: 시가총액, 종목명 컬럼)."""
         data = {
             ticker: {"시가총액": cap * 100_000_000, "종목명": name}
             for ticker, name, cap, _ in self.MOCK_UNIVERSE
@@ -107,7 +104,6 @@ def test_scanner_end_to_end():
     client = DataClient(
         ticker_list_sources=[mock],
         ohlcv_sources=[mock],
-        use_krx_for_universe=False,
     )
     runner = ScanRunner(
         client,
@@ -146,7 +142,7 @@ def test_scanner_end_to_end():
     # 4) 가격 순서 + 비율
     for c in candidates:
         assert c.stop_loss < c.entry_price < c.target_1 <= c.target_2
-        assert 2.0 < c.risk_pct < 3.0
+        assert 2.0 < c.risk_pct < 4.0  # 100원 반올림·반내림 후 최대 ~3.2%
         assert 2.5 < c.reward_pct_t1 < 3.5
         assert 4.5 < c.reward_pct_t2 < 5.5
 

@@ -1,14 +1,11 @@
 """detectors.py 테스트: 쌍바닥 감지 3가지 구현 비교"""
-import pytest
-import pandas as pd
 
 from backtest_engine.detectors import (
-    DoubleBottomSimple,
     DoubleBottomFractal,
     DoubleBottomProminence,
-    is_bullish_engulfing,
-    is_bearish_engulfing,
+    DoubleBottomSimple,
     count_consecutive_bearish,
+    is_bullish_engulfing,
     is_today_bullish,
 )
 
@@ -51,7 +48,7 @@ class TestDoubleBottomFractal:
 
         # 둘 다 감지될 수도 있고 Fractal만 실패할 수도 있음
         simple_result = simple.detect(df)
-        fractal_result = fractal.detect(df)
+        fractal.detect(df)
 
         # Simple은 감지되어야 함 (완벽 시나리오)
         assert simple_result is not None
@@ -113,7 +110,7 @@ class TestCandidatePriceRegression:
         """Fractal detector candidate_price 리팩터링 이후 감지 유지"""
         df = perfect_double_bottom_scenario.df.iloc[:33]
         # Fractal은 엄격해서 실패할 수 있으나 예외는 발생 안 해야 함
-        result = DoubleBottomFractal().detect(df)
+        DoubleBottomFractal().detect(df)
         # 결과 유무 무관하게 예외 없이 실행되면 통과
 
 

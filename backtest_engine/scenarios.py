@@ -12,15 +12,14 @@ TDD를 위해 알려진 결과가 있는 합성 시장 데이터를 프로그래
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 
 
 def _make_ohlcv_from_closes(
-    closes: List[float],
+    closes: list[float],
     start_time: datetime,
     freq: str,
     volume_base: int = 100_000,
@@ -80,8 +79,8 @@ class Scenario:
     """백테스트용 시나리오"""
     name: str
     df: pd.DataFrame
-    expected_entry_idx: Optional[int]       # 예상 진입 봉 (없으면 None)
-    expected_exit_idx: Optional[int]        # 예상 청산 봉
+    expected_entry_idx: int | None       # 예상 진입 봉 (없으면 None)
+    expected_exit_idx: int | None        # 예상 청산 봉
     expected_outcome: str                   # "win" / "loss" / "no_trade"
     notes: str = ""
 
@@ -331,7 +330,7 @@ class ScenarioBuilder:
         )
 
     @staticmethod
-    def all() -> List[Scenario]:
+    def all() -> list[Scenario]:
         """전체 시나리오 목록"""
         return [
             ScenarioBuilder.perfect_double_bottom(),

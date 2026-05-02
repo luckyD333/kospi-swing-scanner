@@ -12,23 +12,19 @@ demo.py — 백테스트 엔진 + 스크리너 통합 실행 데모
 """
 from __future__ import annotations
 
-import sys
 from datetime import datetime
-from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
-from .scenarios import ScenarioBuilder
-from .strategy import StrategyD, StrategyDConfig
-from .engine import BacktestEngine, BacktestConfig
-from .screener import MultiTimeframeScreener, SUPPORTED_TIMEFRAMES
 from .detectors import (
-    DoubleBottomSimple,
     DoubleBottomFractal,
     DoubleBottomProminence,
+    DoubleBottomSimple,
 )
-
+from .engine import BacktestConfig, BacktestEngine
+from .scenarios import ScenarioBuilder
+from .screener import SUPPORTED_TIMEFRAMES, MultiTimeframeScreener, ScreenerHit
+from .strategy import StrategyD, StrategyDConfig
 
 # ============================================================================
 # 출력 유틸
@@ -165,7 +161,7 @@ def demo_detector_comparison():
 # 3. 다중 타임프레임 스크리너
 # ============================================================================
 
-def _make_ticker_data(base_scenario_func, ticker_name: str, seed: int):
+def _make_ticker_data(base_scenario_func, _ticker_name: str, seed: int):
     """타임프레임별 동일 패턴의 가상 데이터 생성"""
     # 30m/1h/2h/4h/1D 모두 같은 시나리오의 복사본 (freq만 변경)
     data = {}
@@ -198,7 +194,7 @@ def demo_screener():
         ("207940_삼성바이오로직스", ScenarioBuilder.choppy_no_signal, 99),
     ]
 
-    universe: Dict[str, Dict[str, pd.DataFrame]] = {}
+    universe: dict[str, dict[str, pd.DataFrame]] = {}
     for ticker, scenario_func, seed in universe_setup:
         # 진입봉까지만 데이터를 잘라서 "지금 이 순간" 시그널 탐지 상황 연출
         data_by_tf = _make_ticker_data(scenario_func, ticker, seed)
@@ -233,7 +229,7 @@ def demo_screener():
     # 타임프레임 confluence (여러 TF 동시 시그널)
     confluence = result.multi_timeframe_confluence(min_timeframes=3)
     if confluence:
-        print_section(f"💎 다중 타임프레임 Confluence 종목 (3개 이상 TF 동시 시그널)")
+        print_section("💎 다중 타임프레임 Confluence 종목 (3개 이상 TF 동시 시그널)")
         for ticker in confluence:
             ticker_hits = [h for h in result.hits if h.ticker == ticker]
             tfs = sorted(set(h.timeframe for h in ticker_hits))
@@ -277,7 +273,7 @@ def demo_final_buy_list():
     result = screener.scan_multi(universe)
 
     # 상위 5개 종목 × 최고 confidence 타임프레임만
-    best_per_ticker: Dict[str, 'ScreenerHit'] = {}
+    best_per_ticker: dict[str, ScreenerHit] = {}
     for hit in result.hits:
         if hit.ticker not in best_per_ticker:
             best_per_ticker[hit.ticker] = hit

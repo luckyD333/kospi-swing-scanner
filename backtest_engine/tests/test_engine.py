@@ -1,15 +1,13 @@
 """engine.py 테스트: 시나리오 기반 end-to-end 백테스트"""
-import pytest
 import pandas as pd
 
+from backtest_engine.core import ExitReason
 from backtest_engine.engine import (
-    BacktestEngine,
     BacktestConfig,
+    BacktestEngine,
     CashAllocationConservative,
-    CashAllocationAggressive,
 )
 from backtest_engine.strategy import StrategyD, StrategyDConfig
-from backtest_engine.core import ExitReason
 
 
 class TestEngineSingleScenario:
@@ -147,7 +145,7 @@ class TestAllocationStrategies:
         positions = {"A": None, "B": None}  # Position 객체 내용은 테스트에 불필요
         signal = None  # not used here
 
-        from backtest_engine.core import TradeSignal, Position
+        from backtest_engine.core import Position, TradeSignal
         dummy_pos = Position(
             ticker="A",
             entry_time=pd.Timestamp("2026-01-01"),
@@ -224,8 +222,8 @@ class TestEdgeCases:
 
     def test_aggressive_allocator_does_not_crash(self):
         """CashAllocationAggressive가 예외 없이 동작"""
-        from backtest_engine.engine import CashAllocationAggressive, BacktestConfig
-        from backtest_engine.core import TradeSignal, Position
+        from backtest_engine.core import Position, TradeSignal
+        from backtest_engine.engine import BacktestConfig, CashAllocationAggressive
         alloc = CashAllocationAggressive()
         config = BacktestConfig(max_positions=2)
         pos = Position(

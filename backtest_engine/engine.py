@@ -8,21 +8,18 @@ engine.py — 백테스트 엔진
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
-from enum import Enum
+from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
 
 from .core import (
-    TradeSignal,
+    BacktestResult,
+    ExitReason,
     Position,
     Trade,
-    ExitReason,
-    BacktestResult,
+    TradeSignal,
 )
-from .strategy import StrategyD, StrategyDConfig
+from .strategy import StrategyD
 
 
 @dataclass
@@ -43,11 +40,11 @@ class AllocationStrategy(ABC):
     def should_enter(
         self,
         signal: TradeSignal,
-        positions: Dict[str, Position],
+        positions: dict[str, Position],
         cash: float,
         total_capital: float,
         config: BacktestConfig,
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         진입 여부 결정.
 
@@ -108,7 +105,7 @@ class BacktestEngine:
     def __init__(
         self,
         strategy: StrategyD,
-        config: Optional[BacktestConfig] = None,
+        config: BacktestConfig | None = None,
     ):
         self.strategy = strategy
         self.config = config or BacktestConfig()
@@ -130,12 +127,12 @@ class BacktestEngine:
 
     def run_multi(
         self,
-        data: Dict[str, pd.DataFrame],
+        data: dict[str, pd.DataFrame],
     ) -> BacktestResult:
         """여러 종목 동시 백테스트. 시간순으로 진행."""
 
         # 1) 각 종목에 지표 미리 계산
-        prepared: Dict[str, pd.DataFrame] = {
+        prepared: dict[str, pd.DataFrame] = {
             ticker: self.strategy.prepare(df) for ticker, df in data.items()
         }
 
@@ -151,9 +148,9 @@ class BacktestEngine:
 
         # 3) 상태 초기화
         cash = self.config.initial_capital
-        positions: Dict[str, Position] = {}
-        trades: List[Trade] = []
-        equity_points: List[Tuple[pd.Timestamp, float]] = []
+        positions: dict[str, Position] = {}
+        trades: list[Trade] = []
+        equity_points: list[tuple[pd.Timestamp, float]] = []
 
         # 4) 각 시간대별 순회
         for t in all_times:
@@ -191,7 +188,7 @@ class BacktestEngine:
                     del positions[ticker]
 
             # 4-2) 새 진입 시그널 수집
-            signals_this_bar: List[TradeSignal] = []
+            signals_this_bar: list[TradeSignal] = []
             for ticker, df in prepared.items():
                 if t not in df.index:
                     continue
@@ -287,7 +284,7 @@ class BacktestEngine:
 
     def _current_price(
         self,
-        prepared: Dict[str, pd.DataFrame],
+        prepared: dict[str, pd.DataFrame],
         ticker: str,
         t: pd.Timestamp,
         fallback: float = 0.0,

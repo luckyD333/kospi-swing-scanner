@@ -9,12 +9,13 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import List
 
 import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
+
+from test_daily_scanner_mock import MockKOSPIDataSource
 
 from core.data_fetch import DataClient
 from core.runner import RunnerConfig, ScanRunner
@@ -27,8 +28,6 @@ from output.comparison import (
 )
 from strategies import register, unregister
 from strategies.strategy_one_d_v2 import StrategyOneDv2
-from test_daily_scanner_mock import MockKOSPIDataSource
-
 
 # ============================================================================
 # 보조 dummy 전략 (멀티 전략 흐름 검증용)
@@ -38,7 +37,7 @@ class _PassThroughStrategy:
     """universe 의 첫 N 종목을 그대로 후보로 반환 — 결정론적 테스트용."""
     name = "passthrough"
 
-    def scan(self, ctx: ScanContext, top_n: int) -> List[Candidate]:
+    def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
         out = []
         for i, ticker in enumerate(list(ctx.universe)[:top_n]):
             df = ctx.ohlcv[ticker]
@@ -70,7 +69,6 @@ def runner_with_mock():
     client = DataClient(
         ticker_list_sources=[mock],
         ohlcv_sources=[mock],
-        use_krx_for_universe=False,
     )
     return ScanRunner(
         client,

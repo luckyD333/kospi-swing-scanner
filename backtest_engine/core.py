@@ -7,12 +7,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, List
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
-
 
 # ============================================================================
 # 타입 정의
@@ -41,7 +38,7 @@ class TradeSignal:
     target_1: float
     target_2: float
     confidence: float
-    conditions_met: Dict[str, bool] = field(default_factory=dict)
+    conditions_met: dict[str, bool] = field(default_factory=dict)
 
     def __post_init__(self):
         assert 0 <= self.confidence <= 1.0, f"confidence out of range: {self.confidence}"
@@ -94,7 +91,7 @@ class Trade:
 @dataclass
 class BacktestResult:
     """백테스트 결과 요약"""
-    trades: List[Trade]
+    trades: list[Trade]
     initial_capital: float
     final_capital: float
     equity_curve: pd.Series
@@ -142,7 +139,7 @@ class BacktestResult:
             return float("inf") if gross_profit > 0 else 0.0
         return gross_profit / gross_loss
 
-    def summary(self) -> Dict:
+    def summary(self) -> dict:
         return {
             "total_trades": self.total_trades,
             "win_rate": round(self.win_rate * 100, 2),

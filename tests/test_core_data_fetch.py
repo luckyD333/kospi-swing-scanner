@@ -6,7 +6,6 @@ test_core_data_fetch.py — DataClient + OhlcvCache 검증.
 """
 from __future__ import annotations
 
-from typing import List
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -24,7 +23,7 @@ class _StubSource(DailyDataSource):
         self.calls = []
         self._factory = df_factory
 
-    def get_tickers(self, market: str, target_date: str) -> List[str]:
+    def get_tickers(self, market: str, target_date: str) -> list[str]:
         return ["005930"]
 
     def get_ticker_name(self, ticker: str) -> str:
@@ -46,7 +45,6 @@ def _make_client(stub):
     return DataClient(
         ticker_list_sources=[stub],
         ohlcv_sources=[stub],
-        use_krx_for_universe=False,
     )
 
 
@@ -109,8 +107,76 @@ def test_dataclient_fallback_chain():
     client = DataClient(
         ticker_list_sources=[failing],
         ohlcv_sources=[failing, succeeding],
-        use_krx_for_universe=False,
     )
     df = client.get_ohlcv("005930", "20260101", "20260418")
     assert not df.empty
     assert succeeding.calls == [("005930", "20260101", "20260418")]
+
+
+def test_get_ohlcv_with_source_returns_first_success_source():
+    """첫 소스 fail, 두 번째 success → (source_name, df) 반환."""
+    failing = MagicMock(spec=DailyDataSource)
+    failing.name = "failing_source"
+    failing.get_ohlcv.side_effect = RuntimeError("boom")
+
+    succeeding = _StubSource(_make_df)
+    succeeding.name = "naver"
+
+    client = DataClient(
+        ticker_list_sources=[failing],
+        ohlcv_sources=[failing, succeeding],
+    )
+    source, df = client.get_ohlcv_with_source("005930", "20260101", "20260418")
+    assert source == "naver"
+    assert not df.empty
+
+
+def test_cache_get_or_fetch_with_source_hit():
+    """캐시 hit 시에도 source 정보 반환."""
+    stub = _StubSource(_make_df)
+    stub.name = "naver"
+    cache = OhlcvCache(_make_client(stub))
+
+    source1, df1 = cache.get_or_fetch_with_source("005930", "20260101", "20260418")
+    source2, df2 = cache.get_or_fetch_with_source("005930", "20260101", "20260418")
+
+    assert source1 == "naver"
+    assert source2 == "naver"  # hit에서도 source 반환
+    assert len(stub.calls) == 1  # fetch 1회만
+    pd.testing.assert_frame_equal(df1, df2)
+
+
+def test_cache_get_or_fetch_with_source_miss():
+    """캐시 miss 시 fetch 수행 및 source 저장."""
+    stub = _StubSource(_make_df)
+    stub.name = "fdr"
+    cache = OhlcvCache(_make_client(stub))
+
+    source, df = cache.get_or_fetch_with_source("005930", "20260101", "20260418")
+    assert source == "fdr"
+    assert not df.empty
+    assert len(stub.calls) == 1
+
+
+def test_get_ohlcv_with_source_propagates_when_all_sources_fail():
+    """
+    Step 7: 모든 소스 RuntimeError → 마지막 예외 전파.
+    """
+    failing1 = MagicMock(spec=DailyDataSource)
+    failing1.name = "failing1"
+    failing1.get_ohlcv.side_effect = RuntimeError("source1 fail")
+
+    failing2 = MagicMock(spec=DailyDataSource)
+    failing2.name = "failing2"
+    failing2.get_ohlcv.side_effect = RuntimeError("source2 fail")
+
+    client = DataClient(
+        ticker_list_sources=[failing1],
+        ohlcv_sources=[failing1, failing2],
+    )
+
+    # 마지막 예외 (failing2의 오류) 전파
+    with pytest.raises(RuntimeError) as excinfo:
+        client.get_ohlcv_with_source("005930", "20260101", "20260418")
+
+    assert "source2 fail" in str(excinfo.value)

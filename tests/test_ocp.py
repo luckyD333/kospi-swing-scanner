@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List
 
 import pandas as pd
 import pytest
@@ -23,7 +22,6 @@ from core.runner import RunnerConfig, ScanRunner
 from core.strategy_base import Candidate, ScanContext
 from strategies import REGISTRY, available, register, unregister
 
-
 # ============================================================================
 # Dummy strategy — 본 파일 외 어디에도 변경 없이 등록만으로 동작해야 함
 # ============================================================================
@@ -32,7 +30,7 @@ class DummyConstantStrategy:
     """모든 ticker 에 고정 score 0.42 부여하는 토이 전략."""
     name = "dummy_constant"
 
-    def scan(self, ctx: ScanContext, top_n: int) -> List[Candidate]:
+    def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
         out = []
         for ticker in list(ctx.universe)[:top_n]:
             out.append(Candidate(
@@ -99,7 +97,6 @@ def test_runner_executes_registered_dummy_strategy(cleanup_dummy):
     src = _StubSource()
     client = DataClient(
         ticker_list_sources=[src], ohlcv_sources=[src],
-        use_krx_for_universe=False,
     )
     runner = ScanRunner(client, RunnerConfig(top_n=10, lookback_days=30))
 

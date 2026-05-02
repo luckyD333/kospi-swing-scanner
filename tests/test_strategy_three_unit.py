@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -23,10 +22,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from core.strategy_base import ScanContext
 from strategies.strategy_three_trend_following import (
-    StrategyThreeTrendFollowing,
     StrategyThreeConfig,
+    StrategyThreeTrendFollowing,
 )
-
 
 # ============================================================================
 # fixtures — Donchian breakout 시나리오
@@ -63,7 +61,7 @@ def _flat_no_breakout(n: int = 25, level: float = 100.0) -> pd.DataFrame:
     }, index=pd.date_range("2026-01-01", periods=n, freq="D"))
 
 
-def _make_ctx(ticker_dfs: Dict[str, pd.DataFrame]) -> ScanContext:
+def _make_ctx(ticker_dfs: dict[str, pd.DataFrame]) -> ScanContext:
     return ScanContext(
         target_date="20260418",
         universe=tuple(ticker_dfs.keys()),
@@ -162,7 +160,7 @@ def test_pricing_invariants_hold():
     cands = strat.scan(ctx, top_n=5)
     for c in cands:
         assert c.stop_loss < c.entry_price < c.target_1 <= c.target_2
-        assert 0.0 <= c.score <= 1.0
+        assert 0.0 <= c.score <= 1000.0
         # SL 은 진입가보다 작지만 -10% 보다는 크게 (지나친 SL 금지)
         assert c.stop_loss > c.entry_price * 0.85
 

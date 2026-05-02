@@ -8,16 +8,13 @@ test_core_runner.py — ScanRunner 통합 검증.
 """
 from __future__ import annotations
 
-from typing import Dict, List
 
 import pandas as pd
-import pytest
 
 from core.data_fetch import DataClient
 from core.data_sources.base import DailyDataSource
-from core.runner import RunnerConfig, ScanRunner
+from core.runner import RunnerConfig, RunResult, ScanRunner
 from core.strategy_base import Candidate, ScanContext
-
 
 # ============================================================================
 # fixtures
@@ -26,7 +23,7 @@ from core.strategy_base import Candidate, ScanContext
 class _CountingSource(DailyDataSource):
     name = "counting"
 
-    def __init__(self, tickers: List[str], caps: Dict[str, float]):
+    def __init__(self, tickers: list[str], caps: dict[str, float]):
         self._tickers = tickers
         self._caps = caps
         self.ohlcv_call_count = 0
@@ -60,7 +57,7 @@ class _FakeStrategy:
         self.fail = fail
         self.calls = 0
 
-    def scan(self, ctx: ScanContext, top_n: int) -> List[Candidate]:
+    def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
         self.calls += 1
         if self.fail:
             raise RuntimeError(f"{self.name} boom")
@@ -91,7 +88,6 @@ def _make_runner_with_n_tickers(n: int):
     client = DataClient(
         ticker_list_sources=[src],
         ohlcv_sources=[src],
-        use_krx_for_universe=False,
     )
     runner = ScanRunner(client, RunnerConfig(top_n=10, lookback_days=30))
     return runner, src
@@ -145,3 +141,219 @@ def test_run_no_strategies_returns_empty_dict():
     result = runner.run([], target_date="20260418")
     assert result.candidates_by_strategy == {}
     assert result.errors == {}
+
+
+def test_funnel_stats_default_values():
+    """RunResult의 funnel_stats 초기값은 빈 dict."""
+    result = RunResult(target_date="20260418", universe_size=0)
+    assert result.funnel_stats == {}
+
+
+def test_run_records_funnel_counts():
+    """fetch 성공/실패/short_bars 카운트 검증."""
+    class _PartialSource(DailyDataSource):
+        """일부 ticker는 성공, 일부는 empty 반환."""
+        name = "partial"
+
+        def __init__(self):
+            self.calls = 0
+
+        def get_tickers(self, market, target_date):
+            return ["OK1", "EMPTY", "SHORT", "OK2"]
+
+        def get_ticker_name(self, ticker):
+            return ticker
+
+        def get_ohlcv(self, ticker, start, end):
+            self.calls += 1
+            if ticker == "OK1" or ticker == "OK2":
+                return pd.DataFrame(
+                    {"close": [100.0]*40},
+                    index=pd.date_range("2026-01-01", periods=40, freq="D"),
+                )
+            elif ticker == "EMPTY":
+                return pd.DataFrame()
+            elif ticker == "SHORT":
+                return pd.DataFrame(
+                    {"close": [100.0]*20},
+                    index=pd.date_range("2026-01-01", periods=20, freq="D"),
+                )
+            return pd.DataFrame()
+
+        def get_market_cap(self, market, target_date):
+            caps = {t: 5_000 * 1e8 for t in ["OK1", "EMPTY", "SHORT", "OK2"]}
+            return pd.DataFrame(
+                {t: {"시가총액": caps[t], "종목명": t} for t in caps}
+            ).T
+
+    src = _PartialSource()
+    client = DataClient(
+        ticker_list_sources=[src],
+        ohlcv_sources=[src],
+    )
+    runner = ScanRunner(client, RunnerConfig(top_n=10))
+    result = runner.run([_FakeStrategy("s")], target_date="20260418")
+
+    assert result.funnel_stats["fetch_success"] == 2
+    assert result.funnel_stats["fetch_failed"] == 1  # empty
+    assert result.funnel_stats["short_bars"] == 1
+    assert result.funnel_stats["universe_size"] == 4
+
+
+def test_run_distinguishes_empty_vs_short_bars():
+    """empty df와 short df가 다른 카운터로 들어가는지 검증."""
+    class _MixedSource(DailyDataSource):
+        name = "mixed"
+
+        def get_tickers(self, market, target_date):
+            return ["EMPTY", "SHORT25"]
+
+        def get_ticker_name(self, ticker):
+            return ticker
+
+        def get_ohlcv(self, ticker, start, end):
+            if ticker == "EMPTY":
+                return pd.DataFrame()
+            else:  # SHORT25
+                return pd.DataFrame(
+                    {"close": [100.0]*25},
+                    index=pd.date_range("2026-01-01", periods=25, freq="D"),
+                )
+
+        def get_market_cap(self, market, target_date):
+            return pd.DataFrame(
+                {
+                    "EMPTY": {"시가총액": 5_000 * 1e8, "종목명": "EMPTY"},
+                    "SHORT25": {"시가총액": 5_000 * 1e8, "종목명": "SHORT25"},
+                }
+            ).T
+
+    src = _MixedSource()
+    client = DataClient(
+        ticker_list_sources=[src],
+        ohlcv_sources=[src],
+    )
+    runner = ScanRunner(client, RunnerConfig(top_n=10))
+    result = runner.run([_FakeStrategy("s")], target_date="20260418")
+
+    assert result.funnel_stats["fetch_failed"] == 1  # empty
+    assert result.funnel_stats["short_bars"] == 1
+    assert result.funnel_stats["fetch_success"] == 0
+
+
+def test_run_records_exception_types():
+    """Exception 타입별 카운트 기록."""
+    class _ExceptionSource(DailyDataSource):
+        name = "exception"
+
+        def get_tickers(self, market, target_date):
+            return ["TIMEOUT", "CONNECTION"]
+
+        def get_ticker_name(self, ticker):
+            return ticker
+
+        def get_ohlcv(self, ticker, start, end):
+            if ticker == "TIMEOUT":
+                raise TimeoutError("timeout")
+            else:
+                raise ConnectionError("conn")
+
+        def get_market_cap(self, market, target_date):
+            return pd.DataFrame(
+                {
+                    "TIMEOUT": {"시가총액": 5_000 * 1e8, "종목명": "TIMEOUT"},
+                    "CONNECTION": {"시가총액": 5_000 * 1e8, "종목명": "CONNECTION"},
+                }
+            ).T
+
+    src = _ExceptionSource()
+    client = DataClient(
+        ticker_list_sources=[src],
+        ohlcv_sources=[src],
+    )
+    runner = ScanRunner(client, RunnerConfig(top_n=10))
+    result = runner.run([_FakeStrategy("s")], target_date="20260418")
+
+    # fetch_exceptions는 Counter를 dict로 변환해서 저장
+    assert result.funnel_stats["fetch_exceptions"]["TimeoutError"] == 1
+    assert result.funnel_stats["fetch_exceptions"]["ConnectionError"] == 1
+    assert result.funnel_stats["fetch_failed"] == 2
+
+
+def test_run_records_source_counts():
+    """OHLCV 소스별 응답 분포 기록 — 1차 소스 8개, 2차 소스 2개."""
+
+    class _MultiSourceProvider(DailyDataSource):
+        """ticker 리스트와 시총만 제공."""
+        name = "multi_provider"
+
+        def get_tickers(self, market, target_date):
+            return [f"T{i:02d}" for i in range(10)]
+
+        def get_ticker_name(self, ticker):
+            return ticker
+
+        def get_ohlcv(self, ticker, start, end):
+            return pd.DataFrame(
+                {"close": [100.0]*40},
+                index=pd.date_range("2026-01-01", periods=40, freq="D"),
+            )
+
+        def get_market_cap(self, market, target_date):
+            tickers = [f"T{i:02d}" for i in range(10)]
+            return pd.DataFrame(
+                {t: {"시가총액": 5_000 * 1e8, "종목명": t} for t in tickers}
+            ).T
+
+    class _PrimarySource(DailyDataSource):
+        name = "primary"
+
+        def get_tickers(self, market, target_date):
+            return []
+
+        def get_ticker_name(self, ticker):
+            return ticker
+
+        def get_ohlcv(self, ticker, start, end):
+            # T00~T07만 응답 (8개)
+            if int(ticker[1:]) < 8:
+                return pd.DataFrame(
+                    {"close": [100.0]*40},
+                    index=pd.date_range("2026-01-01", periods=40, freq="D"),
+                )
+            return pd.DataFrame()
+
+        def get_market_cap(self, market, target_date):
+            return pd.DataFrame()
+
+    class _SecondarySource(DailyDataSource):
+        name = "secondary"
+
+        def get_tickers(self, market, target_date):
+            return []
+
+        def get_ticker_name(self, ticker):
+            return ticker
+
+        def get_ohlcv(self, ticker, start, end):
+            # T08~T09만 응답 (2개)
+            if int(ticker[1:]) >= 8:
+                return pd.DataFrame(
+                    {"close": [100.0]*40},
+                    index=pd.date_range("2026-01-01", periods=40, freq="D"),
+                )
+            return pd.DataFrame()
+
+        def get_market_cap(self, market, target_date):
+            return pd.DataFrame()
+
+    provider = _MultiSourceProvider()
+    client = DataClient(
+        ticker_list_sources=[provider],
+        ohlcv_sources=[_PrimarySource(), _SecondarySource()],  # fallback chain
+    )
+    runner = ScanRunner(client, RunnerConfig(top_n=10))
+    result = runner.run([_FakeStrategy("s")], target_date="20260418")
+
+    assert result.funnel_stats["source_counts"]["primary"] == 8
+    assert result.funnel_stats["source_counts"]["secondary"] == 2

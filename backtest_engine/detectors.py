@@ -12,12 +12,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Tuple, List
 
 import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
-
 
 # ============================================================================
 # 쌍바닥 감지 인터페이스
@@ -43,7 +41,7 @@ class DoubleBottomDetector(ABC):
     """쌍바닥 감지기 추상 베이스"""
 
     @abstractmethod
-    def detect(self, df: pd.DataFrame) -> Optional[DoubleBottomResult]:
+    def detect(self, df: pd.DataFrame) -> DoubleBottomResult | None:
         """
         최근 쌍바닥 감지.
 
@@ -88,7 +86,7 @@ class DoubleBottomSimple(DoubleBottomDetector):
         self.price_tolerance = price_tolerance
         self.freshness = freshness
 
-    def detect(self, df: pd.DataFrame) -> Optional[DoubleBottomResult]:
+    def detect(self, df: pd.DataFrame) -> DoubleBottomResult | None:
         n = len(df)
         if n < self.swing_window * 2 + self.min_gap + 1:
             return None
@@ -121,7 +119,7 @@ class DoubleBottomSimple(DoubleBottomDetector):
 
         return None
 
-    def _find_left_swing_lows(self, lows, upper_bound: int) -> List[int]:
+    def _find_left_swing_lows(self, lows, upper_bound: int) -> list[int]:
         """standard swing low (좌우 swing_window 봉보다 낮은 지점)"""
         candidate_price = lows[upper_bound]  # 2차 바닥 가격
         candidates = []
@@ -132,7 +130,7 @@ class DoubleBottomSimple(DoubleBottomDetector):
                 candidates.append(i)
         return candidates
 
-    def _validate(self, df: pd.DataFrame, idx_1: int, idx_2: int) -> Optional[DoubleBottomResult]:
+    def _validate(self, df: pd.DataFrame, idx_1: int, idx_2: int) -> DoubleBottomResult | None:
         gap = idx_2 - idx_1
         if not (self.min_gap <= gap <= self.max_gap):
             return None
@@ -166,7 +164,7 @@ class DoubleBottomFractal(DoubleBottomSimple):
         kwargs.setdefault("swing_window", 2)
         super().__init__(**kwargs)
 
-    def _find_left_swing_lows(self, lows, upper_bound: int) -> List[int]:
+    def _find_left_swing_lows(self, lows, upper_bound: int) -> list[int]:
         """Williams fractal: 중간이 좌우 2봉 모두보다 엄격하게 낮음"""
         candidate_price = lows[upper_bound]  # 2차 바닥 가격
         candidates = []
@@ -198,7 +196,7 @@ class DoubleBottomProminence(DoubleBottomSimple):
         super().__init__(**kwargs)
         self.prominence_pct = prominence_pct
 
-    def _find_left_swing_lows(self, lows, upper_bound: int) -> List[int]:
+    def _find_left_swing_lows(self, lows, upper_bound: int) -> list[int]:
         if upper_bound < 5:
             return []
 

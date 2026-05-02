@@ -13,23 +13,29 @@ import pandas as pd
 import pytest
 
 from core.indicators import (
-    moving_average,
-    momentum_pct,
-    volume_zscore,
-    calc_rsi,        # 재export 확인용
+    calc_atr,
     calc_bollinger,
     calc_macd,
-    calc_atr,
+    calc_rsi,  # 재export 확인용
+    momentum_pct,
+    moving_average,
+    volume_zscore,
 )
 
 
 def test_re_exports_match_backtest_engine():
     """core.indicators 가 backtest_engine.core 함수를 그대로 노출"""
     from backtest_engine.core import (
-        calc_rsi as bt_rsi,
-        calc_bollinger as bt_bb,
-        calc_macd as bt_macd,
         calc_atr as bt_atr,
+    )
+    from backtest_engine.core import (
+        calc_bollinger as bt_bb,
+    )
+    from backtest_engine.core import (
+        calc_macd as bt_macd,
+    )
+    from backtest_engine.core import (
+        calc_rsi as bt_rsi,
     )
     assert calc_rsi is bt_rsi
     assert calc_bollinger is bt_bb

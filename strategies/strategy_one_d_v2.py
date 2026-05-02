@@ -12,8 +12,8 @@ TradeSignal → Candidate 로 변환.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
-from typing import List
 
 from backtest_engine.detectors import (
     DoubleBottomDetector,
@@ -22,10 +22,19 @@ from backtest_engine.detectors import (
     DoubleBottomSimple,
 )
 from backtest_engine.strategy import StrategyD, StrategyDConfig
-
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
+
+
+def _round_to_100(x: float) -> float:
+    """100원 단위 반올림 (50원 이상 올림, 미만 내림)."""
+    return math.floor(x / 100 + 0.5) * 100
+
+
+def _floor_to_100(x: float) -> float:
+    """100원 단위 반내림 (버림)."""
+    return math.floor(x / 100) * 100
 
 
 @dataclass(frozen=True)
@@ -35,11 +44,19 @@ class StrategyOneDv2Config:
     detector_name: str = "simple"           # "simple" | "fractal" | "prominence"
     min_lookback_bars: int = 25
     prominence_pct: float = 0.015
+    engulf_strict: bool = True              # False: 완화 기준(전일 종가 +0.5% 돌파)
+    db_freshness: int = 2                   # DoubleBottomSimple freshness
+    db_price_tolerance: float = 0.03        # DoubleBottomSimple price_tolerance
 
 
-def _build_detector(name: str, prominence_pct: float) -> DoubleBottomDetector:
+def _build_detector(
+    name: str,
+    prominence_pct: float,
+    freshness: int = 2,
+    price_tolerance: float = 0.03,
+) -> DoubleBottomDetector:
     if name == "simple":
-        return DoubleBottomSimple()
+        return DoubleBottomSimple(freshness=freshness, price_tolerance=price_tolerance)
     if name == "fractal":
         return DoubleBottomFractal()
     if name == "prominence":
@@ -47,36 +64,71 @@ def _build_detector(name: str, prominence_pct: float) -> DoubleBottomDetector:
     raise ValueError(f"unknown detector: {name}")
 
 
-class StrategyOneDv2:
-    """Strategy Protocol 구현 — RSI + BB + 쌍바닥 + 장악형 양봉."""
+# timeframe → registry name suffix 매핑 (단일 클래스 멀티 등록용)
+_TF_SUFFIX = {"1D": "d", "1W": "w", "1h": "1h", "30m": "30m"}
 
+
+class StrategyOneDv2:
+    """
+    Strategy Protocol 구현 — RSI + BB + 쌍바닥 + 장악형 양봉.
+
+    `timeframe` 파라미터로 4개 타임프레임 변형을 단일 클래스로 처리:
+      - "1D" → name="strategy_one_d_v2"
+      - "1W" → name="strategy_one_w_v2"
+      - "1h" → name="strategy_one_1h_v2"
+      - "30m" → name="strategy_one_30m_v2"
+    scan() 은 ctx.ohlcv_by_tf[self.timeframe] 을 사용한다 (없으면 빈 결과).
+    """
+
+    # 클래스 기본 name (REGISTRY 키 안정성 · test_strategy_name_constant 호환)
     name = "strategy_one_d_v2"
 
-    def __init__(self, config: StrategyOneDv2Config | None = None):
+    def __init__(
+        self,
+        config: StrategyOneDv2Config | None = None,
+        timeframe: str = "1D",
+        name_suffix: str = "",
+    ):
+        if timeframe not in _TF_SUFFIX:
+            raise ValueError(
+                f"unsupported timeframe: {timeframe}. 지원: {list(_TF_SUFFIX)}"
+            )
         self.config = config or StrategyOneDv2Config()
+        self.timeframe = timeframe
+        self.name = f"strategy_one_{_TF_SUFFIX[timeframe]}_v2{name_suffix}"
         self._engine = StrategyD(
-            config=StrategyDConfig(min_lookback_bars=self.config.min_lookback_bars),
+            config=StrategyDConfig(
+                min_lookback_bars=self.config.min_lookback_bars,
+                engulf_strict=self.config.engulf_strict,
+            ),
             double_bottom_detector=_build_detector(
-                self.config.detector_name, self.config.prominence_pct
+                self.config.detector_name,
+                self.config.prominence_pct,
+                freshness=self.config.db_freshness,
+                price_tolerance=self.config.db_price_tolerance,
             ),
         )
 
-    def scan(self, ctx: ScanContext, top_n: int) -> List[Candidate]:
+    def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
         """
         ScanContext 입력 → top_n Candidate.
 
         절차:
-          1. 각 ticker 의 OHLCV 에 대해 거래량 필터 (20일 평균 ≥ min_daily_volume)
+          1. 각 ticker 의 OHLCV (self.timeframe 슬라이스) 에서 거래량 필터
           2. StrategyD.prepare → check_entry 로 진입 시그널 추출
           3. confidence 내림차순 정렬, 상위 top_n 반환
 
         snapshot 회귀 보장: ctx.universe 의 iteration 순서가 그대로 정렬 안정성 키.
         """
-        candidates: List[Candidate] = []
+        candidates: list[Candidate] = []
         failed = 0
+        # multi-tf 지원: ctx.ohlcv_by_tf 우선, 없으면 legacy ctx.ohlcv (1D)
+        tf_data = ctx.ohlcv_by_tf.get(self.timeframe, {}) or (
+            ctx.ohlcv if self.timeframe == "1D" else {}
+        )
 
         for ticker in ctx.universe:
-            df = ctx.ohlcv.get(ticker)
+            df = tf_data.get(ticker)
             if df is None or len(df) < 30:
                 continue
 
@@ -94,16 +146,25 @@ class StrategyOneDv2:
                 cap_won = ctx.market_caps.get(ticker, 0.0)
                 cap_bil = float(cap_won) / 100_000_000
 
+                raw_entry = signal.entry_price
+                entry_price = _round_to_100(raw_entry)
+                stop_loss = _floor_to_100(signal.stop_loss)
+                # 반올림된 진입가 기준으로 목표가 재계산
+                engine_cfg = self._engine.config
+                target_1 = entry_price * (1 + engine_cfg.target_1_pct)
+                target_2 = entry_price * (1 + engine_cfg.target_2_pct)
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
                     strategy=self.name,
                     signal_date=signal.timestamp,
-                    score=signal.confidence,
-                    entry_price=signal.entry_price,
-                    stop_loss=signal.stop_loss,
-                    target_1=signal.target_1,
-                    target_2=signal.target_2,
+                    score=signal.confidence * 1000,
+                    entry_price=entry_price,
+                    stop_loss=stop_loss,
+                    target_1=target_1,
+                    target_2=target_2,
+                    current_price=raw_entry,
                     market_cap_bil=cap_bil,
                     volume_20d_avg=avg_volume,
                     conditions_met=dict(signal.conditions_met),

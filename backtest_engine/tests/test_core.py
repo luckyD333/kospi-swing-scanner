@@ -1,9 +1,8 @@
 """core.py 테스트: 지표 계산"""
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from backtest_engine.core import calc_rsi, calc_bollinger, calc_macd, calc_atr
+from backtest_engine.core import calc_atr, calc_bollinger, calc_macd, calc_rsi
 
 
 class TestRSI:

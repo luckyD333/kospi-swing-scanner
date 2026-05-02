@@ -1,16 +1,13 @@
 """screener.py 테스트"""
-import pytest
 import pandas as pd
+import pytest
 
 from backtest_engine.screener import (
-    MultiTimeframeScreener,
-    ScreenerHit,
-    ScreenerResult,
     SUPPORTED_TIMEFRAMES,
+    MultiTimeframeScreener,
     resample_ohlcv,
 )
 from backtest_engine.strategy import StrategyDConfig
-from backtest_engine.scenarios import ScenarioBuilder
 
 
 class TestScreenerSingleTicker:

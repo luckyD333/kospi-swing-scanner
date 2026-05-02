@@ -42,7 +42,7 @@ def test_perfect_double_bottom_emits_signal():
     assert len(candidates) == 1
     c = candidates[0]
     assert c.ticker == "TEST"
-    assert 0.55 <= c.score <= 1.0
+    assert 550.0 <= c.score <= 1000.0
     assert c.stop_loss < c.entry_price < c.target_1
 
 

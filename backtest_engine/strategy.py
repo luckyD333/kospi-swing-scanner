@@ -7,29 +7,42 @@ strategy.py — Strategy D v2 진입/청산 판별
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Optional, Dict
+from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
-
-import numpy as np
 import pandas as pd
 
 from .core import (
-    TradeSignal,
-    Position,
     ExitReason,
-    calc_rsi,
+    Position,
+    TradeSignal,
     calc_bollinger,
     calc_macd,
+    calc_rsi,
 )
 from .detectors import (
     DoubleBottomDetector,
     DoubleBottomSimple,
+    count_consecutive_bearish,
     is_bullish_engulfing,
     is_today_bullish,
-    count_consecutive_bearish,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _check_engulf(df: pd.DataFrame, idx: int, strict: bool) -> bool:
+    """장악형 양봉 판정. strict=False 이면 완화 기준(전일 종가 +0.5% 돌파) 사용."""
+    if idx < 1 or idx >= len(df):
+        return False
+    prev = df.iloc[idx - 1]
+    curr = df.iloc[idx]
+    if not (prev["close"] < prev["open"]):
+        return False
+    if not (curr["close"] > curr["open"]):
+        return False
+    if strict:
+        return bool(curr["open"] <= prev["close"] and curr["close"] >= prev["open"])
+    return bool(curr["close"] >= prev["close"] * 1.005)
 
 
 @dataclass
@@ -55,6 +68,9 @@ class StrategyDConfig:
     gap_down_pct: float = 0.03   # -3% 갭다운 손절
     time_stop_bars: int = 3      # N봉 경과 시간 손절
 
+    # 진입 조건 — engulfing 엄격도
+    engulf_strict: bool = True  # False: curr["close"] >= prev["close"] * 1.005
+
     # 유니버스
     min_lookback_bars: int = 40
 
@@ -64,8 +80,8 @@ class StrategyD:
 
     def __init__(
         self,
-        config: Optional[StrategyDConfig] = None,
-        double_bottom_detector: Optional[DoubleBottomDetector] = None,
+        config: StrategyDConfig | None = None,
+        double_bottom_detector: DoubleBottomDetector | None = None,
     ):
         self.config = config or StrategyDConfig()
         self.detector = double_bottom_detector or DoubleBottomSimple()
@@ -99,7 +115,7 @@ class StrategyD:
         df: pd.DataFrame,
         idx: int,
         ticker: str = "TEST",
-    ) -> Optional[TradeSignal]:
+    ) -> TradeSignal | None:
         """
         idx 시점에서 진입 조건 체크. 충족 시 TradeSignal 반환.
 
@@ -134,8 +150,8 @@ class StrategyD:
         conditions["sell_pressure"] = conditions["consecutive_bearish"] or conditions["bb_lower_breach"]
 
         # 조건 3: 상승 장악형 양봉 (당일 또는 직전 1봉)
-        engulf_today = is_bullish_engulfing(df, idx)
-        engulf_yesterday = is_bullish_engulfing(df, idx - 1)
+        engulf_today = _check_engulf(df, idx, self.config.engulf_strict)
+        engulf_yesterday = _check_engulf(df, idx - 1, self.config.engulf_strict)
         conditions["bullish_engulfing"] = engulf_today or engulf_yesterday
 
         # 조건 4: 쌍바닥 감지
@@ -222,7 +238,7 @@ class StrategyD:
         position: Position,
         bar: pd.Series,
         bars_held: int,
-    ) -> Optional[ExitReason]:
+    ) -> ExitReason | None:
         """
         현재 봉에서 청산 조건 충족 여부 체크.
 

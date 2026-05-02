@@ -8,7 +8,6 @@ import pytest
 
 from core.strategy_base import Candidate, ScanContext, Strategy
 
-
 # ============================================================================
 # Candidate invariants
 # ============================================================================
@@ -19,7 +18,7 @@ def _make_candidate(**overrides):
         name="삼성전자",
         strategy="strategy_one_d_v2",
         signal_date=pd.Timestamp("2026-04-18"),
-        score=0.7,
+        score=700.0,
         entry_price=100.0,
         stop_loss=97.5,
         target_1=103.0,
@@ -32,7 +31,7 @@ def _make_candidate(**overrides):
 def test_candidate_valid():
     c = _make_candidate()
     assert c.ticker == "005930"
-    assert c.score == 0.7
+    assert c.score == 700.0
     assert c.risk_pct == pytest.approx(2.5)
     assert c.reward_pct_t1 == pytest.approx(3.0)
     assert c.reward_pct_t2 == pytest.approx(5.0)
@@ -40,7 +39,7 @@ def test_candidate_valid():
 
 def test_candidate_score_out_of_range():
     with pytest.raises(ValueError):
-        _make_candidate(score=1.1)
+        _make_candidate(score=1001.0)
     with pytest.raises(ValueError):
         _make_candidate(score=-0.01)
 
