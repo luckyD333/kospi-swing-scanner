@@ -7,7 +7,7 @@ Candidate 리스트를 반환한다. 백테스트 어댑터는 Candidate → Tra
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Protocol, Tuple, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -19,17 +19,31 @@ class ScanContext:
     attribute:
       - target_date: YYYYMMDD 기준일
       - universe: 시총·유동성 필터 통과 ticker 튜플 (frozen 호환)
-      - ohlcv: ticker → OHLCV DataFrame (지표 미계산 raw)
+      - ohlcv: ticker → OHLCV DataFrame (legacy alias = ohlcv_by_tf["1D"])
       - names: ticker → 종목명
       - market_caps: ticker → 시가총액(억원)
       - market: KOSPI | KOSDAQ | KRX
+      - ohlcv_by_tf: timeframe → ticker → OHLCV (multi-tf scan 용)
+      - fundamentals: ticker → {per, roe, foreign_pct, naver_url, ...} (Phase 1)
+        전략은 직접 읽지 않음 (전략 무수정 원칙). runner가 후보 metadata에 사후 주입.
+
+    legacy 호환: `ohlcv` 또는 `ohlcv_by_tf` 중 하나만 채워서 생성하면 다른 쪽이
+    `__post_init__` 에서 자동 동기화된다.
     """
     target_date: str
-    universe: Tuple[str, ...]
-    ohlcv: Dict[str, pd.DataFrame]
-    names: Dict[str, str]
-    market_caps: Dict[str, float]
+    universe: tuple[str, ...]
+    ohlcv: dict[str, pd.DataFrame]
+    names: dict[str, str]
+    market_caps: dict[str, float]
     market: str
+    ohlcv_by_tf: dict[str, dict[str, pd.DataFrame]] = field(default_factory=dict)
+    fundamentals: dict[str, dict] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if not self.ohlcv_by_tf and self.ohlcv:
+            self.ohlcv_by_tf = {"1D": self.ohlcv}
+        elif "1D" in self.ohlcv_by_tf and not self.ohlcv:
+            self.ohlcv = self.ohlcv_by_tf["1D"]
 
 
 @dataclass
@@ -39,18 +53,19 @@ class Candidate:
     name: str
     strategy: str           # registry key (예: "strategy_one_d_v2")
     signal_date: pd.Timestamp
-    score: float            # 0.0 ~ 1.0
+    score: float            # 0.0 ~ 1000.0
     entry_price: float
     stop_loss: float
     target_1: float
     target_2: float
+    current_price: float = 0.0   # 반올림 전 원시 현재가 (마지막 봉 종가)
     market_cap_bil: float = 0.0
     volume_20d_avg: float = 0.0
-    conditions_met: Dict[str, bool] = field(default_factory=dict)
-    metadata: Dict = field(default_factory=dict)
+    conditions_met: dict[str, bool] = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        if not (0.0 <= self.score <= 1.0):
+        if not (0.0 <= self.score <= 1000.0):
             raise ValueError(f"score out of range: {self.score}")
         if not (self.stop_loss < self.entry_price < self.target_1 <= self.target_2):
             raise ValueError(
@@ -76,6 +91,6 @@ class Strategy(Protocol):
     """모든 전략 구현이 만족해야 하는 인터페이스."""
     name: str
 
-    def scan(self, ctx: ScanContext, top_n: int) -> List[Candidate]:
+    def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
         """ScanContext 받아 score 내림차순 정렬된 top_n Candidate 반환."""
         ...

@@ -1,73 +1,50 @@
 """
-core/data_fetch.py — 일봉 데이터 fetch + 메모리 캐시.
-
-기존 daily_only_scanner.py L893-977 의 DataClient 를 그대로 추출하고,
-멀티 전략 공유용 OhlcvCache 를 추가한다.
+core/data_fetch.py — 일봉/분봉 데이터 fetch + 메모리/디스크 캐시 (Naver 단일 소스).
 
 설계 결정:
-  - 캐시는 per-run 메모리 dict (in-process)
-  - 같은 ticker(start, end) 키가 다시 들어오면 fetch 생략 → 단일 fetch 보장
-  - disk cache 는 별도 plan
+  - 데이터 소스: 네이버 금융만 사용 (sise_market_sum + siseJson API).
+  - 메모리 캐시: per-run dict (in-process). 같은 (ticker, tf, start, end) 키 재요청 시 fetch 생략.
+  - 디스크 캐시 (opt-in via `disk=`): `.cache/ohlcv/{tf}/{ticker}.parquet` 영속화.
+    warm 캐시면 last_cached+1 ~ end 만 incremental gap fetch.
+  - 디스크 캐시 default OFF — `OhlcvCache(client)` 만 호출하면 기존 메모리 동작 그대로.
 """
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from .cache.ohlcv_disk import OhlcvDiskCache
 from .data_sources.base import DailyDataSource
-from .data_sources.fdr import FDRSource
-from .data_sources.krx_proxy import KRXProxySource
 from .data_sources.naver import NaverSource
-from .data_sources.pykrx import PykrxSource
 
 logger = logging.getLogger(__name__)
 
 
 class DataClient:
     """
-    Fallback 체인으로 일봉 데이터 안정 공급.
+    네이버 단일 소스로 일봉/분봉 데이터 공급.
 
     역할 분담:
-      - 종목 리스트 (유니버스): 네이버 sise_market_sum → pykrx → FDR
-      - 유니버스 시총 보강 (선택): KRX Proxy trade-info (공식 데이터)
-      - 과거 일봉 OHLCV (지표 계산용): 네이버 siseJson (수정주가, 1회 호출로 N일)
-      - 당일 검증 (선택): KRX Proxy trade-info (공식 종가/거래량)
+      - 종목 리스트 (유니버스): 네이버 sise_market_sum 크롤링
+      - 추정 시총: 네이버 시총 페이지 (크롤링 raw 값)
+      - 과거 OHLCV (1D/1m): 네이버 siseJson (수정주가, 1회 호출로 N일)
 
-    strict_mode=True일 때:
-      - KRX Proxy에서 Circuit Breaker OPEN 또는 실패율 초과 → 스캔 전체 중단
-      - 데이터 불완전한 상태로 진입 시그널 내지 않음 (실전 안전)
-    strict_mode=False (기본):
-      - KRX 실패 시 네이버/pykrx로 fallback (개발/테스트 편의)
+    `ticker_list_sources` / `ohlcv_sources` 인자는 테스트용 주입 hook.
+    Production 사용에서는 default(네이버 단일)을 그대로 사용.
     """
 
     def __init__(
         self,
-        ticker_list_sources: Optional[List[DailyDataSource]] = None,
-        ohlcv_sources: Optional[List[DailyDataSource]] = None,
-        krx_proxy: Optional[KRXProxySource] = None,
-        use_krx_for_universe: bool = True,
-        strict_mode: bool = False,
+        ticker_list_sources: list[DailyDataSource] | None = None,
+        ohlcv_sources: list[DailyDataSource] | None = None,
     ):
         # NaverSource 인스턴스 공유 (크롤링 결과 캐시 공유)
         naver = NaverSource()
+        self.ticker_list_sources = ticker_list_sources or [naver]
+        self.ohlcv_sources = ohlcv_sources or [naver]
 
-        # 종목 리스트: 네이버 주력 (수정주가 + 무료 + 인증 불필요)
-        self.ticker_list_sources = ticker_list_sources or [
-            naver, PykrxSource(), FDRSource(),
-        ]
-        # OHLCV 시계열: 네이버 주력 (한 번 호출로 N일치)
-        self.ohlcv_sources = ohlcv_sources or [
-            naver, PykrxSource(), FDRSource(),
-        ]
-
-        # KRX Proxy: 공식 데이터 보강용
-        self.krx_proxy = krx_proxy or KRXProxySource()
-        self.use_krx_for_universe = use_krx_for_universe
-        self.strict_mode = strict_mode
-
-    def get_tickers(self, market: str, target_date: str) -> List[str]:
+    def get_tickers(self, market: str, target_date: str) -> list[str]:
         for src in self.ticker_list_sources:
             try:
                 tickers = src.get_tickers(market, target_date)
@@ -88,6 +65,17 @@ class DataClient:
                 continue
         return pd.DataFrame()
 
+    def get_fundamentals(self, market: str, target_date: str) -> pd.DataFrame:
+        """펀더멘털 (PER/ROE/외인비율/naver_url) DataFrame. 미지원 source는 빈 결과."""
+        for src in self.ticker_list_sources:
+            try:
+                df = src.get_fundamentals(market, target_date)
+                if not df.empty:
+                    return df
+            except Exception:
+                continue
+        return pd.DataFrame(columns=["per", "roe", "foreign_pct", "naver_url"])
+
     def get_ticker_name(self, ticker: str) -> str:
         for src in self.ticker_list_sources:
             try:
@@ -98,33 +86,77 @@ class DataClient:
                 continue
         return ticker
 
-    def get_ohlcv(self, ticker: str, start: str, end: str) -> pd.DataFrame:
+    def get_ohlcv(
+        self, ticker: str, start: str, end: str, timeframe: str = "1D"
+    ) -> pd.DataFrame:
         last_err = None
         for src in self.ohlcv_sources:
             try:
-                df = src.get_ohlcv(ticker, start, end)
+                df = self._call_ohlcv(src, ticker, start, end, timeframe)
                 if not df.empty:
                     return df
+            except NotImplementedError:
+                # 이 소스가 timeframe 미지원 → 다음 소스로
+                continue
             except Exception as e:
                 last_err = e
         if last_err:
             raise last_err
         return pd.DataFrame()
 
+    def get_ohlcv_with_source(
+        self, ticker: str, start: str, end: str, timeframe: str = "1D"
+    ) -> tuple[str, pd.DataFrame]:
+        """OHLCV 및 소스명을 함께 반환. fallback 체인에서 성공한 소스명 포함."""
+        last_err = None
+        for src in self.ohlcv_sources:
+            try:
+                df = self._call_ohlcv(src, ticker, start, end, timeframe)
+                if not df.empty:
+                    return (src.name, df)
+            except NotImplementedError:
+                continue
+            except Exception as e:
+                last_err = e
+        if last_err:
+            raise last_err
+        return ("", pd.DataFrame())
+
+    @staticmethod
+    def _call_ohlcv(
+        src: DailyDataSource, ticker: str, start: str, end: str, timeframe: str
+    ) -> pd.DataFrame:
+        """Source 가 timeframe kwarg 미지원이어도 backward-compat 호출."""
+        try:
+            return src.get_ohlcv(ticker, start, end, timeframe=timeframe)
+        except TypeError:
+            # legacy source 가 timeframe 인자 미지원 → 1D 만 가능
+            if timeframe != "1D":
+                raise NotImplementedError(
+                    f"{src.name}: legacy source, timeframe={timeframe!r} 미지원"
+                )
+            return src.get_ohlcv(ticker, start, end)
+
 
 class OhlcvCache:
     """
-    Per-run 메모리 캐시. 같은 (ticker, start, end) 조합은 fetch 1회만 수행.
+    Memory + (선택) 디스크 캐시. (ticker, timeframe, start, end) 키 재요청 시 fetch 1회만.
 
-    멀티 전략 실행 시 각 전략이 동일 OHLCV를 요구해도 fetch 호출은 1회로 제한된다
-    ("단일 fetch 후 메모리 공유" 제약 충족).
-
-    주의: 단일 ScanRunner.run() 안에서만 유효. 새 인스턴스를 생성하면 캐시는 비어 있다.
+    `disk=` 미주입 시: 기존 per-run 메모리 dict 동작 (회귀 보호).
+    `disk=OhlcvDiskCache(...)` 주입 시:
+      - cold: 전체 [start,end] fetch → 디스크 저장
+      - warm: 디스크에 (ticker,tf) 파일 존재 → last_cached+1 ~ end 만 incremental fetch + append
     """
 
-    def __init__(self, client: DataClient):
+    def __init__(
+        self,
+        client: DataClient,
+        disk: OhlcvDiskCache | None = None,
+    ):
         self._client = client
-        self._cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
+        self._disk = disk
+        self._cache: dict[tuple[str, str, str, str], pd.DataFrame] = {}
+        self._source_cache: dict[tuple[str, str, str, str], str] = {}
         self._fetch_count = 0
         self._hit_count = 0
 
@@ -133,25 +165,78 @@ class OhlcvCache:
         ticker: str,
         start: str,
         end: str,
+        timeframe: str = "1D",
     ) -> pd.DataFrame:
         """
         캐시 hit 시 사본 반환(원본 보호), miss 시 fetch 후 저장.
 
         반환되는 DataFrame 은 매번 새 사본이라 호출자가 수정해도 캐시 보존.
         """
-        key = (ticker, start, end)
+        key = (ticker, timeframe, start, end)
         cached = self._cache.get(key)
         if cached is not None:
             self._hit_count += 1
             return cached.copy()
 
-        df = self._client.get_ohlcv(ticker, start, end)
+        df = self._fetch_with_disk(ticker, start, end, timeframe)
         self._cache[key] = df
         self._fetch_count += 1
         return df.copy()
 
+    def get_or_fetch_with_source(
+        self,
+        ticker: str,
+        start: str,
+        end: str,
+        timeframe: str = "1D",
+    ) -> tuple[str, pd.DataFrame]:
+        """
+        캐시 hit 시 사본과 소스명을 함께 반환, miss 시 fetch 후 저장.
+        소스명도 함께 캐시하여 hit 시 소스 정보 유지.
+        """
+        key = (ticker, timeframe, start, end)
+        cached = self._cache.get(key)
+        if cached is not None:
+            self._hit_count += 1
+            source = self._source_cache.get(key, "unknown")
+            return (source, cached.copy())
+
+        if self._disk is None:
+            source, df = self._client.get_ohlcv_with_source(ticker, start, end)
+        else:
+            df = self._fetch_with_disk(ticker, start, end, timeframe)
+            source = "disk" if not df.empty else "unknown"
+        self._cache[key] = df
+        self._source_cache[key] = source
+        self._fetch_count += 1
+        return (source, df.copy())
+
+    def _fetch_with_disk(
+        self, ticker: str, start: str, end: str, timeframe: str
+    ) -> pd.DataFrame:
+        """디스크 hit 이면 incremental, miss 이면 full fetch + 디스크 저장."""
+        if self._disk is None:
+            return self._client.get_ohlcv(ticker, start, end)
+
+        cached_disk = self._disk.read(ticker, timeframe)
+        if cached_disk.empty:
+            df = self._client.get_ohlcv(ticker, start, end)
+            self._disk.write(ticker, timeframe, df)
+            return df
+
+        # warm: gap 만 fetch
+        last = cached_disk.index.max()
+        gap_start_dt = last + pd.Timedelta(days=1)
+        gap_start = gap_start_dt.strftime("%Y%m%d")
+        if gap_start <= end:
+            new = self._client.get_ohlcv(ticker, gap_start, end)
+            if not new.empty:
+                cached_disk = self._disk.append(ticker, timeframe, new)
+        # 요청 [start,end] 범위로 슬라이스
+        return cached_disk.loc[start:end]
+
     @property
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {
             "fetch_count": self._fetch_count,
             "hit_count": self._hit_count,

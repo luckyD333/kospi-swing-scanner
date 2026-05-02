@@ -2,15 +2,15 @@
 pandas>=2.0.0
 numpy>=1.24.0
 scipy>=1.10.0
+pyarrow>=14.0.0  # parquet 영속 캐시 (.cache/ohlcv/{tf}/{ticker}.parquet)
 
 # HTTP & web parsing
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
 
-# Korean stock data sources (선택적, fallback용)
-pykrx>=1.0.45
-finance-datareader>=0.9.50
+# Decision framework (Phase 2)
+PyYAML>=6.0  # weights.yml 사용자 가중치 설정
 
 # Testing
 pytest>=7.4.0

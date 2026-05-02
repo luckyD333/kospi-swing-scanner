@@ -5,10 +5,10 @@ core/data_sources/naver.py — 네이버 금융 일봉 + 종목 리스트 소스
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import time
-from typing import Dict, List
 
 import pandas as pd
 import requests
@@ -16,6 +16,21 @@ import requests
 from .base import DailyDataSource
 
 logger = logging.getLogger(__name__)
+
+
+def naver_detail_url(ticker: str) -> str:
+    """ticker → 네이버 종목 상세 페이지 URL (UI 클릭 이동용)."""
+    return f"https://finance.naver.com/item/main.naver?code={ticker}"
+
+
+def _to_optional_float(value) -> float | None:
+    """pd.read_html이 N/A를 NaN으로 파싱한 값을 JSON 호환 None 또는 float로 정규화."""
+    if value is None or pd.isna(value):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class NaverSource(DailyDataSource):
@@ -34,11 +49,15 @@ class NaverSource(DailyDataSource):
     # 시장 코드: KOSPI=0, KOSDAQ=1
     MARKET_CODE = {"KOSPI": 0, "KOSDAQ": 1}
 
-    def __init__(self):
-        self._ticker_cache: Dict[str, Dict] = {}   # ticker → {name, market_cap}
-        self._market_cached: Dict[str, bool] = {}  # market → cached?
+    # 타임프레임 → siseJson API 의 timeframe 파라미터 값
+    # probe 결과 (Task 2): "minute" 만 인트라데이 지원. "1m"/"30m"/"1h" 토큰은 빈 응답.
+    _TF_MAP = {"1D": "day", "1m": "minute"}
 
-    def get_tickers(self, market: str, target_date: str) -> List[str]:
+    def __init__(self):
+        self._ticker_cache: dict[str, dict] = {}   # ticker → {name, market_cap}
+        self._market_cached: dict[str, bool] = {}  # market → cached?
+
+    def get_tickers(self, market: str, target_date: str) -> list[str]:
         """
         네이버 시가총액 페이지에서 전종목 크롤링.
 
@@ -55,7 +74,7 @@ class NaverSource(DailyDataSource):
         return ticker
 
     def get_market_cap(self, market: str, target_date: str) -> pd.DataFrame:
-        """pykrx 호환 형식으로 시가총액 DataFrame 반환"""
+        """시가총액 DataFrame 반환 (컬럼: 시가총액, 종목명)"""
         self._crawl_market_sum(market)
         rows = {}
         for ticker, info in self._ticker_cache.items():
@@ -71,14 +90,52 @@ class NaverSource(DailyDataSource):
         df.index.name = "티커"
         return df
 
-    def get_ohlcv(self, ticker: str, start: str, end: str) -> pd.DataFrame:
-        """네이버 siseJson API로 일봉 (수정주가) 조회"""
+    def get_fundamentals(self, market: str, target_date: str) -> pd.DataFrame:
+        """
+        펀더멘털 DataFrame 반환 (인덱스=ticker, 컬럼=per/roe/foreign_pct/naver_url).
+
+        결측치는 None (JSON 호환). naver_url은 항상 채워짐 (단순 패턴).
+        sise_market_sum 페이지 1회 크롤링과 함께 추출되므로 추가 HTTP 비용 0.
+        """
+        self._crawl_market_sum(market)
+        rows = {}
+        for ticker, info in self._ticker_cache.items():
+            if info["market"] != market:
+                continue
+            rows[ticker] = {
+                "per": info.get("per"),
+                "roe": info.get("roe"),
+                "foreign_pct": info.get("foreign_pct"),
+                "naver_url": naver_detail_url(ticker),
+            }
+        if not rows:
+            return pd.DataFrame(columns=["per", "roe", "foreign_pct", "naver_url"])
+        df = pd.DataFrame(rows).T
+        df.index.name = "티커"
+        return df
+
+    def get_ohlcv(
+        self, ticker: str, start: str, end: str, timeframe: str = "1D"
+    ) -> pd.DataFrame:
+        """
+        네이버 siseJson API로 OHLCV 조회 (수정주가).
+
+        timeframe:
+          - "1D": 일봉 (날짜 포맷 YYYYMMDD)
+          - "1m": 1분봉 (날짜 포맷 YYYYMMDDHHMM, 거래없는 분봉은 OHLC=None → dropna)
+        """
+        if timeframe not in self._TF_MAP:
+            raise NotImplementedError(
+                f"NaverSource: timeframe={timeframe!r} 미지원. "
+                f"지원: {list(self._TF_MAP.keys())}"
+            )
+        tf_param = self._TF_MAP[timeframe]
         params = {
             "symbol": ticker,
             "requestType": 1,
             "startTime": start,
             "endTime": end,
-            "timeframe": "day",
+            "timeframe": tf_param,
         }
         r = requests.get(self.OHLCV_URL, params=params,
                          headers=self.HEADERS, timeout=10)
@@ -98,10 +155,19 @@ class NaverSource(DailyDataSource):
         df = df.rename(columns={
             "날짜": "date", "시가": "open", "고가": "high",
             "저가": "low", "종가": "close", "거래량": "volume",
+            "외국인소진율": "foreign_rate",
         })
-        df["date"] = pd.to_datetime(df["date"], format="%Y%m%d")
+        date_format = "%Y%m%d%H%M" if timeframe == "1m" else "%Y%m%d"
+        df["date"] = pd.to_datetime(df["date"], format=date_format)
         df = df.set_index("date")
-        return df[["open", "high", "low", "close", "volume"]].astype(float)
+        # foreign_rate는 응답에 있을 때만 보존 (1m 응답 보장, 1D는 변동 가능)
+        cols = ["open", "high", "low", "close", "volume"]
+        if "foreign_rate" in df.columns:
+            cols.append("foreign_rate")
+        df = df[cols]
+        # minute 응답에서 거래 없는 분봉은 OHLC=None → 제거 (close/volume 만 있는 행)
+        df = df.dropna(subset=["open", "high", "low", "close"])
+        return df.astype(float)
 
     # ------------------------------------------------------------------
     # 전종목 리스트 크롤링 (내부 helper)
@@ -139,9 +205,10 @@ class NaverSource(DailyDataSource):
                 logger.warning(f"  page {page} 실패: {e}")
                 break
 
-            # pd.read_html로 메인 테이블(시총 랭킹) 파싱
+            # pd.read_html로 메인 테이블(시총 랭킹) 파싱.
+            # flavor='lxml' 명시: 빈 HTML 등에서 html5lib fallback 차단 (불필요 의존성 회피).
             try:
-                tables = pd.read_html(r.text)
+                tables = pd.read_html(io.StringIO(r.text), flavor="lxml")
                 # 시총 테이블은 보통 index=1 (or 2). "N" 컬럼(순번) 있는 것 선택
                 df = None
                 for t in tables:
@@ -185,6 +252,10 @@ class NaverSource(DailyDataSource):
                     "name": name,
                     "market": market,
                     "market_cap": market_cap,
+                    # 펀더멘털 (UI 표시 + 의사결정용). N/A → None
+                    "per": _to_optional_float(row.get("PER")),
+                    "roe": _to_optional_float(row.get("ROE")),
+                    "foreign_pct": _to_optional_float(row.get("외국인비율")),
                 }
                 total += 1
 

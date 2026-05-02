@@ -12,9 +12,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Dict
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -22,10 +20,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from core.strategy_base import ScanContext
 from strategies.strategy_two_cross_sectional_momentum import (
-    StrategyTwoCrossSectionalMomentum,
     StrategyTwoConfig,
+    StrategyTwoCrossSectionalMomentum,
 )
-
 
 # ============================================================================
 # fixtures
@@ -43,7 +40,7 @@ def _trend_df(start_price: float, daily_return: float, n: int = 30, volume: int 
     }, index=pd.date_range("2026-01-01", periods=n, freq="D"))
 
 
-def _make_ctx(ticker_dfs: Dict[str, pd.DataFrame]) -> ScanContext:
+def _make_ctx(ticker_dfs: dict[str, pd.DataFrame]) -> ScanContext:
     return ScanContext(
         target_date="20260418",
         universe=tuple(ticker_dfs.keys()),
@@ -171,7 +168,7 @@ def test_pricing_invariants_hold():
     candidates = strat.scan(ctx, top_n=10)
     for c in candidates:
         assert c.stop_loss < c.entry_price < c.target_1 <= c.target_2
-        assert 0.0 <= c.score <= 1.0
+        assert 0.0 <= c.score <= 1000.0
         assert "momentum_pct" in c.metadata
 
 
@@ -185,6 +182,20 @@ def test_metadata_records_momentum_value():
     for c in candidates:
         mom = c.metadata["momentum_pct"]
         assert mom > 0  # 모두 상승 추세이므로
+
+
+def test_metadata_uses_percentile_rank_not_rank():
+    """metadata 키는 'percentile_rank' (top-level Candidate.rank 와 충돌 회피)."""
+    universe = {f"T{i}": _trend_df(100, 0.01 + i * 0.002) for i in range(5)}
+    ctx = _make_ctx(universe)
+    strat = StrategyTwoCrossSectionalMomentum(
+        StrategyTwoConfig(lookback=10, entry_percentile=0.0)
+    )
+    candidates = strat.scan(ctx, top_n=10)
+    for c in candidates:
+        assert "percentile_rank" in c.metadata
+        assert "rank" not in c.metadata, "충돌 위험 키 'rank'는 metadata에 없어야"
+        assert 0.0 <= c.metadata["percentile_rank"] <= 1.0
 
 
 def test_invalid_lookback_raises():

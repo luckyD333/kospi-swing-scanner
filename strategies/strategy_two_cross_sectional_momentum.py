@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -29,6 +28,12 @@ import pandas as pd
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
+
+_TF_NAMES: dict[str, str] = {
+    "1D": "strategy_two_cross_sectional_momentum",
+    "1h": "strategy_two_1h",
+    "30m": "strategy_two_30m",
+}
 
 
 @dataclass(frozen=True)
@@ -47,7 +52,9 @@ class StrategyTwoCrossSectionalMomentum:
 
     name = "strategy_two_cross_sectional_momentum"
 
-    def __init__(self, config: StrategyTwoConfig | None = None):
+    def __init__(self, config: StrategyTwoConfig | None = None, timeframe: str = "1D"):
+        if timeframe not in _TF_NAMES:
+            raise ValueError(f"unsupported timeframe: {timeframe}. 지원: {list(_TF_NAMES)}")
         cfg = config or StrategyTwoConfig()
         if cfg.lookback <= 0:
             raise ValueError(f"lookback must be positive, got {cfg.lookback}")
@@ -56,19 +63,22 @@ class StrategyTwoCrossSectionalMomentum:
                 f"entry_percentile must be in [0,1], got {cfg.entry_percentile}"
             )
         self.config = cfg
+        self.timeframe = timeframe
+        self.name = _TF_NAMES[timeframe]
 
     # ------------------------------------------------------------------
     # Strategy Protocol
     # ------------------------------------------------------------------
 
-    def scan(self, ctx: ScanContext, top_n: int) -> List[Candidate]:
+    def scan(self, ctx: ScanContext, top_n: int) -> list[Candidate]:
         """ScanContext → percentile rank 상위 후보 (top_n 개)."""
         cfg = self.config
 
         # 1) 각 ticker 의 모멘텀 + volume 필터 적용 (순차)
         rows = []
+        tf_data = ctx.ohlcv_by_tf.get(self.timeframe, {}) or ctx.ohlcv
         for ticker in ctx.universe:
-            df = ctx.ohlcv.get(ticker)
+            df = tf_data.get(ticker)
             if df is None or len(df) < cfg.lookback + 1:
                 continue
             close = df["close"]
@@ -111,7 +121,7 @@ class StrategyTwoCrossSectionalMomentum:
         ranks = (order + 1) / len(moms)  # 1/N..1.0
 
         # 3) entry_percentile 이상만 후보 — 임계값 = 분포 중 entry_percentile 위치값
-        candidates: List[Candidate] = []
+        candidates: list[Candidate] = []
         for (ticker, mom, df), rank in zip(rows, ranks):
             if rank < cfg.entry_percentile:
                 continue
@@ -131,7 +141,7 @@ class StrategyTwoCrossSectionalMomentum:
                 name=ctx.names.get(ticker, ticker),
                 strategy=self.name,
                 signal_date=df.index[-1],
-                score=float(rank),
+                score=float(rank) * 1000,
                 entry_price=close_now,
                 stop_loss=sl,
                 target_1=t1,
@@ -145,7 +155,9 @@ class StrategyTwoCrossSectionalMomentum:
                 metadata={
                     "momentum_pct": float(mom),
                     "lookback": cfg.lookback,
-                    "rank": float(rank),
+                    # percentile_rank: cross-sectional 분포 내 위치 (0~1).
+                    # top-level Candidate.rank(int 순위)와 충돌 회피 위해 명시적 명명.
+                    "percentile_rank": float(rank),
                     "market": ctx.market,
                 },
             ))

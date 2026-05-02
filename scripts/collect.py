@@ -14,8 +14,9 @@ import argparse
 import json
 import logging
 import sys
+import time
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # 프로젝트 루트를 sys.path에 추가 (scripts/ 하위에서 직접 실행 지원)
@@ -24,6 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.cache.ohlcv_disk import OhlcvDiskCache
 from core.cache.universe_cache import UniverseCache
 from core.data_fetch import DataClient, OhlcvCache
+from core.data_sources.naver import naver_detail_url
+from core.dates import latest_business_day
 from core.universe import UniverseFilter, build_universe
 
 logging.basicConfig(
@@ -62,23 +65,24 @@ class CollectConfig:
     min_market_cap_bil: float = 0.0
     max_market_cap_bil: float = 9_999_999.0
     min_daily_volume: int = 50_000  # 거래량 중간 필터
-    use_krx_for_universe: bool = True
     skip_collected: bool = False
     smart_skip: bool = False
-    include_etf: bool = True  # ETF 전종목 별도 fetch → 주식 유니버스에 합산
+    include_etf: bool = False  # 네이버는 ETF 미지원 → 기본 비활성
+    force_refetch: bool = False  # True면 기존 parquet 무시하고 전 구간 재수집
 
 
 def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     if target_date is None:
-        target_date = _latest_business_day()
+        target_date = latest_business_day()
 
     target_dt = datetime.strptime(target_date, "%Y%m%d")
     day_start = (target_dt - timedelta(days=cfg.lookback_days + 30)).strftime("%Y%m%d")
     min_start = (target_dt - timedelta(days=7)).strftime("%Y%m%d")
 
+    start_ts = time.monotonic()
     logger.info(f"수집 시작: {cfg.market} @ {target_date}")
 
-    client = DataClient(use_krx_for_universe=cfg.use_krx_for_universe)
+    client = DataClient()
 
     uc = UniverseCache(cfg.cache_root)
     cached = uc.load(cfg.market, target_date)
@@ -155,6 +159,13 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             to_collect = [t for t in combined_tickers if not disk.has_cache(t, tf)]
             skipped = len(combined_tickers) - len(to_collect)
             logger.info(f"  {tf}: {skipped}개 캐시 존재 skip, {len(to_collect)}개 수집 예정")
+        if cfg.force_refetch:
+            cleared = 0
+            for ticker in to_collect:
+                if disk.has_cache(ticker, tf):
+                    disk.clear(ticker, tf)
+                    cleared += 1
+            logger.info(f"  {tf}: --force-refetch 로 {cleared}개 캐시 삭제")
         success, failed = 0, 0
         for ticker in to_collect:
             try:
@@ -168,7 +179,15 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         timestamps[tf] = datetime.now()
         _save_timestamps(cfg.cache_root, timestamps)
 
+    # 펀더멘털 (PER/ROE/외인비율/naver_url) 1회 수집 — UI 인덱스용
+    fundamentals = _collect_fundamentals(client, cfg.market, target_date, combined_tickers)
+
     # manifest 저장
+    tickers_meta = _build_tickers_metadata(
+        disk, combined_tickers, cfg.base_tfs, fundamentals=fundamentals,
+    )
+    duration_sec = int(time.monotonic() - start_ts)
+
     manifest = {
         "collected_at": datetime.now().isoformat(),
         "market": cfg.market,
@@ -179,6 +198,11 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         "tickers": combined_tickers,
         "etf_tickers": etf_tickers,
         "base_tfs": cfg.base_tfs,
+        "tickers_meta": tickers_meta,
+        "summary": {
+            "total_tickers": len(tickers_meta),
+            "duration_sec": duration_sec,
+        },
     }
     manifest_path = Path(cfg.cache_root) / "manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -203,19 +227,103 @@ def _save_timestamps(cache_root: Path, timestamps: dict[str, datetime]) -> None:
     ))
 
 
-def _latest_business_day() -> str:
-    today = date.today()
-    now = datetime.now()
-    if now.hour < 16:
-        today -= timedelta(days=1)
-    while today.weekday() >= 5:
-        today -= timedelta(days=1)
-    return today.strftime("%Y%m%d")
+def _collect_fundamentals(
+    client: DataClient, market: str, target_date: str, tickers: list[str],
+) -> dict[str, dict]:
+    """펀더멘털 1회 fetch → ticker별 dict (per/roe/foreign_pct/naver_url).
+
+    source 미지원/실패 시 모든 ticker를 None 으로 채우되 naver_url만 ticker 패턴으로
+    항상 채워 UI 일관성을 보장한다. (NaN → None 정규화)
+    """
+    try:
+        df = client.get_fundamentals(market, target_date)
+    except Exception as e:
+        logger.warning(f"펀더멘털 fetch 실패 (skip): {e}")
+        df = None
+
+    out: dict[str, dict] = {}
+    for ticker in tickers:
+        row = (df.loc[ticker].to_dict()
+               if (df is not None and not df.empty and ticker in df.index)
+               else {})
+        out[ticker] = {
+            "per": _none_if_nan(row.get("per")),
+            "roe": _none_if_nan(row.get("roe")),
+            "foreign_pct": _none_if_nan(row.get("foreign_pct")),
+            "naver_url": row.get("naver_url") or naver_detail_url(ticker),
+        }
+    return out
+
+
+def _none_if_nan(value):
+    """pandas NaN/numpy.nan을 JSON 호환 None으로 정규화."""
+    if value is None:
+        return None
+    try:
+        import pandas as _pd
+        if _pd.isna(value):
+            return None
+    except (TypeError, ValueError, ImportError):
+        pass
+    return value
+
+
+def _build_tickers_metadata(
+    disk_cache: OhlcvDiskCache,
+    tickers: list[str],
+    base_tfs: list[str],
+    fundamentals: dict[str, dict] | None = None,
+) -> dict[str, dict]:
+    """ticker별 base_tf마다 row_count와 last_date를 manifest용 dict로 빌드.
+
+    각 (ticker, tf) 조합에서 데이터가 존재하면:
+    - row_count_<tf>: 행 개수
+    - last_date_<tf>: 마지막 날짜 (YYYY-MM-DD 문자열)
+    - base_tfs: 해당 ticker에서 데이터가 있는 tf 목록
+
+    데이터가 없으면 해당 ticker는 tickers_meta에서 제외.
+
+    fundamentals (선택): ticker → {per, roe, foreign_pct, naver_url}.
+    OHLCV 데이터가 있는 ticker에만 merge (UI는 OHLCV+펀더멘털 동시 보유 종목 표시).
+    """
+    tickers_meta: dict[str, dict] = {}
+
+    for ticker in tickers:
+        ticker_data: dict = {}
+        found_tfs: list[str] = []
+
+        for tf in base_tfs:
+            try:
+                df = disk_cache.read(ticker, tf)
+                if df.empty:
+                    continue
+
+                row_count = len(df)
+                last_date = df.index.max()
+                if hasattr(last_date, "strftime"):
+                    last_date_str = last_date.strftime("%Y-%m-%d")
+                else:
+                    last_date_str = str(last_date)
+
+                ticker_data[f"row_count_{tf}"] = row_count
+                ticker_data[f"last_date_{tf}"] = last_date_str
+                found_tfs.append(tf)
+            except Exception as e:
+                logger.debug(f"메타 추출 실패 ({ticker}/{tf}): {e}")
+                continue
+
+        if found_tfs:
+            ticker_data["base_tfs"] = found_tfs
+            if fundamentals and ticker in fundamentals:
+                ticker_data.update(fundamentals[ticker])
+            tickers_meta[ticker] = ticker_data
+
+    return tickers_meta
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="OHLCV 수집 Job")
-    parser.add_argument("--market", default="KOSPI", choices=["KOSPI", "KOSDAQ", "KRX"])
+    parser.add_argument("--market", default="KOSPI", choices=["KOSPI", "KOSDAQ"])
     parser.add_argument("--cache-root", default=".cache")
     parser.add_argument("--max-universe", type=int, default=500)
     parser.add_argument(
@@ -225,7 +333,6 @@ def main() -> None:
     parser.add_argument("--lookback-days", type=int, default=90, help="최근 N일 (기본: 3개월)")
     parser.add_argument("--min-volume", type=int, default=50_000, help="최소 거래량 (기본: 중간)")
     parser.add_argument("--date", help="기준일 YYYYMMDD")
-    parser.add_argument("--no-krx", action="store_true")
     parser.add_argument(
         "--no-etf", action="store_true",
         help="ETF 전종목 합산 skip (기본: 포함)",
@@ -237,6 +344,10 @@ def main() -> None:
     parser.add_argument(
         "--smart-skip", action="store_true",
         help="TF별 마지막 수집 시각 기준으로 주기 미달 TF skip (10분 주기 실행용)",
+    )
+    parser.add_argument(
+        "--force-refetch", action="store_true",
+        help="기존 parquet 캐시를 무시하고 전 구간 재수집 (schema migration 즉시 적용)",
     )
     args = parser.parse_args()
 
@@ -250,10 +361,10 @@ def main() -> None:
         base_tfs=base_tfs,
         lookback_days=args.lookback_days,
         min_daily_volume=args.min_volume,
-        use_krx_for_universe=not args.no_krx,
         include_etf=not args.no_etf,
         skip_collected=args.skip_collected,
         smart_skip=args.smart_skip,
+        force_refetch=args.force_refetch,
     )
     run_collect(cfg, target_date=args.date)
 
