@@ -89,6 +89,7 @@ class WeightConfig:
     """가중치 + 필수 조건 묶음. yaml 로드/저장 지원."""
     priorities: list[Priority]
     must_have: list[str] = field(default_factory=list)
+    strategy_weights: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
         # 합 100% 검증 (부동소수점 허용)

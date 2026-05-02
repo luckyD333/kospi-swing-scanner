@@ -11,6 +11,7 @@ lxml>=4.9.0
 
 # Decision framework (Phase 2)
 PyYAML>=6.0  # weights.yml 사용자 가중치 설정
+hmmlearn>=0.3.0  # 시장 국면 HMM 분석
 
 # Testing
 pytest>=7.4.0
