@@ -213,14 +213,18 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     # 동적 가중치 계산 (실패해도 수집 성공으로 처리)
     try:
         import subprocess as _subprocess
-        _subprocess.run(
+        result = _subprocess.run(
             [sys.executable, str(Path(__file__).parent / "compute_weights.py"),
              "--cache-root", str(cfg.cache_root),
              "--scan-root", str(cfg.scan_root)],
             capture_output=True,
+            text=True,
             timeout=120,
         )
-        logger.info("동적 가중치 계산 완료")
+        if result.returncode != 0:
+            logger.warning(f"동적 가중치 계산 실패 (code {result.returncode}): {result.stderr}")
+        else:
+            logger.info("동적 가중치 계산 완료")
     except Exception as e:
         logger.warning(f"동적 가중치 계산 실패 (skip): {e}")
 

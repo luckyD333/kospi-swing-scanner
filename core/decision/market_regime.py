@@ -186,9 +186,9 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
         history=history,
         bull_state_mean_return=bull_mean_return,
         bear_state_mean_return=bear_mean_return,
-        n_tickers=len([t for t, m in json.loads(
+        n_tickers=len(json.loads(
             (Path(cache_root) / "manifest.json").read_text(encoding="utf-8")
-        ).get("tickers_meta", {}).items() if True]),  # 실제로는 성공한 종목만 세어야 함
+        ).get("tickers_meta", {})),  # manifest 전체 종목 수 (실제 HMM 학습에 쓰인 수의 상한)
         n_days=len(proxy),
     )
 

@@ -116,9 +116,9 @@ def update_factor_records(
             )
             continue
 
-        # 이미 처리된 날짜 체크
-        if scan_date_str in processed_dates:
-            logger.debug(f"스킵 (기처리): {scan_date_str} ({manifest_key})")
+        # 이미 처리된 날짜 체크 (processed_dates는 date 객체 집합)
+        if scan_date in processed_dates:
+            logger.debug(f"스킵 (기처리): {scan_date} ({manifest_key})")
             continue
 
         # 7. scan JSON 파일 읽기
