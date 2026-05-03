@@ -1,0 +1,67 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --canvas:         #000000;
+  --surface-soft:   #0d0d0d;
+  --surface-card:   #141414;
+  --surface-elev:   #1f1f1f;
+  --hairline:       #262626;
+  --hairline-strong:#3a3a3a;
+  --ink:            #ffffff;
+  --body:           #cccccc;
+  --body-strong:    #e6e6e6;
+  --muted:          #999999;
+  --muted-soft:     #666666;
+  --link:           #c3d9f3;
+  --gain:           #5fa657;
+  --loss:           #c97064;
+  --warning:        #d4a017;
+
+  /* Font 스택 — 라틴(--f-*)이 우선, 한글은 KO fallback이 받음.
+     Mono는 한글 글리프 들어간 free mono가 없어 시스템 mono → 시스템 한글로 둔다. */
+  --f-display-stack: var(--f-display), var(--f-display-ko), -apple-system, BlinkMacSystemFont, sans-serif;
+  --f-body-stack:    var(--f-body), var(--f-body-ko), Garamond, "Times New Roman", serif;
+  --f-mono-stack:    var(--f-mono), ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+
+  /* design.md typography 12종 — font shorthand: weight size/line-height family
+     letter-spacing / text-transform / color는 ts() 헬퍼에서 별도 부여 */
+  --ts-display-md: 400 32px/1.2 var(--f-display-stack);
+  --ts-display-sm: 400 24px/1.3 var(--f-display-stack);
+  --ts-title-md:   400 20px/1.3 var(--f-display-stack);
+  --ts-ticker-sm:  400 32px/1   var(--f-mono-stack);
+  --ts-numeric-lg: 400 28px/1.1 var(--f-mono-stack);
+  --ts-numeric-md: 400 18px/1.2 var(--f-mono-stack);
+  --ts-caption:    400 11px/1.4 var(--f-mono-stack);
+  --ts-caption-sm: 400 10px/1.4 var(--f-mono-stack);
+  --ts-button:     400 14px/1   var(--f-mono-stack);
+  --ts-nav-link:   400 12px/1.4 var(--f-mono-stack);
+  --ts-wordmark:   400 14px/1   var(--f-display-stack);
+  --ts-body-md:    400 16px/1.5 var(--f-body-stack);
+}
+
+html { background: var(--canvas); color: var(--ink); }
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--f-mono-stack);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::selection { background: #ffffff22; }
+
+::-webkit-scrollbar { width: 2px; height: 2px; }
+::-webkit-scrollbar-track { background: var(--canvas); }
+::-webkit-scrollbar-thumb { background: var(--hairline-strong); }
+
+/* 스크롤 가능하되 스크롤바 숨김 */
+.scroll-x-hidden {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scroll-x-hidden::-webkit-scrollbar {
+  display: none;
+}

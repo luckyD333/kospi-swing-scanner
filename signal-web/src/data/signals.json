@@ -1,0 +1,2453 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-05-03T18:31:57.258260+09:00",
+  "generated_at_display": "2026-05-03 18:31 KST",
+  "market_indices": {
+    "kospi": {
+      "label": "코스피",
+      "value_display": "6,598.87",
+      "change_display": "-1.38%",
+      "direction": "down"
+    },
+    "kosdaq": {
+      "label": "코스닥",
+      "value_display": "1,192.35",
+      "change_display": "-2.29%",
+      "direction": "down"
+    }
+  },
+  "filters": {
+    "strategies": [
+      "ALL",
+      "STRATEGY ONE",
+      "STRATEGY THREE",
+      "STRATEGY TWO",
+      "STRATEGY_ONE_D_V2_R1",
+      "STRATEGY_ONE_D_V2_R2"
+    ],
+    "timeframes": [
+      "ALL",
+      "1H",
+      "4H",
+      "1D"
+    ],
+    "sort_options": [
+      "score",
+      "rr_ratio",
+      "entry"
+    ]
+  },
+  "signals": [
+    {
+      "ticker": "006340",
+      "name": "대원전선",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 15050,
+        "stop": 14673,
+        "target_1": 15501,
+        "target_2": 15802,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 1173,
+        "derived": {
+          "risk_per_share": 377,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 1000.0,
+        "rank": 1,
+        "percentile": 97.5
+      },
+      "live_quote": {
+        "current_price": 15050,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩15,050",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=006340"
+      }
+    },
+    {
+      "ticker": "007340",
+      "name": "DN오토모티브",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 48050,
+        "stop": 46848,
+        "target_1": 49491,
+        "target_2": 50452,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 2949,
+        "derived": {
+          "risk_per_share": 1202,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 1000.0,
+        "rank": 2,
+        "percentile": 95.0
+      },
+      "live_quote": {
+        "current_price": 48050,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩48,050",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=007340"
+      }
+    },
+    {
+      "ticker": "006340",
+      "name": "대원전선",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 15050,
+        "stop": 14673,
+        "target_1": 15501,
+        "target_2": 15802,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 1173,
+        "derived": {
+          "risk_per_share": 377,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 1000.0,
+        "rank": 3,
+        "percentile": 92.5
+      },
+      "live_quote": {
+        "current_price": 15050,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩15,050",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=006340"
+      }
+    },
+    {
+      "ticker": "403550",
+      "name": "쏘카",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 17810,
+        "stop": 17364,
+        "target_1": 18344,
+        "target_2": 18700,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 884,
+        "derived": {
+          "risk_per_share": 446,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 1000.0,
+        "rank": 4,
+        "percentile": 90.0
+      },
+      "live_quote": {
+        "current_price": 17810,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩17,810",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=403550"
+      }
+    },
+    {
+      "ticker": "025860",
+      "name": "남해화학",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 11740,
+        "stop": 11446,
+        "target_1": 12092,
+        "target_2": 12327,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 742,
+        "derived": {
+          "risk_per_share": 294,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 1000.0,
+        "rank": 5,
+        "percentile": 87.5
+      },
+      "live_quote": {
+        "current_price": 11740,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩11,740",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=025860"
+      }
+    },
+    {
+      "ticker": "001390",
+      "name": "KG케미칼",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 7070,
+        "stop": 6893,
+        "target_1": 7282,
+        "target_2": 7423,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 351,
+        "derived": {
+          "risk_per_share": 177,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 4.99
+        }
+      },
+      "ranking": {
+        "score": 1000.0,
+        "rank": 6,
+        "percentile": 85.0
+      },
+      "live_quote": {
+        "current_price": 7070,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩7,070",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=001390"
+      }
+    },
+    {
+      "ticker": "108670",
+      "name": "LX하우시스",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 36100,
+        "stop": 35197,
+        "target_1": 37183,
+        "target_2": 37905,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 1122,
+        "derived": {
+          "risk_per_share": 903,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 1000.0,
+        "rank": 7,
+        "percentile": 82.5
+      },
+      "live_quote": {
+        "current_price": 36100,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩36,100",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=108670"
+      }
+    },
+    {
+      "ticker": "009155",
+      "name": "삼성전기우",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 348000,
+        "stop": 339300,
+        "target_1": 358440,
+        "target_2": 365400,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 19420,
+        "derived": {
+          "risk_per_share": 8700,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 996.0,
+        "rank": 8,
+        "percentile": 80.0
+      },
+      "live_quote": {
+        "current_price": 348000,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩348,000",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=009155"
+      }
+    },
+    {
+      "ticker": "058430",
+      "name": "포스코스틸리온",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 8390,
+        "stop": 8180,
+        "target_1": 8641,
+        "target_2": 8809,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 540,
+        "derived": {
+          "risk_per_share": 210,
+          "risk_pct": 2.5,
+          "reward_1_pct": 2.99,
+          "reward_2_pct": 4.99
+        }
+      },
+      "ranking": {
+        "score": 992.1,
+        "rank": 9,
+        "percentile": 77.5
+      },
+      "live_quote": {
+        "current_price": 8390,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩8,390",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=058430"
+      }
+    },
+    {
+      "ticker": "004430",
+      "name": "송원산업",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 15850,
+        "stop": 15453,
+        "target_1": 16325,
+        "target_2": 16642,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 805,
+        "derived": {
+          "risk_per_share": 397,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 988.1,
+        "rank": 10,
+        "percentile": 75.0
+      },
+      "live_quote": {
+        "current_price": 15850,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩15,850",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=004430"
+      }
+    },
+    {
+      "ticker": "403550",
+      "name": "쏘카",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 17810,
+        "stop": 17364,
+        "target_1": 18344,
+        "target_2": 18700,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 884,
+        "derived": {
+          "risk_per_share": 446,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 984.2,
+        "rank": 11,
+        "percentile": 72.5
+      },
+      "live_quote": {
+        "current_price": 17810,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩17,810",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=403550"
+      }
+    },
+    {
+      "ticker": "456040",
+      "name": "OCI",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 150000,
+        "stop": 146250,
+        "target_1": 154500,
+        "target_2": 157500,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 9082,
+        "derived": {
+          "risk_per_share": 3750,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 980.2,
+        "rank": 12,
+        "percentile": 70.0
+      },
+      "live_quote": {
+        "current_price": 150000,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩150,000",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=456040"
+      }
+    },
+    {
+      "ticker": "0117V0",
+      "name": "TIGER 코리아AI전력기기TOP3플러스",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 27245,
+        "stop": 26563,
+        "target_1": 28062,
+        "target_2": 28607,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 1101,
+        "derived": {
+          "risk_per_share": 682,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 976.3,
+        "rank": 13,
+        "percentile": 67.5
+      },
+      "live_quote": {
+        "current_price": 27245,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩27,245",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=0117V0"
+      }
+    },
+    {
+      "ticker": "195870",
+      "name": "해성디에스",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 80200,
+        "stop": 78195,
+        "target_1": 82606,
+        "target_2": 84210,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 5170,
+        "derived": {
+          "risk_per_share": 2005,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 972.3,
+        "rank": 14,
+        "percentile": 65.0
+      },
+      "live_quote": {
+        "current_price": 80200,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩80,200",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=195870"
+      }
+    },
+    {
+      "ticker": "025860",
+      "name": "남해화학",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 11740,
+        "stop": 11446,
+        "target_1": 12092,
+        "target_2": 12327,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 742,
+        "derived": {
+          "risk_per_share": 294,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 968.4,
+        "rank": 15,
+        "percentile": 62.5
+      },
+      "live_quote": {
+        "current_price": 11740,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩11,740",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=025860"
+      }
+    },
+    {
+      "ticker": "0101N0",
+      "name": "RISE AI전력인프라",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 25295,
+        "stop": 24662,
+        "target_1": 26053,
+        "target_2": 26559,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 856,
+        "derived": {
+          "risk_per_share": 633,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 964.4,
+        "rank": 16,
+        "percentile": 60.0
+      },
+      "live_quote": {
+        "current_price": 25295,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩25,295",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=0101N0"
+      }
+    },
+    {
+      "ticker": "015860",
+      "name": "일진홀딩스",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 10320,
+        "stop": 10062,
+        "target_1": 10629,
+        "target_2": 10836,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 513,
+        "derived": {
+          "risk_per_share": 258,
+          "risk_pct": 2.5,
+          "reward_1_pct": 2.99,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 960.5,
+        "rank": 17,
+        "percentile": 57.5
+      },
+      "live_quote": {
+        "current_price": 10320,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩10,320",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=015860"
+      }
+    },
+    {
+      "ticker": "423920",
+      "name": "TIGER 미국필라델피아반도체레버리지(합성)",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 83055,
+        "stop": 80978,
+        "target_1": 85546,
+        "target_2": 87207,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 3597,
+        "derived": {
+          "risk_per_share": 2077,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 956.5,
+        "rank": 18,
+        "percentile": 55.0
+      },
+      "live_quote": {
+        "current_price": 83055,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩83,055",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=423920"
+      }
+    },
+    {
+      "ticker": "488080",
+      "name": "TIGER 반도체TOP10레버리지",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 59450,
+        "stop": 57963,
+        "target_1": 61233,
+        "target_2": 62422,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 3618,
+        "derived": {
+          "risk_per_share": 1487,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 952.6,
+        "rank": 19,
+        "percentile": 52.5
+      },
+      "live_quote": {
+        "current_price": 59450,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩59,450",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=488080"
+      }
+    },
+    {
+      "ticker": "336370",
+      "name": "솔루스첨단소재",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 13090,
+        "stop": 12762,
+        "target_1": 13482,
+        "target_2": 13744,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 1119,
+        "derived": {
+          "risk_per_share": 328,
+          "risk_pct": 2.51,
+          "reward_1_pct": 2.99,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 948.6,
+        "rank": 20,
+        "percentile": 50.0
+      },
+      "live_quote": {
+        "current_price": 13090,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩13,090",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=336370"
+      }
+    },
+    {
+      "ticker": "322000",
+      "name": "HD현대에너지솔루션",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 231000,
+        "stop": 225225,
+        "target_1": 237930,
+        "target_2": 242550,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 19634,
+        "derived": {
+          "risk_per_share": 5775,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 944.7,
+        "rank": 21,
+        "percentile": 47.5
+      },
+      "live_quote": {
+        "current_price": 231000,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩231,000",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=322000"
+      }
+    },
+    {
+      "ticker": "001510",
+      "name": "SK증권",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 5230,
+        "stop": 5099,
+        "target_1": 5386,
+        "target_2": 5491,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 366,
+        "derived": {
+          "risk_per_share": 131,
+          "risk_pct": 2.5,
+          "reward_1_pct": 2.98,
+          "reward_2_pct": 4.99
+        }
+      },
+      "ranking": {
+        "score": 940.7,
+        "rank": 22,
+        "percentile": 45.0
+      },
+      "live_quote": {
+        "current_price": 5230,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩5,230",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=001510"
+      }
+    },
+    {
+      "ticker": "004000",
+      "name": "롯데정밀화학",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 69400,
+        "stop": 67665,
+        "target_1": 71482,
+        "target_2": 72870,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 3107,
+        "derived": {
+          "risk_per_share": 1735,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 936.8,
+        "rank": 23,
+        "percentile": 42.5
+      },
+      "live_quote": {
+        "current_price": 69400,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩69,400",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=004000"
+      }
+    },
+    {
+      "ticker": "007340",
+      "name": "DN오토모티브",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 48050,
+        "stop": 46848,
+        "target_1": 49491,
+        "target_2": 50452,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 2949,
+        "derived": {
+          "risk_per_share": 1202,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 932.8,
+        "rank": 24,
+        "percentile": 40.0
+      },
+      "live_quote": {
+        "current_price": 48050,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩48,050",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=007340"
+      }
+    },
+    {
+      "ticker": "385510",
+      "name": "KODEX 신재생에너지액티브",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 59280,
+        "stop": 57798,
+        "target_1": 61058,
+        "target_2": 62244,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 1835,
+        "derived": {
+          "risk_per_share": 1482,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 928.9,
+        "rank": 25,
+        "percentile": 37.5
+      },
+      "live_quote": {
+        "current_price": 59280,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩59,280",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=385510"
+      }
+    },
+    {
+      "ticker": "008770",
+      "name": "호텔신라",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_two_cross_sectional_momentum",
+        "label": "STRATEGY TWO",
+        "category": "MOMENTUM",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 65500,
+        "stop": 63862,
+        "target_1": 67465,
+        "target_2": 68775,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 2800,
+        "derived": {
+          "risk_per_share": 1638,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 924.9,
+        "rank": 26,
+        "percentile": 35.0
+      },
+      "live_quote": {
+        "current_price": 65500,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩65,500",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=008770"
+      }
+    },
+    {
+      "ticker": "004430",
+      "name": "송원산업",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 15850,
+        "stop": 15453,
+        "target_1": 16325,
+        "target_2": 16642,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 805,
+        "derived": {
+          "risk_per_share": 397,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 773.3,
+        "rank": 27,
+        "percentile": 32.5
+      },
+      "live_quote": {
+        "current_price": 15850,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩15,850",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=004430"
+      }
+    },
+    {
+      "ticker": "0101N0",
+      "name": "RISE AI전력인프라",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 25295,
+        "stop": 24662,
+        "target_1": 26053,
+        "target_2": 26559,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 856,
+        "derived": {
+          "risk_per_share": 633,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 725.1,
+        "rank": 28,
+        "percentile": 30.0
+      },
+      "live_quote": {
+        "current_price": 25295,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩25,295",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=0101N0"
+      }
+    },
+    {
+      "ticker": "002840",
+      "name": "미원상사",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 151800,
+        "stop": 148005,
+        "target_1": 156354,
+        "target_2": 159390,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 4075,
+        "derived": {
+          "risk_per_share": 3795,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 403.2,
+        "rank": 29,
+        "percentile": 27.5
+      },
+      "live_quote": {
+        "current_price": 151800,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩151,800",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=002840"
+      }
+    },
+    {
+      "ticker": "009240",
+      "name": "한샘",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 45200,
+        "stop": 44070,
+        "target_1": 46556,
+        "target_2": 47460,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 1482,
+        "derived": {
+          "risk_per_share": 1130,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 337.5,
+        "rank": 30,
+        "percentile": 25.0
+      },
+      "live_quote": {
+        "current_price": 45200,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩45,200",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=009240"
+      }
+    },
+    {
+      "ticker": "214320",
+      "name": "이노션",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 19800,
+        "stop": 19305,
+        "target_1": 20394,
+        "target_2": 20790,
+        "rr_ratio": 2.0,
+        "rr_band": "SWEET",
+        "atr_14": 331,
+        "derived": {
+          "risk_per_share": 495,
+          "risk_pct": 2.5,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 255.8,
+        "rank": 31,
+        "percentile": 22.5
+      },
+      "live_quote": {
+        "current_price": 19800,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩19,800",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=214320"
+      }
+    },
+    {
+      "ticker": "455890",
+      "name": "RISE 머니마켓액티브",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 54900,
+        "stop": 54197,
+        "target_1": 56547,
+        "target_2": 57645,
+        "rr_ratio": 3.9077514413837444,
+        "rr_band": "OVER",
+        "atr_14": 9,
+        "derived": {
+          "risk_per_share": 703,
+          "risk_pct": 1.28,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 5.5,
+        "rank": 32,
+        "percentile": 20.0
+      },
+      "live_quote": {
+        "current_price": 54900,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩54,900",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=455890"
+      }
+    },
+    {
+      "ticker": "610063",
+      "name": "메리츠 KIS CD금리투자 ETN",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 55215,
+        "stop": 54529,
+        "target_1": 56871,
+        "target_2": 57975,
+        "rr_ratio": 4.025590551181085,
+        "rr_band": "OVER",
+        "atr_14": 7,
+        "derived": {
+          "risk_per_share": 686,
+          "risk_pct": 1.24,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 5.4,
+        "rank": 33,
+        "percentile": 17.5
+      },
+      "live_quote": {
+        "current_price": 55215,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩55,215",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=610063"
+      }
+    },
+    {
+      "ticker": "487340",
+      "name": "ACE 머니마켓액티브",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 104675,
+        "stop": 103311,
+        "target_1": 107815,
+        "target_2": 109908,
+        "rr_ratio": 3.83832642734039,
+        "rr_band": "OVER",
+        "atr_14": 21,
+        "derived": {
+          "risk_per_share": 1364,
+          "risk_pct": 1.3,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 4.8,
+        "rank": 34,
+        "percentile": 15.0
+      },
+      "live_quote": {
+        "current_price": 104675,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩104,675",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=487340"
+      }
+    },
+    {
+      "ticker": "475630",
+      "name": "TIGER CD1년금리액티브(합성)",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 1065360,
+        "stop": 1052221,
+        "target_1": 1097320,
+        "target_2": 1118628,
+        "rr_ratio": 4.054344103208129,
+        "rr_band": "OVER",
+        "atr_14": 134,
+        "derived": {
+          "risk_per_share": 13139,
+          "risk_pct": 1.23,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 3.9,
+        "rank": 35,
+        "percentile": 12.5
+      },
+      "live_quote": {
+        "current_price": 1065360,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩1,065,360",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=475630"
+      }
+    },
+    {
+      "ticker": "477050",
+      "name": "PLUS 머니마켓액티브",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 52950,
+        "stop": 52227,
+        "target_1": 54538,
+        "target_2": 55597,
+        "rr_ratio": 3.6641062902221155,
+        "rr_band": "OVER",
+        "atr_14": 15,
+        "derived": {
+          "risk_per_share": 723,
+          "risk_pct": 1.37,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 3.8,
+        "rank": 36,
+        "percentile": 10.0
+      },
+      "live_quote": {
+        "current_price": 52950,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩52,950",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=477050"
+      }
+    },
+    {
+      "ticker": "760009",
+      "name": "키움 CD금리투자 ETN",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 106295,
+        "stop": 104989,
+        "target_1": 109483,
+        "target_2": 111609,
+        "rr_ratio": 4.071045576407506,
+        "rr_band": "OVER",
+        "atr_14": 13,
+        "derived": {
+          "risk_per_share": 1306,
+          "risk_pct": 1.23,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 3.8,
+        "rank": 37,
+        "percentile": 7.5
+      },
+      "live_quote": {
+        "current_price": 106295,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩106,295",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=760009"
+      }
+    },
+    {
+      "ticker": "479080",
+      "name": "1Q 머니마켓액티브",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 53180,
+        "stop": 52499,
+        "target_1": 54775,
+        "target_2": 55839,
+        "rr_ratio": 3.908569748640289,
+        "rr_band": "OVER",
+        "atr_14": 9,
+        "derived": {
+          "risk_per_share": 681,
+          "risk_pct": 1.28,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 3.8,
+        "rank": 38,
+        "percentile": 5.0
+      },
+      "live_quote": {
+        "current_price": 53180,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩53,180",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=479080"
+      }
+    },
+    {
+      "ticker": "477080",
+      "name": "RISE CD금리액티브(합성)",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 106475,
+        "stop": 105162,
+        "target_1": 109669,
+        "target_2": 111798,
+        "rr_ratio": 4.056963231091636,
+        "rr_band": "OVER",
+        "atr_14": 18,
+        "derived": {
+          "risk_per_share": 1313,
+          "risk_pct": 1.23,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 3.8,
+        "rank": 39,
+        "percentile": 2.5
+      },
+      "live_quote": {
+        "current_price": 106475,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩106,475",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=477080"
+      }
+    },
+    {
+      "ticker": "449170",
+      "name": "TIGER KOFR금리액티브(합성)",
+      "name_en": null,
+      "strategy": {
+        "id": "strategy_three_trend_following",
+        "label": "STRATEGY THREE",
+        "category": "TREND FOLLOWING",
+        "timeframe": "1D",
+        "description": null
+      },
+      "trade_plan": {
+        "entry": 110785,
+        "stop": 109449,
+        "target_1": 114108,
+        "target_2": 116324,
+        "rr_ratio": 4.1475422110740805,
+        "rr_band": "OVER",
+        "atr_14": 12,
+        "derived": {
+          "risk_per_share": 1336,
+          "risk_pct": 1.21,
+          "reward_1_pct": 3.0,
+          "reward_2_pct": 5.0
+        }
+      },
+      "ranking": {
+        "score": 3.6,
+        "rank": 40,
+        "percentile": 0.0
+      },
+      "live_quote": {
+        "current_price": 110785,
+        "change_pct": 0.0,
+        "volume": 0,
+        "market_cap_krw": null,
+        "_display": {
+          "current_price": "₩110,785",
+          "change": "0.00%",
+          "direction": "flat",
+          "volume": "0",
+          "market_cap": null
+        }
+      },
+      "fundamentals": {
+        "per": null,
+        "pbr": null,
+        "eps": null,
+        "dividend_yield_pct": null,
+        "high_52w": null,
+        "low_52w": null
+      },
+      "flow": {
+        "foreign_ratio_pct": null,
+        "institutional_net_krw": null
+      },
+      "external_links": {
+        "naver_finance": "https://finance.naver.com/item/main.naver?code=449170"
+      }
+    }
+  ],
+  "stats": {
+    "total_signals": 40,
+    "by_strategy": {
+      "STRATEGY TWO": 20,
+      "STRATEGY THREE": 20
+    },
+    "by_rr_band": {
+      "SWEET": 31,
+      "OVER": 9
+    }
+  }
+}
