@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import pathlib
 import sys
 import time
 from dataclasses import dataclass, field
@@ -28,6 +29,7 @@ from core.data_fetch import DataClient, OhlcvCache
 from core.data_sources.naver import naver_detail_url
 from core.dates import latest_business_day
 from core.universe import UniverseFilter, build_universe
+from output.snapshot_builder import build_market_snapshot
 
 logging.basicConfig(
     level=logging.INFO,
@@ -219,6 +221,25 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
 
     _update_dynamic_weights_status(cfg, manifest_path)
 
+    # Job A: market_snapshot.json 저장 (선택 단계)
+    try:
+        ohlcv_latest = _extract_ohlcv_latest(str(cfg.cache_root), tickers_meta)
+        market_indices = _fetch_market_indices(target_date)
+
+        snapshot = build_market_snapshot(
+            universe={"tickers": tickers_meta},
+            ohlcv_latest=ohlcv_latest,
+            market_indices=market_indices,
+        )
+
+        data_dir = pathlib.Path("data")
+        data_dir.mkdir(exist_ok=True)
+        snapshot_path = data_dir / "market_snapshot.json"
+        snapshot_path.write_text(snapshot.model_dump_json(indent=2), encoding="utf-8")
+        logger.info(f"[collect] market_snapshot.json 저장 → {snapshot_path}")
+    except Exception as e:
+        logger.warning(f"market_snapshot.json 저장 실패 (skip): {e}")
+
 
 def _subprocess_run(cmd: list[str], **kw):
     """테스트 monkeypatch 포인트 — subprocess.run 래퍼."""
@@ -378,6 +399,46 @@ def _build_tickers_metadata(
             tickers_meta[ticker] = ticker_data
 
     return tickers_meta
+
+
+def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict]:
+    """parquet에서 각 ticker 최근 252행 OHLCV 추출."""
+    import pandas as pd
+    result = {}
+    cache = pathlib.Path(cache_root) / "1D"
+    for ticker in tickers_meta:
+        pq = cache / f"{ticker}.parquet"
+        if not pq.exists():
+            continue
+        df = pd.read_parquet(pq, columns=["close", "high", "low", "volume"])
+        if df.empty:
+            continue
+        df = df.tail(252)  # 52주 = 약 252 거래일
+        change_pct = df["close"].pct_change().fillna(0).mul(100).tolist()
+        result[ticker] = {
+            "close":      df["close"].tolist(),
+            "high":       df["high"].tolist(),
+            "low":        df["low"].tolist(),
+            "volume":     df["volume"].tolist(),
+            "change_pct": change_pct,
+        }
+    return result
+
+
+def _fetch_market_indices(target_date: str) -> dict[str, dict]:
+    """NaverSource.get_market_index()로 KOSPI/KOSDAQ 지수 수집. 실패 시 빈 dict."""
+    try:
+        from core.data_sources.naver import NaverSource
+        src = NaverSource()
+        result = {}
+        for market, key in [("KOSPI", "kospi"), ("KOSDAQ", "kosdaq")]:
+            data = src.get_market_index(market, target_date)
+            if data:
+                result[key] = data
+        return result
+    except Exception as e:
+        print(f"[collect] 시장 인덱스 수집 실패 (계속 진행): {e}")
+        return {}
 
 
 def main() -> None:

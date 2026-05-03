@@ -40,14 +40,19 @@ class NaverSource(DailyDataSource):
     데이터 경로:
       - 일봉: api.finance.naver.com/siseJson.naver (수정주가)
       - 종목리스트/시총: finance.naver.com/sise/sise_market_sum.naver (페이지 크롤링)
+      - 시장 지수: finance.naver.com/sise/sise_index.naver (지수 크롤링)
     """
     name = "naver"
     OHLCV_URL = "https://api.finance.naver.com/siseJson.naver"
     MARKET_SUM_URL = "https://finance.naver.com/sise/sise_market_sum.naver"
+    INDEX_URL = "https://finance.naver.com/sise/sise_index.naver"
     HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     # 시장 코드: KOSPI=0, KOSDAQ=1
     MARKET_CODE = {"KOSPI": 0, "KOSDAQ": 1}
+
+    # 시장 지수 코드
+    _INDEX_CODE = {"KOSPI": "KOSPI", "KOSDAQ": "KOSDAQ"}
 
     # 타임프레임 → siseJson API 의 timeframe 파라미터 값
     # probe 결과 (Task 2): "minute" 만 인트라데이 지원. "1m"/"30m"/"1h" 토큰은 빈 응답.
@@ -72,6 +77,26 @@ class NaverSource(DailyDataSource):
         if info:
             return info["name"]
         return ticker
+
+    def get_market_index(self, market: str, target_date: str) -> dict | None:
+        """네이버 sise_index에서 시장 지수 값 + 등락률 수집. 실패 시 None."""
+        code = self._INDEX_CODE.get(market)
+        if not code:
+            return None
+        try:
+            resp = requests.get(
+                self.INDEX_URL, params={"code": code}, headers=self.HEADERS, timeout=5
+            )
+            resp.raise_for_status()
+            tables = pd.read_html(resp.text)
+            # sise_index 페이지 첫 번째 테이블: 현재지수 / 전일비 / 등락률 컬럼
+            df = tables[0]
+            close = float(df.iloc[0]["현재지수"])
+            chg_str = str(df.iloc[0].get("등락률", "0")).replace("%", "").replace("+", "")
+            chg = float(chg_str)
+            return {"value": close, "change_pct": chg}
+        except Exception:
+            return None
 
     def get_market_cap(self, market: str, target_date: str) -> pd.DataFrame:
         """시가총액 DataFrame 반환 (컬럼: 시가총액, 종목명)"""
