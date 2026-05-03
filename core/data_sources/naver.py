@@ -95,7 +95,8 @@ class NaverSource(DailyDataSource):
             chg_str = str(df.iloc[0].get("등락률", "0")).replace("%", "").replace("+", "")
             chg = float(chg_str)
             return {"value": close, "change_pct": chg}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"시장 지수 조회 실패 ({market}): {e}")
             return None
 
     def get_market_cap(self, market: str, target_date: str) -> pd.DataFrame:

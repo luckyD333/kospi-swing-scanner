@@ -36,7 +36,7 @@ def build_market_snapshot(
         low_52w  = int(min(lows_52w))  if lows_52w  else None
 
         market_cap_bil = meta.get("market_cap_bil")
-        market_cap_krw = int(market_cap_bil * 1e8) if market_cap_bil else None
+        market_cap_krw = int(round(market_cap_bil * 1e8)) if market_cap_bil else None
 
         tickers[ticker] = TickerSnapshot(
             ticker=ticker,

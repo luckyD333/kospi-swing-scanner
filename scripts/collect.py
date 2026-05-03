@@ -437,7 +437,7 @@ def _fetch_market_indices(target_date: str) -> dict[str, dict]:
                 result[key] = data
         return result
     except Exception as e:
-        print(f"[collect] 시장 인덱스 수집 실패 (계속 진행): {e}")
+        logger.warning(f"시장 인덱스 수집 실패 (계속 진행): {e}")
         return {}
 
 

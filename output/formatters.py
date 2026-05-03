@@ -420,5 +420,4 @@ FORMATTERS = {
     "json": format_json,
     "csv": format_csv,
     "markdown": format_markdown,
-    "signals_ui": None,
 }

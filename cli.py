@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -415,6 +415,37 @@ def _run_decide(args) -> int:
     return 0
 
 
+def _handle_signals_ui_format(args, result) -> int:
+    """signals_ui 포맷 처리 — MarketSnapshot 로드 → SignalsPayload → data/signals.json 저장."""
+    from output.models import MarketSnapshot
+    from output.signals_builder import build_signals_payload
+
+    snap_path = Path("data") / "market_snapshot.json"
+    if not snap_path.exists():
+        logger.error("[ERROR] data/market_snapshot.json 없음. Job A (collect.py)를 먼저 실행하세요.")
+        return 1
+
+    snapshot = MarketSnapshot.model_validate_json(snap_path.read_text(encoding="utf-8"))
+    payload = build_signals_payload(snapshot, result.candidates_by_strategy)
+
+    data_dir = Path(args.output_dir or "data")
+    data_dir.mkdir(exist_ok=True)
+
+    # by_alias=True 필수 — _display alias가 JSON에 나타남
+    json_str = payload.model_dump_json(by_alias=True, indent=2)
+
+    out_path = data_dir / "signals.json"
+    out_path.write_text(json_str, encoding="utf-8")
+
+    archive_dir = data_dir / "archive"
+    archive_dir.mkdir(exist_ok=True)
+    archive_path = archive_dir / f"signals_{date.today().isoformat()}.json"
+    archive_path.write_text(json_str, encoding="utf-8")
+
+    logger.info(f"[cli] signals.json 저장 → {out_path} ({payload.stats['total_signals']}개 시그널)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -495,34 +526,7 @@ def main(argv: list[str] | None = None) -> int:
     if multi_tf:
         # 멀티 TF: TF별로 stdout 출력 + 파일 저장
         if args.format == "signals_ui":
-            # signals_ui: 멀티 TF에서도 통합 signals.json 생성
-            import pathlib
-            from output.signals_builder import build_signals_payload
-            from output.models import MarketSnapshot
-
-            snap_path = pathlib.Path("data") / "market_snapshot.json"
-            if not snap_path.exists():
-                logger.error("[ERROR] data/market_snapshot.json 없음. Job A (collect.py)를 먼저 실행하세요.")
-                return 1
-
-            snapshot = MarketSnapshot.model_validate_json(snap_path.read_text(encoding="utf-8"))
-            payload = build_signals_payload(snapshot, result.candidates_by_strategy)
-
-            data_dir = pathlib.Path(args.output_dir or "data")
-            data_dir.mkdir(exist_ok=True)
-
-            json_str = payload.model_dump_json(by_alias=True, indent=2)
-
-            out_path = data_dir / "signals.json"
-            out_path.write_text(json_str, encoding="utf-8")
-
-            archive_dir = data_dir / "archive"
-            archive_dir.mkdir(exist_ok=True)
-            from datetime import date
-            archive_path = archive_dir / f"signals_{date.today().isoformat()}.json"
-            archive_path.write_text(json_str, encoding="utf-8")
-
-            logger.info(f"[cli] signals.json 저장 → {out_path} ({payload.stats['total_signals']}개 시그널)")
+            return _handle_signals_ui_format(args, result)
         else:
             if args.format != "json":
                 print(summary_text)
@@ -547,35 +551,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         # 단일 TF: 기존 동작
         if args.format == "signals_ui":
-            # signals_ui: MarketSnapshot 로드 → build_signals_payload → data/signals.json 저장
-            import pathlib
-            from output.signals_builder import build_signals_payload
-            from output.models import MarketSnapshot
-
-            snap_path = pathlib.Path("data") / "market_snapshot.json"
-            if not snap_path.exists():
-                logger.error("[ERROR] data/market_snapshot.json 없음. Job A (collect.py)를 먼저 실행하세요.")
-                return 1
-
-            snapshot = MarketSnapshot.model_validate_json(snap_path.read_text(encoding="utf-8"))
-            payload = build_signals_payload(snapshot, result.candidates_by_strategy)
-
-            data_dir = pathlib.Path(args.output_dir or "data")
-            data_dir.mkdir(exist_ok=True)
-
-            # by_alias=True 필수 — _display alias가 JSON에 나타남
-            json_str = payload.model_dump_json(by_alias=True, indent=2)
-
-            out_path = data_dir / "signals.json"
-            out_path.write_text(json_str, encoding="utf-8")
-
-            archive_dir = data_dir / "archive"
-            archive_dir.mkdir(exist_ok=True)
-            from datetime import date
-            archive_path = archive_dir / f"signals_{date.today().isoformat()}.json"
-            archive_path.write_text(json_str, encoding="utf-8")
-
-            logger.info(f"[cli] signals.json 저장 → {out_path} ({payload.stats['total_signals']}개 시그널)")
+            return _handle_signals_ui_format(args, result)
         elif len(strategies) == 1 and not result.errors:
             strat_name = strategies[0].name
             tf = getattr(strategies[0], "timeframe", "1D")
