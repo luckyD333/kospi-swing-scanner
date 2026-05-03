@@ -143,11 +143,39 @@ priorities:
 
 ## 시장 국면 (regime_score) 효과 범위
 
-`apply_regime_overlay` 는 priority weight 자체를 BULL 시 `momentum_pct × 1.3`,
-BEAR 시 `per/roe × 1.2`, `momentum_pct × 0.7` 로 조정 후 합=100 으로 정규화해요.
-즉 BULL/BEAR 시 priority 의 **영향력 비중**이 변할 뿐, 후보별 `regime_score` 가
-ranking 점수에 직접 더해지지는 않아요. 직접 가산이 필요하면 별도 priority 추가가
-필요하나, 이는 본 시점에서는 미지원이에요.
+regime_score 는 두 경로로 ranking 에 영향을 줄 수 있어요:
+
+**1) 간접 영향 (기본 활성)** — `apply_regime_overlay`
+
+priority weight 자체를 BULL 시 `momentum_pct × 1.3`, BEAR 시 `per/roe × 1.2`,
+`momentum_pct × 0.7` 로 조정 후 합=100 으로 정규화. 즉 priority 의 **영향력 비중**이
+시장 국면에 따라 변해요.
+
+**2) 직접 가산 (사용자 옵션)** — `regime_score` priority 등록
+
+`weights.yml` 의 priorities 에 `regime_score` 를 등록하면 모든 후보가 동일
+regime_score 를 metadata 에 보유하고, percentile_rank 정규화 후 weight 만큼
+contribution 으로 가산돼요. 예:
+
+```yaml
+priorities:
+  - key: regime_score
+    weight: 10.0
+    direction: higher_better
+    label: 시장 국면
+```
+
+BULL=85 시: 모든 후보가 동일 값이라 percentile_rank 가 1/m..1.0 분포로 균등 (m=후보 수).
+효과는 후보 분포의 **base 점수 shift** 로 작용 — BULL 시 전체 후보 ranking 의 절대값이
+상승, BEAR 시 하락. 같은 값이라도 `aggregator._percentile_rank` 의 정렬 안정성 덕에
+contribution 이 0 이 되지 않아요.
+
+추가로 `regime_label` (BULL/NEUTRAL/BEAR) 도 metadata 에 함께 주입되므로 must_have
+DSL 에서 `regime_label==BEAR` 같은 조건으로 후보 필터에 활용 가능해요.
+
+사용 시점:
+- BULL/BEAR 신호가 명확할 때 후보 분포 자체를 위/아래로 이동시키고 싶을 때
+- 다른 priority 와 가중치 합 100 을 유지해야 함 (예: rr_ratio 30 → 20, regime_score 10 추가)
 
 ## 동적 가중치 파이프라인 실패 진단
 
