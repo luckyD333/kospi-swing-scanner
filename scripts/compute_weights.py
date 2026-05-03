@@ -26,7 +26,12 @@ from core.decision.factor_performance import (
     measure_factor_correlations,
     update_factor_records,
 )
-from core.decision.market_regime import RegimeAnalysis, analyze_regime, apply_regime_overlay
+from core.decision.market_regime import (
+    RegimeAnalysis,
+    analyze_regime,
+    apply_regime_overlay,
+    load_regime_analysis,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -54,8 +59,8 @@ def compute_dynamic_weights(
     # 2. HMM regime — 저장된 regime_analysis.json 우선 로드
     regime_score = 50
     hmm_meta: dict = {}
+    regime_failure: str | None = None
     try:
-        from core.decision.market_regime import load_regime_analysis
         cached = load_regime_analysis(cache_root)
         if cached:
             regime_score = cached.get("current_score", 50)
@@ -76,8 +81,17 @@ def compute_dynamic_weights(
                 "bear_state_mean_return": analysis.bear_state_mean_return,
             }
             logger.info(f"HMM regime 직접 계산: score={regime_score}")
-    except (ValueError, Exception) as e:
-        logger.warning(f"HMM 분석 실패 (regime_score=50 fallback): {e}")
+    except ImportError as e:
+        regime_failure = "hmmlearn_not_installed"
+        logger.warning(
+            f"[regime] hmmlearn not installed; install with 'pip install hmmlearn>=0.3.0' ({e})"
+        )
+    except ValueError as e:
+        regime_failure = "insufficient_data"
+        logger.warning(f"[regime] insufficient data, regime_score=50 fallback: {e}")
+    except Exception as e:
+        regime_failure = "unknown"
+        logger.warning(f"[regime] unexpected failure, regime_score=50 fallback: {e}")
 
     # 3. Factor Momentum
     correlations: dict[str, float] = {}
@@ -123,6 +137,7 @@ def compute_dynamic_weights(
             "regime_adjustment_applied": regime_score != 50,
             "hmm_n_tickers": hmm_meta.get("n_tickers", 0),
             "hmm_n_days": hmm_meta.get("n_days", 0),
+            "regime_failure": regime_failure,
         },
     }
     return result
@@ -141,11 +156,18 @@ def main() -> None:
     output_path = Path(args.output) if args.output else cache_root / "dynamic_weights.json"
     weights_yml = Path(args.weights_yml)
 
+    if not weights_yml.exists():
+        logger.error(
+            f"[dynamic_weights] weights.yml not found at {weights_yml}; "
+            f"copy weights.yml.example and edit."
+        )
+        sys.exit(1)
+
     try:
         result = compute_dynamic_weights(cache_root, scan_root, weights_yml)
     except Exception as e:
         logger.error(f"동적 가중치 계산 실패: {e}")
-        sys.exit(0)  # 수집 파이프라인에 영향 없음
+        sys.exit(1)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(result, ensure_ascii=False, indent=2))
