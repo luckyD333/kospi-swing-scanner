@@ -60,15 +60,31 @@ def build_signals_payload(
     label_map = {
         "kospi": "코스피", "kosdaq": "코스닥",
         "usd_krw": "USD/KRW", "wti": "WTI",
-        "vix": "VIX", "kr_treasury_3y": "국고채 3Y",
+        "kr_treasury_3y": "국고채3Y", "vix": "VIX",
     }
+
+    def _fmt_index_value(key: str, val: float) -> str:
+        if key == "usd_krw":
+            return f"₩{val:,.2f}"
+        if key == "wti":
+            return f"${val:.2f}"
+        if key == "kr_treasury_3y":
+            return f"{val:.2f}%"
+        return f"{val:,.2f}"
+
+    def _fmt_index_change(key: str, chg: float) -> str:
+        prefix = "+" if chg > 0 else ""
+        if key == "kr_treasury_3y":
+            return f"{prefix}{chg:.2f}"
+        return _fmt_pct(chg, positive_prefix="+") or "0.00%"
+
     for key, idx in snapshot.market_indices.items():
         val = idx.value if hasattr(idx, "value") else idx["value"]
         chg = idx.change_pct if hasattr(idx, "change_pct") else idx["change_pct"]
         mi_display[key] = MarketIndexDisplay(
             label=label_map.get(key, key),
-            value_display=f"{val:,.2f}",
-            change_display=_fmt_pct(chg, positive_prefix="+") or "0.00%",
+            value_display=_fmt_index_value(key, val),
+            change_display=_fmt_index_change(key, chg),
             direction=_direction(chg),
         )
 

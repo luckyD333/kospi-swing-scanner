@@ -46,6 +46,7 @@ class NaverSource(DailyDataSource):
     OHLCV_URL = "https://api.finance.naver.com/siseJson.naver"
     MARKET_SUM_URL = "https://finance.naver.com/sise/sise_market_sum.naver"
     INDEX_URL = "https://finance.naver.com/sise/sise_index.naver"
+    ETF_LIST_URL = "https://finance.naver.com/api/sise/etfItemList.nhn"
     HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     # 시장 코드: KOSPI=0, KOSDAQ=1
@@ -66,11 +67,35 @@ class NaverSource(DailyDataSource):
         """
         네이버 시가총액 페이지에서 전종목 크롤링.
 
-        페이지 1부터 마지막 페이지까지 순회하며 pd.read_html로 파싱.
+        market="ETF"이면 ETF 목록 JSON API를 사용.
+        그 외(KOSPI/KOSDAQ)는 sise_market_sum 페이지 크롤링.
         결과는 _ticker_cache에 저장하여 시총/이름 조회에 재사용.
         """
+        if market == "ETF":
+            return self._get_etf_tickers(top_n=200, sort_by="quant")
         self._crawl_market_sum(market)
         return [t for t, info in self._ticker_cache.items() if info["market"] == market]
+
+    def _get_etf_tickers(
+        self, top_n: int | None = None, sort_by: str = "marketSum"
+    ) -> list[str]:
+        """네이버 ETF 목록 API에서 itemcode 추출.
+
+        sort_by: 정렬 기준 필드 (기본 'marketSum', 거래량 기준 시 'quant')
+        top_n: 상위 N개만 반환 (None이면 전체)
+        """
+        r = requests.get(
+            self.ETF_LIST_URL,
+            params={"etfType": 0},
+            headers=self.HEADERS,
+            timeout=10,
+        )
+        r.raise_for_status()
+        items = r.json()["result"]["etfItemList"]
+        items = sorted(items, key=lambda x: x.get(sort_by) or 0, reverse=True)
+        if top_n is not None:
+            items = items[:top_n]
+        return [item["itemcode"] for item in items]
 
     def get_ticker_name(self, ticker: str) -> str:
         info = self._ticker_cache.get(ticker)
@@ -80,6 +105,9 @@ class NaverSource(DailyDataSource):
 
     def get_market_index(self, market: str, target_date: str) -> dict | None:
         """네이버 sise_index에서 시장 지수 값 + 등락률 수집. 실패 시 None."""
+        import re
+        from bs4 import BeautifulSoup
+
         code = self._INDEX_CODE.get(market)
         if not code:
             return None
@@ -88,12 +116,21 @@ class NaverSource(DailyDataSource):
                 self.INDEX_URL, params={"code": code}, headers=self.HEADERS, timeout=5
             )
             resp.raise_for_status()
-            tables = pd.read_html(resp.text)
-            # sise_index 페이지 첫 번째 테이블: 현재지수 / 전일비 / 등락률 컬럼
-            df = tables[0]
-            close = float(df.iloc[0]["현재지수"])
-            chg_str = str(df.iloc[0].get("등락률", "0")).replace("%", "").replace("+", "")
-            chg = float(chg_str)
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            now_el = soup.find(id="now_value")
+            chg_el = soup.find(id="change_value_and_rate")
+            if now_el is None:
+                raise ValueError("now_value 요소를 찾을 수 없음")
+
+            close = float(now_el.get_text(strip=True).replace(",", ""))
+
+            chg = 0.0
+            if chg_el:
+                m = re.search(r"([+-]?\d+\.?\d*)%", chg_el.get_text(strip=True))
+                if m:
+                    chg = float(m.group(1))
+
             return {"value": close, "change_pct": chg}
         except Exception as e:
             logger.warning(f"시장 지수 조회 실패 ({market}): {e}")
@@ -118,7 +155,7 @@ class NaverSource(DailyDataSource):
 
     def get_fundamentals(self, market: str, target_date: str) -> pd.DataFrame:
         """
-        펀더멘털 DataFrame 반환 (인덱스=ticker, 컬럼=per/roe/foreign_pct/naver_url).
+        펀더멘털 DataFrame 반환 (인덱스=ticker, 컬럼=per/roe/foreign_pct/market_cap_bil/naver_url).
 
         결측치는 None (JSON 호환). naver_url은 항상 채워짐 (단순 패턴).
         sise_market_sum 페이지 1회 크롤링과 함께 추출되므로 추가 HTTP 비용 0.
@@ -128,17 +165,98 @@ class NaverSource(DailyDataSource):
         for ticker, info in self._ticker_cache.items():
             if info["market"] != market:
                 continue
+            raw_cap = info.get("market_cap") or 0.0
             rows[ticker] = {
                 "per": info.get("per"),
                 "roe": info.get("roe"),
                 "foreign_pct": info.get("foreign_pct"),
+                "market_cap_bil": raw_cap / 1e8 if raw_cap else None,
                 "naver_url": naver_detail_url(ticker),
             }
         if not rows:
-            return pd.DataFrame(columns=["per", "roe", "foreign_pct", "naver_url"])
+            return pd.DataFrame(columns=["per", "roe", "foreign_pct", "market_cap_bil", "naver_url"])
         df = pd.DataFrame(rows).T
         df.index.name = "티커"
         return df
+
+    def get_macro_indices(self) -> dict[str, dict]:
+        """USD/KRW, WTI, 국고채3Y를 네이버 marketindex에서 스크래핑. 실패 항목은 skip."""
+        import re
+        from bs4 import BeautifulSoup
+
+        result: dict[str, dict] = {}
+
+        # USD/KRW
+        try:
+            resp = requests.get(
+                "https://finance.naver.com/marketindex/exchangeDetail.naver",
+                params={"marketindexCd": "FX_USDKRW"},
+                headers=self.HEADERS, timeout=5,
+            )
+            soup = BeautifulSoup(resp.text, "html.parser")
+            today = soup.find(class_="today")
+            if today:
+                no_today = today.find(class_="no_today")
+                value_text = no_today.get_text(strip=True) if no_today else ""
+                value = float(re.sub(r"[^\d.]", "", value_text.replace(",", ""))) if value_text else None
+                exday = today.find(class_="no_exday")
+                chg_match = re.search(r"([\d.]+)%", exday.get_text()) if exday else None
+                change_pct = float(chg_match.group(1)) if chg_match else 0.0
+                if today.find("span", class_="ico down") or today.find("i", class_="down"):
+                    change_pct = -change_pct
+                if value:
+                    result["usd_krw"] = {"value": value, "change_pct": change_pct}
+        except Exception as e:
+            logger.warning(f"USD/KRW 수집 실패: {e}")
+
+        # WTI (최근 거래일 종가)
+        try:
+            resp = requests.get(
+                "https://finance.naver.com/marketindex/worldDailyQuote.naver",
+                params={"marketindexCd": "OIL_CL", "fdtc": "2"},
+                headers=self.HEADERS, timeout=5,
+            )
+            soup = BeautifulSoup(resp.text, "html.parser")
+            tbl = soup.find("table")
+            if tbl:
+                for row in tbl.find_all("tr")[1:]:
+                    cols = [td.get_text(strip=True) for td in row.find_all("td")]
+                    if len(cols) >= 4:
+                        try:
+                            value = float(cols[1].replace(",", ""))
+                            chg_str = cols[3].replace("%", "").replace("+", "").strip()
+                            change_pct = float(chg_str)
+                            if value > 0:
+                                result["wti"] = {"value": value, "change_pct": change_pct}
+                                break
+                        except ValueError:
+                            continue
+        except Exception as e:
+            logger.warning(f"WTI 수집 실패: {e}")
+
+        # 국고채 3Y (수익률, 전일대비 절대 변화)
+        try:
+            resp = requests.get(
+                "https://finance.naver.com/marketindex/interestDetail.naver",
+                params={"marketindexCd": "IRR_OWNBD03Y"},
+                headers=self.HEADERS, timeout=5,
+            )
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for row in soup.select("table tr"):
+                cols = [td.get_text(strip=True) for td in row.find_all("td")]
+                if len(cols) >= 2 and cols[0]:
+                    try:
+                        value = float(cols[0].replace(",", ""))
+                        change_abs = float(cols[1].replace(",", ""))
+                        if value > 0:
+                            result["kr_treasury_3y"] = {"value": value, "change_pct": change_abs}
+                            break
+                    except ValueError:
+                        continue
+        except Exception as e:
+            logger.warning(f"국고채3Y 수집 실패: {e}")
+
+        return result
 
     def get_ohlcv(
         self, ticker: str, start: str, end: str, timeframe: str = "1D"

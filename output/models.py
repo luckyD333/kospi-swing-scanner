@@ -6,16 +6,12 @@ from pydantic import BaseModel, Field, model_validator
 
 class Fundamentals(BaseModel):
     per: Optional[float] = None
-    pbr: Optional[float] = None
-    eps: Optional[int] = None
-    dividend_yield_pct: Optional[float] = None
     high_52w: Optional[int] = None
     low_52w: Optional[int] = None
 
 
 class Flow(BaseModel):
     foreign_ratio_pct: Optional[float] = None
-    institutional_net_krw: Optional[int] = None
 
 
 class TickerSnapshot(BaseModel):

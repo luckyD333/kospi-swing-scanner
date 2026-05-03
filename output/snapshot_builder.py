@@ -47,15 +47,11 @@ def build_market_snapshot(
             market_cap_krw=market_cap_krw,
             fundamentals=Fundamentals(
                 per=meta.get("per"),
-                pbr=meta.get("pbr"),
-                eps=meta.get("eps"),
-                dividend_yield_pct=meta.get("dividend_yield_pct"),
                 high_52w=high_52w,
                 low_52w=low_52w,
             ),
             flow=Flow(
                 foreign_ratio_pct=meta.get("foreign_pct"),
-                institutional_net_krw=None,
             ),
             external_links={"naver_finance": meta.get("naver_url", "")},
         )

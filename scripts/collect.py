@@ -68,8 +68,8 @@ class CollectConfig:
     max_market_cap_bil: float = 9_999_999.0
     min_daily_volume: int = 50_000  # 거래량 중간 필터
     skip_collected: bool = False
-    smart_skip: bool = False
-    include_etf: bool = False  # 네이버는 ETF 미지원 → 기본 비활성
+    smart_skip: bool = True
+    include_etf: bool = True
     force_refetch: bool = False  # True면 기존 parquet 무시하고 전 구간 재수집
     scan_root: Path = field(default_factory=lambda: Path("scan_results"))
 
@@ -145,20 +145,28 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     timestamps = _load_timestamps(cfg.cache_root)
 
     for tf in cfg.base_tfs:
+        start = min_start if tf == "1m" else day_start
+        to_collect = combined_tickers
+
         if cfg.smart_skip:
             last = timestamps.get(tf)
             min_interval = _TF_MIN_INTERVAL.get(tf, timedelta(0))
             if last and (datetime.now() - last) < min_interval:
-                remaining = min_interval - (datetime.now() - last)
+                # 주기 미달 — 캐시 없는 신규 종목만 수집, 기존 종목은 skip
+                new_tickers = [t for t in combined_tickers if not disk.has_cache(t, tf)]
+                if not new_tickers:
+                    remaining = min_interval - (datetime.now() - last)
+                    logger.info(
+                        f"  {tf}: smart_skip (마지막 수집 {last.strftime('%H:%M:%S')}, "
+                        f"{str(remaining).split('.')[0]} 남음)"
+                    )
+                    continue
                 logger.info(
-                    f"  {tf}: smart_skip (마지막 수집 {last.strftime('%H:%M:%S')}, "
-                    f"{str(remaining).split('.')[0]} 남음)"
+                    f"  {tf}: smart_skip 중 신규 종목 {len(new_tickers)}개 수집"
                 )
-                continue
+                to_collect = new_tickers
 
-        start = min_start if tf == "1m" else day_start
-        to_collect = combined_tickers
-        if cfg.skip_collected:
+        if cfg.skip_collected and to_collect is combined_tickers:
             to_collect = [t for t in combined_tickers if not disk.has_cache(t, tf)]
             skipped = len(combined_tickers) - len(to_collect)
             logger.info(f"  {tf}: {skipped}개 캐시 존재 skip, {len(to_collect)}개 수집 예정")
@@ -330,6 +338,7 @@ def _collect_fundamentals(
             "per": _none_if_nan(row.get("per")),
             "roe": _none_if_nan(row.get("roe")),
             "foreign_pct": _none_if_nan(row.get("foreign_pct")),
+            "market_cap_bil": _none_if_nan(row.get("market_cap_bil")),
             "naver_url": row.get("naver_url") or naver_detail_url(ticker),
         }
     return out
@@ -425,8 +434,25 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
     return result
 
 
+def _fetch_vix() -> dict | None:
+    """yfinance로 VIX 수집. 실패 시 None."""
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker("^VIX")
+        hist = ticker.history(period="5d")
+        if hist.empty:
+            return None
+        close = float(hist["Close"].iloc[-1])
+        prev = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else close
+        change_pct = ((close - prev) / prev * 100) if prev else 0.0
+        return {"value": close, "change_pct": round(change_pct, 2)}
+    except Exception as e:
+        logger.warning(f"VIX 수집 실패 (skip): {e}")
+        return None
+
+
 def _fetch_market_indices(target_date: str) -> dict[str, dict]:
-    """NaverSource.get_market_index()로 KOSPI/KOSDAQ 지수 수집. 실패 시 빈 dict."""
+    """KOSPI/KOSDAQ + 매크로 지수(USD/KRW, WTI, 국고채3Y, VIX) 수집."""
     try:
         from core.data_sources.naver import NaverSource
         src = NaverSource()
@@ -435,6 +461,11 @@ def _fetch_market_indices(target_date: str) -> dict[str, dict]:
             data = src.get_market_index(market, target_date)
             if data:
                 result[key] = data
+        macro = src.get_macro_indices()
+        result.update(macro)
+        vix = _fetch_vix()
+        if vix:
+            result["vix"] = vix
         return result
     except Exception as e:
         logger.warning(f"시장 인덱스 수집 실패 (계속 진행): {e}")
@@ -466,8 +497,8 @@ def main() -> None:
         help="이미 캐시 파일이 있는 종목 skip (증분 수집용)",
     )
     parser.add_argument(
-        "--smart-skip", action="store_true",
-        help="TF별 마지막 수집 시각 기준으로 주기 미달 TF skip (10분 주기 실행용)",
+        "--no-smart-skip", action="store_true",
+        help="smart-skip 비활성화 (기본: 활성화 — TF별 최소 주기 미달 시 기존 종목 skip)",
     )
     parser.add_argument(
         "--force-refetch", action="store_true",
@@ -487,7 +518,7 @@ def main() -> None:
         min_daily_volume=args.min_volume,
         include_etf=not args.no_etf,
         skip_collected=args.skip_collected,
-        smart_skip=args.smart_skip,
+        smart_skip=not args.no_smart_skip,
         force_refetch=args.force_refetch,
         scan_root=Path(args.scan_root),
     )
