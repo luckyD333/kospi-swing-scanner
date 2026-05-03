@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--top", type=int, default=20, help="상위 N개")
     parser.add_argument(
         "--format", default="table",
-        choices=["table", "json", "csv", "markdown"],
+        choices=["table", "json", "csv", "markdown", "signals_ui"],
         help="출력 포맷 (단일 전략) / 비교 모드 (--strategy all) 시 markdown/csv/json 권장",
     )
     parser.add_argument(
@@ -251,6 +251,7 @@ def render_single(
     strategy_name: str | None = None,
     timeframe: str = "1D",
     filters: dict | None = None,
+    candidates_by_strategy: dict[str, list] | None = None,
 ) -> str:
     if fmt == "json":
         return formatters.format_json(
@@ -260,6 +261,10 @@ def render_single(
             timeframe=timeframe,
             filters=filters,
         )
+    if fmt == "signals_ui":
+        # signals_ui는 JSON 응답이 아니라 파일 저장 작업으로 처리
+        # render_single 함수의 스코프 외이므로 None을 반환하고 main에서 처리
+        return ""
     formatter = formatters.FORMATTERS.get(fmt)
     if formatter is None:
         raise ValueError(f"unsupported format: {fmt}")
@@ -489,29 +494,89 @@ def main(argv: list[str] | None = None) -> int:
 
     if multi_tf:
         # 멀티 TF: TF별로 stdout 출력 + 파일 저장
-        if args.format != "json":
-            print(summary_text)
-        output_dir = Path(args.output_dir) if args.output_dir else None
-        summary_dict = formatters.format_run_summary_json(result, args.market) if output_dir else None
-        for (strat_name, tf), candidates in sorted(result.candidates_by_strategy_tf.items()):
-            body = render_single(
-                candidates,
-                target,
-                args.format,
-                strategy_name=strat_name,
-                timeframe=tf,
-                filters=filters_dict,
-            )
-            print(f"\n--- {strat_name} / {tf} ---")
-            print(body)
-            if output_dir:
-                save_output(
-                    body, args.format, target, strat_name, output_dir,
-                    summary_text=summary_text, summary_dict=summary_dict, tf=tf,
+        if args.format == "signals_ui":
+            # signals_ui: 멀티 TF에서도 통합 signals.json 생성
+            import pathlib
+            from output.signals_builder import build_signals_payload
+            from output.models import MarketSnapshot
+
+            snap_path = pathlib.Path("data") / "market_snapshot.json"
+            if not snap_path.exists():
+                logger.error("[ERROR] data/market_snapshot.json 없음. Job A (collect.py)를 먼저 실행하세요.")
+                return 1
+
+            snapshot = MarketSnapshot.model_validate_json(snap_path.read_text(encoding="utf-8"))
+            payload = build_signals_payload(snapshot, result.candidates_by_strategy)
+
+            data_dir = pathlib.Path(args.output_dir or "data")
+            data_dir.mkdir(exist_ok=True)
+
+            json_str = payload.model_dump_json(by_alias=True, indent=2)
+
+            out_path = data_dir / "signals.json"
+            out_path.write_text(json_str, encoding="utf-8")
+
+            archive_dir = data_dir / "archive"
+            archive_dir.mkdir(exist_ok=True)
+            from datetime import date
+            archive_path = archive_dir / f"signals_{date.today().isoformat()}.json"
+            archive_path.write_text(json_str, encoding="utf-8")
+
+            logger.info(f"[cli] signals.json 저장 → {out_path} ({payload.stats['total_signals']}개 시그널)")
+        else:
+            if args.format != "json":
+                print(summary_text)
+            output_dir = Path(args.output_dir) if args.output_dir else None
+            summary_dict = formatters.format_run_summary_json(result, args.market) if output_dir else None
+            for (strat_name, tf), candidates in sorted(result.candidates_by_strategy_tf.items()):
+                body = render_single(
+                    candidates,
+                    target,
+                    args.format,
+                    strategy_name=strat_name,
+                    timeframe=tf,
+                    filters=filters_dict,
                 )
+                print(f"\n--- {strat_name} / {tf} ---")
+                print(body)
+                if output_dir:
+                    save_output(
+                        body, args.format, target, strat_name, output_dir,
+                        summary_text=summary_text, summary_dict=summary_dict, tf=tf,
+                    )
     else:
         # 단일 TF: 기존 동작
-        if len(strategies) == 1 and not result.errors:
+        if args.format == "signals_ui":
+            # signals_ui: MarketSnapshot 로드 → build_signals_payload → data/signals.json 저장
+            import pathlib
+            from output.signals_builder import build_signals_payload
+            from output.models import MarketSnapshot
+
+            snap_path = pathlib.Path("data") / "market_snapshot.json"
+            if not snap_path.exists():
+                logger.error("[ERROR] data/market_snapshot.json 없음. Job A (collect.py)를 먼저 실행하세요.")
+                return 1
+
+            snapshot = MarketSnapshot.model_validate_json(snap_path.read_text(encoding="utf-8"))
+            payload = build_signals_payload(snapshot, result.candidates_by_strategy)
+
+            data_dir = pathlib.Path(args.output_dir or "data")
+            data_dir.mkdir(exist_ok=True)
+
+            # by_alias=True 필수 — _display alias가 JSON에 나타남
+            json_str = payload.model_dump_json(by_alias=True, indent=2)
+
+            out_path = data_dir / "signals.json"
+            out_path.write_text(json_str, encoding="utf-8")
+
+            archive_dir = data_dir / "archive"
+            archive_dir.mkdir(exist_ok=True)
+            from datetime import date
+            archive_path = archive_dir / f"signals_{date.today().isoformat()}.json"
+            archive_path.write_text(json_str, encoding="utf-8")
+
+            logger.info(f"[cli] signals.json 저장 → {out_path} ({payload.stats['total_signals']}개 시그널)")
+        elif len(strategies) == 1 and not result.errors:
             strat_name = strategies[0].name
             tf = getattr(strategies[0], "timeframe", "1D")
             candidates = result.candidates_by_strategy.get(strat_name, [])
@@ -530,11 +595,12 @@ def main(argv: list[str] | None = None) -> int:
             strat_name = "multi"
             tf = runner_timeframes[0]
 
-        if args.format != "json":
+        if args.format != "json" and args.format != "signals_ui":
             print(summary_text)
-        print(body)
+        if args.format != "signals_ui":
+            print(body)
 
-        if args.output_dir:
+        if args.output_dir and args.format != "signals_ui":
             summary_dict = formatters.format_run_summary_json(result, args.market)
             save_output(
                 body, args.format, target, strat_name, Path(args.output_dir),
