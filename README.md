@@ -16,8 +16,12 @@ pip install -r requirements.txt
 
 | Job | 명령어 | 출력 | 주기 |
 |-----|--------|------|------|
-| A: 시장 데이터 수집 | `python scripts/collect.py ...` | `data/market_snapshot.json` | 매일 장 마감 후 |
-| B: 전략 + 랭킹 | `python cli.py --format signals_ui ...` | `data/signals.json` | Job A 완료 후 |
+| A: 시장 데이터 수집 | `python scripts/collect.py ...` | `data/market_snapshot.json` | 매일 장 마감 후 1회 |
+| B-일봉 | `python cli.py --format signals_ui ...` | `data/signals.json` | Job A 완료 후 1회 |
+| B-장중 (30m/1h) | `python cli.py --format signals_ui ...` | `data/signals.json` | 장 중 30분마다 (09:00~15:30) |
+
+> **TF별 재계산 필요 주기**: 1D/1W 전략은 장 마감 후 1회로 충분. 30m/1h 전략은 새 캔들이 확정되는 시점마다 재실행이 필요해요.
+> 30m 파일은 디스크에 캐시되지 않고 매 실행마다 `.cache/1m/` parquet에서 리샘플링해 즉석 생성돼요.
 
 #### Job A: 시장 데이터 수집
 
@@ -38,8 +42,14 @@ python cli.py --strategy all --cache-root .cache --format signals_ui --output-di
 ### cron 예시
 
 ```cron
-0 18 * * 1-5  /path/to/.venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache
-30 18 * * 1-5 /path/to/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data
+# Job A: 장 마감 후 시장 데이터 수집
+0 16 * * 1-5  /path/to/.venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache
+
+# Job B (일봉): 수집 완료 후 1D/1W 전략 실행
+30 16 * * 1-5 /path/to/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data
+
+# Job B (장중): 30m/1h 전략 — 장 중 30분마다 재계산 (09:00~15:30)
+*/30 9-15 * * 1-5 /path/to/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data
 ```
 
 ---
