@@ -32,7 +32,7 @@ def _fake_runner_class(captured: dict):
         def __init__(self, client, config):
             captured["cache_root"] = config.cache_root
 
-        def run(self, strategies, target_date=None):
+        def run(self, strategies, target_date=None, fallbacks=None):
             return RunResult(
                 target_date="20260430",
                 universe_size=0,

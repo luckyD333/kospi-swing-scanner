@@ -100,6 +100,7 @@ class ScanRunner:
         self,
         strategies: list[Strategy],
         target_date: str | None = None,
+        fallbacks: dict[str, list[Strategy]] | None = None,
     ) -> RunResult:
         if target_date is None:
             target_date = latest_business_day()
@@ -243,6 +244,27 @@ class ScanRunner:
                 if tf == "1D":
                     result.candidates_by_strategy[strat.name] = candidates
                 logger.info(f"✅ {strat.name}/{tf}: 후보 {len(candidates)}개")
+
+                # fallback: 0개면 완화 버전 순차 시도
+                if not candidates and fallbacks and strat.name in fallbacks:
+                    for fb_strat in fallbacks[strat.name]:
+                        fb_tf = getattr(fb_strat, "timeframe", "1D")
+                        try:
+                            fb_candidates = fb_strat.scan(ctx, self.config.top_n)
+                            for cand in fb_candidates:
+                                cand.metadata.update(fundamentals_lookup.get(cand.ticker, {
+                                    "per": None, "roe": None, "foreign_pct": None,
+                                    "naver_url": naver_detail_url(cand.ticker),
+                                }))
+                            result.candidates_by_strategy_tf[(fb_strat.name, fb_tf)] = fb_candidates
+                            if fb_tf == "1D":
+                                result.candidates_by_strategy[fb_strat.name] = fb_candidates
+                            logger.info(f"  ↳ fallback {fb_strat.name}/{fb_tf}: 후보 {len(fb_candidates)}개")
+                            if fb_candidates:
+                                break
+                        except Exception as e:
+                            logger.exception(f"❌ fallback {fb_strat.name}/{fb_tf} 실패")
+                            result.errors[fb_strat.name] = str(e)
             except Exception as e:
                 logger.exception(f"❌ {strat.name}/{tf} 실패")
                 result.errors[strat.name] = str(e)

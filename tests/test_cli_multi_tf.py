@@ -89,7 +89,7 @@ def test_main_passes_timeframes_to_runner(tmp_path):
         def __init__(self, client, config):
             captured["timeframes"] = config.timeframes
 
-        def run(self, strategies, target_date=None):
+        def run(self, strategies, target_date=None, fallbacks=None):
             from core.runner import RunResult
             return RunResult(
                 target_date="20260430",

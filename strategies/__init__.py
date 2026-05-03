@@ -18,6 +18,8 @@ from pathlib import Path
 
 from core.strategy_base import Strategy
 
+from .strategy_four_pullback_ma import StrategyFourPullbackMa
+from .strategy_five_bull_flag import StrategyFiveBullFlag
 from .strategy_one_d_v2 import StrategyOneDv2, StrategyOneDv2Config
 from .strategy_three_trend_following import StrategyThreeTrendFollowing
 from .strategy_two_cross_sectional_momentum import StrategyTwoCrossSectionalMomentum
@@ -42,12 +44,63 @@ REGISTRY: dict[str, Callable[[], Strategy]] = {
         timeframe="1D",
         name_suffix="_r2",
     ),
+    # 1W 완화 변형
+    "strategy_one_w_v2_r1": lambda: StrategyOneDv2(
+        config=StrategyOneDv2Config(engulf_strict=False),
+        timeframe="1W",
+        name_suffix="_r1",
+    ),
+    "strategy_one_w_v2_r2": lambda: StrategyOneDv2(
+        config=StrategyOneDv2Config(
+            engulf_strict=False,
+            db_freshness=4,
+            db_price_tolerance=0.05,
+        ),
+        timeframe="1W",
+        name_suffix="_r2",
+    ),
+    # 1h 완화 변형
+    "strategy_one_1h_v2_r1": lambda: StrategyOneDv2(
+        config=StrategyOneDv2Config(engulf_strict=False),
+        timeframe="1h",
+        name_suffix="_r1",
+    ),
+    "strategy_one_1h_v2_r2": lambda: StrategyOneDv2(
+        config=StrategyOneDv2Config(
+            engulf_strict=False,
+            db_freshness=4,
+            db_price_tolerance=0.05,
+        ),
+        timeframe="1h",
+        name_suffix="_r2",
+    ),
+    # 30m 완화 변형
+    "strategy_one_30m_v2_r1": lambda: StrategyOneDv2(
+        config=StrategyOneDv2Config(engulf_strict=False),
+        timeframe="30m",
+        name_suffix="_r1",
+    ),
+    "strategy_one_30m_v2_r2": lambda: StrategyOneDv2(
+        config=StrategyOneDv2Config(
+            engulf_strict=False,
+            db_freshness=4,
+            db_price_tolerance=0.05,
+        ),
+        timeframe="30m",
+        name_suffix="_r2",
+    ),
     "strategy_two_cross_sectional_momentum": lambda: StrategyTwoCrossSectionalMomentum(timeframe="1D"),
     "strategy_two_1h": lambda: StrategyTwoCrossSectionalMomentum(timeframe="1h"),
     "strategy_two_30m": lambda: StrategyTwoCrossSectionalMomentum(timeframe="30m"),
     "strategy_three_trend_following": lambda: StrategyThreeTrendFollowing(timeframe="1D"),
     "strategy_three_1h": lambda: StrategyThreeTrendFollowing(timeframe="1h"),
     "strategy_three_30m": lambda: StrategyThreeTrendFollowing(timeframe="30m"),
+    "strategy_four_pullback_ma":     lambda: StrategyFourPullbackMa(timeframe="1D"),
+    "strategy_four_pullback_ma_1h":  lambda: StrategyFourPullbackMa(timeframe="1h"),
+    "strategy_four_pullback_ma_30m": lambda: StrategyFourPullbackMa(timeframe="30m"),
+    "strategy_five_bull_flag":       lambda: StrategyFiveBullFlag(timeframe="1D"),
+    "strategy_five_bull_flag_1h":    lambda: StrategyFiveBullFlag(timeframe="1h"),
+    "strategy_five_bull_flag_30m":   lambda: StrategyFiveBullFlag(timeframe="30m"),
 }
 
 
@@ -77,6 +130,14 @@ def _autodiscover() -> None:
 
 
 _autodiscover()
+
+# strict → [r1, r2] 순서 fallback 체인. strict가 0개일 때 r1 먼저 시도, 여전히 0개면 r2.
+FALLBACKS: dict[str, list[str]] = {
+    "strategy_one_d_v2": ["strategy_one_d_v2_r1", "strategy_one_d_v2_r2"],
+    "strategy_one_w_v2": ["strategy_one_w_v2_r1", "strategy_one_w_v2_r2"],
+    "strategy_one_1h_v2": ["strategy_one_1h_v2_r1", "strategy_one_1h_v2_r2"],
+    "strategy_one_30m_v2": ["strategy_one_30m_v2_r1", "strategy_one_30m_v2_r2"],
+}
 
 
 def register(factory: Callable[[], Strategy], name: str | None = None) -> Callable[[], Strategy]:

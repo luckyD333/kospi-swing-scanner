@@ -23,7 +23,7 @@ from core.data_fetch import DataClient
 from core.runner import RunnerConfig, ScanRunner
 from core.strategy_base import Candidate, Strategy
 from output import comparison, formatters
-from strategies import REGISTRY, available
+from strategies import FALLBACKS, REGISTRY, available
 
 logging.basicConfig(
     level=logging.INFO,
@@ -502,7 +502,15 @@ def main(argv: list[str] | None = None) -> int:
             cache_root=cache_root,
         ),
     )
-    result = runner.run(strategies, target_date=args.date)
+    # --strategy all 은 strict/r1/r2 모두 독립 실행 → fallback 비활성화
+    fallback_instances: dict | None = None
+    if args.strategy != "all" and not args.timeframes:
+        fallback_instances = {
+            name: [REGISTRY[fb]() for fb in fb_names if fb in REGISTRY]
+            for name, fb_names in FALLBACKS.items()
+        }
+
+    result = runner.run(strategies, target_date=args.date, fallbacks=fallback_instances)
     target = result.target_date
 
     if result.errors:
