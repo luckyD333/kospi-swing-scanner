@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CardProps } from '@/lib/adapt';
-import type { MarketIndex } from '@/types/signal';
+import type { MarketIndex, RegimeScore } from '@/types/signal';
 import { ts } from '@/lib/typography';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
@@ -13,6 +13,7 @@ import DisclaimerBar from './DisclaimerBar';
 interface Props {
   card: CardProps;
   marketIndices: Record<string, MarketIndex>;
+  marketRegime?: Record<string, RegimeScore> | null;
 }
 
 function NaverLink({ href }: { href: string }) {
@@ -57,13 +58,14 @@ const LABEL = ts('caption', 'var(--muted)');
 const SUBLABEL = { ...ts('caption', 'var(--muted-soft)'), marginTop: '8px' };
 const SECTION_HEAD = { ...LABEL, marginBottom: '28px' };
 
-export default function DetailClient({ card, marketIndices }: Props) {
+export default function DetailClient({ card, marketIndices, marketRegime }: Props) {
   const router = useRouter();
   const {
     name, nameEn, ticker,
     priceDisplay, changeDisplay, direction,
     entry, stop, target1, target2,
-    rrRatio, rrBand, atr, score,
+    rrRatio, rrBand, atr, score, rsi,
+    rsi1d, rsi1h, rsi30m,
     per, high52w, low52w,
     foreignRatioPct, volumeDisplay, marketCapDisplay,
     riskPerShare, riskPct, reward1Pct, reward2Pct,
@@ -76,6 +78,7 @@ export default function DetailClient({ card, marketIndices }: Props) {
       <TopNav
         marketIndices={marketIndices}
         generatedAtDisplay={generatedAtDisplay}
+        marketRegime={marketRegime}
         onHome={() => router.push('/')}
       />
 
@@ -190,21 +193,22 @@ export default function DetailClient({ card, marketIndices }: Props) {
           ))}
         </div>
 
-        {/* RR / 등급 / 점수 / ATR */}
+        {/* RR / 등급 / 점수 / ATR / RSI */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0',
+          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0',
           borderBottom: '1px solid var(--hairline)',
         }}>
           {[
-            { label: 'RR 비율', value: rrRatio != null ? rrRatio.toFixed(2) : '—' },
-            { label: 'RR 등급', value: rrBand ?? '—' },
-            { label: '점수', value: score != null ? String(Math.round(score)) : '—' },
-            { label: 'ATR(14)', value: atr != null ? `₩${atr.toLocaleString('ko-KR')}` : '—', sub: '평균 변동폭' },
-          ].map(({ label, value, sub }, i) => (
+            { label: 'RR 비율', value: rrRatio != null ? rrRatio.toFixed(2) : '—', sub: '리스크 1 대비 기대 보상', tip: '≥ 1.5 진입 후보, ≥ 2.0 우호' },
+            { label: 'RR 등급', value: rrBand ?? '—', sub: '손익비 정성 등급', tip: 'SWEET ≥ GOOD ≥ FAIR ≥ WEAK' },
+            { label: '점수', value: score != null ? String(Math.round(score)) : '—', sub: '전략 신뢰도 점수', tip: '높을수록 우선 진입' },
+            { label: 'ATR(14)', value: atr != null ? `₩${atr.toLocaleString('ko-KR')}` : '—', sub: '평균 변동폭', tip: '손절 폭 산정 기준' },
+            { label: 'RSI(14)', value: rsi != null ? rsi.toFixed(1) : '—', sub: rsi != null ? (rsi < 30 ? '과매도' : rsi > 70 ? '과매수' : '중립') : '', tip: undefined as string | undefined },
+          ].map(({ label, value, sub, tip }, i) => (
             <div key={label} style={{
               padding: '24px 0',
-              borderRight: i < 3 ? '1px solid var(--hairline)' : 'none',
-              paddingRight: i < 3 ? '32px' : '0',
+              borderRight: i < 4 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 4 ? '32px' : '0',
               paddingLeft: i > 0 ? '32px' : '0',
             }}>
               <div style={{ ...LABEL, marginBottom: '12px' }}>
@@ -216,6 +220,11 @@ export default function DetailClient({ card, marketIndices }: Props) {
               {sub && (
                 <div style={SUBLABEL}>
                   {sub}
+                </div>
+              )}
+              {tip && (
+                <div style={{ ...SUBLABEL, marginTop: '4px' }}>
+                  {tip}
                 </div>
               )}
             </div>
@@ -258,6 +267,37 @@ export default function DetailClient({ card, marketIndices }: Props) {
                   marginTop: '6px',
                 }}>
                   {sub}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* RSI 멀티 타임프레임 */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
+          borderBottom: '1px solid var(--hairline)',
+        }}>
+          {[
+            { label: 'RSI(1D)',  value: rsi1d },
+            { label: 'RSI(1h)',  value: rsi1h },
+            { label: 'RSI(30m)', value: rsi30m },
+          ].map(({ label, value }, i) => (
+            <div key={label} style={{
+              padding: '20px 0',
+              borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 2 ? '32px' : '0',
+              paddingLeft: i > 0 ? '32px' : '0',
+            }}>
+              <div style={{ ...LABEL, marginBottom: '10px' }}>
+                {label}
+              </div>
+              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)' }}>
+                {value != null ? value.toFixed(1) : '—'}
+              </div>
+              {value != null && (
+                <div style={{ ...LABEL, color: 'var(--muted-soft)', marginTop: '6px' }}>
+                  {value < 30 ? '과매도' : value > 70 ? '과매수' : '중립'}
                 </div>
               )}
             </div>

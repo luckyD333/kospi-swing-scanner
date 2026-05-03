@@ -10,11 +10,37 @@ from output.models import (
 
 KST = ZoneInfo("Asia/Seoul")
 
+_STRATEGY_ONE_LABEL = ("STRATEGY ONE", "MEAN REVERSION")
 _STRATEGY_LABELS: dict[str, tuple[str, str]] = {
-    "strategy_one_d_v2":   ("STRATEGY ONE", "MEAN REVERSION"),
-    "strategy_one_1h_v2":  ("STRATEGY ONE", "MEAN REVERSION"),
+    # 전략 1: Mean Reversion (RSI+BB+쌍바닥+장악형) — 모든 timeframe + r1/r2 fallback
+    "strategy_one_d_v2":      _STRATEGY_ONE_LABEL,
+    "strategy_one_w_v2":      _STRATEGY_ONE_LABEL,
+    "strategy_one_1h_v2":     _STRATEGY_ONE_LABEL,
+    "strategy_one_30m_v2":    _STRATEGY_ONE_LABEL,
+    "strategy_one_d_v2_r1":   _STRATEGY_ONE_LABEL,
+    "strategy_one_d_v2_r2":   _STRATEGY_ONE_LABEL,
+    "strategy_one_w_v2_r1":   _STRATEGY_ONE_LABEL,
+    "strategy_one_w_v2_r2":   _STRATEGY_ONE_LABEL,
+    "strategy_one_1h_v2_r1":  _STRATEGY_ONE_LABEL,
+    "strategy_one_1h_v2_r2":  _STRATEGY_ONE_LABEL,
+    "strategy_one_30m_v2_r1": _STRATEGY_ONE_LABEL,
+    "strategy_one_30m_v2_r2": _STRATEGY_ONE_LABEL,
+    # 전략 2: Cross-sectional Momentum
     "strategy_two_cross_sectional_momentum": ("STRATEGY TWO", "MOMENTUM"),
+    "strategy_two_1h":  ("STRATEGY TWO", "MOMENTUM"),
+    "strategy_two_30m": ("STRATEGY TWO", "MOMENTUM"),
+    # 전략 3: Trend Following (Donchian)
     "strategy_three_trend_following": ("STRATEGY THREE", "TREND FOLLOWING"),
+    "strategy_three_1h":  ("STRATEGY THREE", "TREND FOLLOWING"),
+    "strategy_three_30m": ("STRATEGY THREE", "TREND FOLLOWING"),
+    # 전략 4: Pullback to MA
+    "strategy_four_pullback_ma":     ("STRATEGY FOUR", "PULLBACK MA"),
+    "strategy_four_pullback_ma_1h":  ("STRATEGY FOUR", "PULLBACK MA"),
+    "strategy_four_pullback_ma_30m": ("STRATEGY FOUR", "PULLBACK MA"),
+    # 전략 5: Bull Flag
+    "strategy_five_bull_flag":     ("STRATEGY FIVE", "BULL FLAG"),
+    "strategy_five_bull_flag_1h":  ("STRATEGY FIVE", "BULL FLAG"),
+    "strategy_five_bull_flag_30m": ("STRATEGY FIVE", "BULL FLAG"),
 }
 
 # strategy가 metadata에 저장하는 소문자 값 → Pydantic Literal 대문자 값
@@ -54,6 +80,7 @@ def _direction(change_pct: float) -> str:
 def build_signals_payload(
     snapshot: MarketSnapshot,
     candidates_by_strategy: dict[str, list],
+    market_regime: dict | None = None,
 ) -> SignalsPayload:
     # market_indices (display-ready)
     mi_display: dict[str, MarketIndexDisplay] = {}
@@ -118,6 +145,8 @@ def build_signals_payload(
         rr_band = _BAND_MAP.get(rr_band_raw, "UNDER")
         atr_14_raw = meta.get("atr_14")
         atr_14 = int(atr_14_raw) if atr_14_raw else None
+        rsi_14_raw = meta.get("rsi_14")
+        rsi_14 = float(rsi_14_raw) if (rsi_14_raw is not None and rsi_14_raw == rsi_14_raw) else None
 
         ticker_snap = snapshot.tickers.get(c.ticker)
         cp   = ticker_snap.current_price if ticker_snap else entry
@@ -137,7 +166,7 @@ def build_signals_payload(
             ),
             trade_plan=TradePlan(
                 entry=entry, stop=stop, target_1=t1, target_2=t2,
-                rr_ratio=rr_ratio, rr_band=rr_band, atr_14=atr_14,
+                rr_ratio=rr_ratio, rr_band=rr_band, atr_14=atr_14, rsi_14=rsi_14,
             ),
             ranking=Ranking(
                 score=round(c.score, 1),
@@ -170,6 +199,7 @@ def build_signals_payload(
         generated_at=now_kst.isoformat(),
         generated_at_display=now_kst.strftime("%Y-%m-%d %H:%M KST"),
         market_indices=mi_display,
+        market_regime=market_regime,
         filters={
             "strategies": ["ALL"] + strategy_names,
             "timeframes":  ["ALL", "1H", "4H", "1D"],

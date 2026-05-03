@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { MarketIndex } from '@/types/signal';
+import type { MarketIndex, RegimeScore } from '@/types/signal';
 import type { CardProps } from '@/lib/adapt';
 import TopNav from './TopNav';
 import FilterBar from './FilterBar';
@@ -15,9 +15,10 @@ interface Props {
   timeframes: string[];
   marketIndices: Record<string, MarketIndex>;
   generatedAtDisplay: string;
+  marketRegime?: Record<string, RegimeScore> | null;
 }
 
-export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay }: Props) {
+export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay, marketRegime }: Props) {
   const router = useRouter();
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
@@ -38,6 +39,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       <TopNav
         marketIndices={marketIndices}
         generatedAtDisplay={generatedAtDisplay}
+        marketRegime={marketRegime}
         onHome={() => router.push('/')}
       />
 
@@ -69,7 +71,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
           }}>
             <TickerCard
               card={card}
-              onClick={() => router.push(`/signal/${card.ticker}`)}
+              onClick={() => router.push(`/signals/${card.ticker}`)}
               index={i}
             />
           </div>

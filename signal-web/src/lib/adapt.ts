@@ -29,6 +29,10 @@ export interface CardProps {
   strategyLabel: string;
   strategyCategory: string;
   timeframe: string;
+  rsi: number | null;
+  rsi1d: number | null;
+  rsi1h: number | null;
+  rsi30m: number | null;
   naverUrl: string | null;
   generatedAtDisplay: string;
   dataQuality: 'ok' | 'warn';
@@ -82,6 +86,10 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     riskPct: der?.risk_pct ?? null,
     reward1Pct: der?.reward_1_pct ?? null,
     reward2Pct: der?.reward_2_pct ?? null,
+    rsi: tp.rsi_14 ?? null,
+    rsi1d: tp.rsi_1d ?? (signal.strategy.timeframe === '1D' ? tp.rsi_14 : null),
+    rsi1h: tp.rsi_1h ?? (signal.strategy.timeframe === '1h' ? tp.rsi_14 : null),
+    rsi30m: tp.rsi_30m ?? (signal.strategy.timeframe === '30m' ? tp.rsi_14 : null),
     strategyLabel: formatStrategyLabel(signal.strategy.id, signal.strategy.label),
     strategyCategory: signal.strategy.category ?? '',
     timeframe: signal.strategy.timeframe ?? '',

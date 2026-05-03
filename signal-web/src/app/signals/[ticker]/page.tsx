@@ -19,6 +19,7 @@ export default async function Page({ params }: { params: Promise<{ ticker: strin
     <DetailClient
       card={card}
       marketIndices={context.market_indices}
+      marketRegime={context.market_regime}
     />
   );
 }

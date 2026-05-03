@@ -37,6 +37,10 @@ export interface TradePlan {
   rr_ratio: number | null;
   rr_band: string | null;
   atr_14: number | null;
+  rsi_14: number | null;
+  rsi_1d?: number | null;
+  rsi_1h?: number | null;
+  rsi_30m?: number | null;
   derived: TradePlanDerived | null;
 }
 
@@ -96,11 +100,17 @@ export interface Stats {
   by_rr_band: Record<string, number>;
 }
 
+export interface RegimeScore {
+  score: number;
+  regime: string;
+}
+
 export interface SignalsResponse {
   schema_version: string;
   generated_at: string;
   generated_at_display: string;
   market_indices: Record<string, MarketIndex>;
+  market_regime: Record<string, RegimeScore> | null;
   filters: Filters;
   signals: Signal[];
   stats: Stats;

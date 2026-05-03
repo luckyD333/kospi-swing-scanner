@@ -16,6 +16,7 @@ export default async function Page() {
       timeframes={timeframes}
       marketIndices={data.market_indices}
       generatedAtDisplay={data.generated_at_display}
+      marketRegime={data.market_regime}
     />
   );
 }
