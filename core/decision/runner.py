@@ -167,8 +167,14 @@ def run_decide_ranking(
     weight_config: WeightConfig,
     *,
     dynamic_weights_path: Path | None = None,
+    cache_root: Path | None = None,
 ) -> Path:
-    """후보 통합 ranking → scan_results/{date}/decision_top{N}.md 저장."""
+    """후보 통합 ranking → scan_results/{date}/decision_top{N}.md 저장.
+
+    cache_root: regime_analysis.json 로드 경로. 지정 시 후보 metadata 에
+                regime_score / regime_label 주입.
+    """
+    from core.decision.market_regime import load_regime_analysis
     from output.decision_journal import format_ranking_report
 
     if dynamic_weights_path is not None and dynamic_weights_path.exists():
@@ -178,7 +184,19 @@ def run_decide_ranking(
             logger.warning(f"dynamic_weights 로드 실패, static fallback: {e}")
 
     by_strategy = load_candidates_from_manifest(scan_root)
-    pool = _build_unique_pool(by_strategy, strategy_weights=weight_config.strategy_weights)
+
+    regime: dict | None = None
+    if cache_root is not None:
+        try:
+            regime = load_regime_analysis(cache_root)
+        except Exception as e:
+            logger.warning(f"regime 로드 실패 (skip): {e}")
+
+    pool = _build_unique_pool(
+        by_strategy,
+        strategy_weights=weight_config.strategy_weights,
+        regime=regime,
+    )
     ranked = aggregate_candidates(pool, weight_config)
     # Minimax Regret (자동 변동성 시나리오) 보조 정렬
     if ranked:
@@ -201,8 +219,14 @@ def run_decide_journal(
     notes: str | None = None,
     *,
     dynamic_weights_path: Path | None = None,
+    cache_root: Path | None = None,
 ) -> list[Path]:
-    """선택 ticker별 Decision Journal 파일 생성."""
+    """선택 ticker별 Decision Journal 파일 생성.
+
+    cache_root: regime_analysis.json 로드 경로. 지정 시 후보 metadata 에
+                regime_score / regime_label 주입.
+    """
+    from core.decision.market_regime import load_regime_analysis
     from output.decision_journal import format_decision_journal
 
     if dynamic_weights_path is not None and dynamic_weights_path.exists():
@@ -212,7 +236,19 @@ def run_decide_journal(
             logger.warning(f"dynamic_weights 로드 실패, static fallback: {e}")
 
     by_strategy = load_candidates_from_manifest(scan_root)
-    pool = _build_unique_pool(by_strategy, strategy_weights=weight_config.strategy_weights)
+
+    regime: dict | None = None
+    if cache_root is not None:
+        try:
+            regime = load_regime_analysis(cache_root)
+        except Exception as e:
+            logger.warning(f"regime 로드 실패 (skip): {e}")
+
+    pool = _build_unique_pool(
+        by_strategy,
+        strategy_weights=weight_config.strategy_weights,
+        regime=regime,
+    )
     ranked = aggregate_candidates(pool, weight_config)
     if ranked:
         regret_fn = auto_volatility_scenarios(ranked)

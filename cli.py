@@ -382,12 +382,16 @@ def _run_decide(args) -> int:
     if getattr(args, "dynamic_weights", False):
         dynamic_weights_path = Path(args.cache_root or ".cache") / "dynamic_weights.json"
 
+    # regime 로드용 cache_root (regime_analysis.json 위치)
+    cache_root_path = Path(args.cache_root or ".cache")
+
     if args.select:
         tickers = [t.strip() for t in args.select.split(",") if t.strip()]
         paths = run_decide_journal(
             scan_root=scan_root, target_date=target_date,
             tickers=tickers, weight_config=weight_config, notes=args.notes,
             dynamic_weights_path=dynamic_weights_path,
+            cache_root=cache_root_path,
         )
         if not paths:
             logger.warning("생성된 Journal 없음 (선택한 ticker가 후보 풀에 없음)")
@@ -400,6 +404,7 @@ def _run_decide(args) -> int:
         scan_root=scan_root, target_date=target_date,
         top_n=args.top_n, weight_config=weight_config,
         dynamic_weights_path=dynamic_weights_path,
+        cache_root=cache_root_path,
     )
     print(f"📝 {out_path}")
     return 0
