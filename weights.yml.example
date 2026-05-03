@@ -21,6 +21,12 @@ priorities:
     weight: 10.0
     direction: higher_better
     label: ROE (수익성)
+  # 옵션: 시장 국면 직접 가산 (BULL=85 시 모든 후보 동일 부스트 → 분포 shift).
+  # 활성화 시 다른 priority weight 을 줄여서 합 100 유지하세요.
+  # - key: regime_score
+  #   weight: 10.0
+  #   direction: higher_better
+  #   label: 시장 국면
 must_have:
   - "ensemble_count>=1"
   - "rr_ratio>=2.0"
