@@ -50,7 +50,6 @@ class StrategyOneDv2Config:
     db_price_tolerance: float = 0.03        # DoubleBottomSimple price_tolerance
     use_rr_filter: bool = True              # RR < min_rr_ratio 후보 제거
     use_atr_stops: bool = True              # ATR 기반 동적 손절·목표가2
-    use_conditional_time_stop: bool = True  # 백테스트 조건부 시간 손절 (live scan 무관)
 
 
 def _build_detector(
@@ -106,7 +105,7 @@ class StrategyOneDv2:
                 engulf_strict=self.config.engulf_strict,
                 use_rr_filter=self.config.use_rr_filter,
                 use_atr_stops=self.config.use_atr_stops,
-                use_conditional_time_stop=self.config.use_conditional_time_stop,
+                # use_conditional_time_stop 미전달 — live scan 은 check_exit 미호출
             ),
             double_bottom_detector=_build_detector(
                 self.config.detector_name,

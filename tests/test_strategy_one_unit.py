@@ -121,3 +121,15 @@ def test_candidate_metadata_has_bridge_keys():
     assert "atr_14" in c.metadata
     # atr_14은 float 또는 None 가능 (데이터 부족 시)
     assert c.metadata["atr_14"] is None or isinstance(c.metadata["atr_14"], (int, float))
+
+
+def test_config_does_not_expose_dead_conditional_time_stop_option():
+    """live scan 에 영향 없는 use_conditional_time_stop 옵션은 노출하지 않는다.
+
+    Why: backtest_engine.StrategyD.check_exit 만 사용 — strategy_one_d_v2.scan() 은
+    check_entry 만 호출. 옵션 노출 시 사용자 혼란.
+    """
+    cfg = StrategyOneDv2Config()
+    assert not hasattr(cfg, "use_conditional_time_stop"), (
+        "use_conditional_time_stop 은 live scan 에 영향이 없으므로 제거되어야 함"
+    )
