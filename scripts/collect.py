@@ -217,10 +217,30 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     except Exception as e:
         logger.warning(f"시장 국면 계산 실패 (skip): {e}")
 
-    # 동적 가중치 계산 (실패해도 수집 성공으로 처리)
+    _update_dynamic_weights_status(cfg, manifest_path)
+
+
+def _subprocess_run(cmd: list[str], **kw):
+    """테스트 monkeypatch 포인트 — subprocess.run 래퍼."""
+    import subprocess as _subprocess
+    return _subprocess.run(cmd, **kw)
+
+
+def _patch_manifest(path: Path, patch: dict) -> None:
+    """manifest.json 부분 갱신. 성공 전환 시 error 키 제거."""
+    if not path.exists():
+        return
+    data = json.loads(path.read_text())
+    data.update(patch)
+    if patch.get("dynamic_weights_computed") is True:
+        data.pop("dynamic_weights_error", None)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _update_dynamic_weights_status(cfg: "CollectConfig", manifest_path: Path) -> None:
+    """compute_weights.py subprocess 실행 후 manifest 에 결과 기록."""
     try:
-        import subprocess as _subprocess
-        result = _subprocess.run(
+        result = _subprocess_run(
             [sys.executable, str(Path(__file__).parent / "compute_weights.py"),
              "--cache-root", str(cfg.cache_root),
              "--scan-root", str(cfg.scan_root)],
@@ -228,12 +248,25 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             text=True,
             timeout=120,
         )
-        if result.returncode != 0:
-            logger.warning(f"동적 가중치 계산 실패 (code {result.returncode}): {result.stderr}")
-        else:
-            logger.info("동적 가중치 계산 완료")
     except Exception as e:
         logger.warning(f"동적 가중치 계산 실패 (skip): {e}")
+        _patch_manifest(manifest_path, {
+            "dynamic_weights_computed": False,
+            "dynamic_weights_error": str(e),
+        })
+        return
+
+    if result.returncode != 0:
+        logger.warning(
+            f"동적 가중치 계산 실패 (code {result.returncode}): {result.stderr.strip()}"
+        )
+        _patch_manifest(manifest_path, {
+            "dynamic_weights_computed": False,
+            "dynamic_weights_error": (result.stderr or "").strip()[:500],
+        })
+    else:
+        logger.info("동적 가중치 계산 완료")
+        _patch_manifest(manifest_path, {"dynamic_weights_computed": True})
 
 
 def _load_timestamps(cache_root: Path) -> dict[str, datetime]:
