@@ -48,6 +48,9 @@ class StrategyOneDv2Config:
     engulf_strict: bool = True              # False: 완화 기준(전일 종가 +0.5% 돌파)
     db_freshness: int = 2                   # DoubleBottomSimple freshness
     db_price_tolerance: float = 0.03        # DoubleBottomSimple price_tolerance
+    use_rr_filter: bool = True              # RR < min_rr_ratio 후보 제거
+    use_atr_stops: bool = True              # ATR 기반 동적 손절·목표가2
+    use_conditional_time_stop: bool = True  # 백테스트 조건부 시간 손절 (live scan 무관)
 
 
 def _build_detector(
@@ -101,6 +104,9 @@ class StrategyOneDv2:
             config=StrategyDConfig(
                 min_lookback_bars=self.config.min_lookback_bars,
                 engulf_strict=self.config.engulf_strict,
+                use_rr_filter=self.config.use_rr_filter,
+                use_atr_stops=self.config.use_atr_stops,
+                use_conditional_time_stop=self.config.use_conditional_time_stop,
             ),
             double_bottom_detector=_build_detector(
                 self.config.detector_name,
@@ -153,7 +159,12 @@ class StrategyOneDv2:
                 # 반올림된 진입가 기준으로 목표가 재계산
                 engine_cfg = self._engine.config
                 target_1 = entry_price * (1 + engine_cfg.target_1_pct)
-                target_2 = entry_price * (1 + engine_cfg.target_2_pct)
+                if engine_cfg.use_atr_stops and signal.atr_at_entry is not None:
+                    # ATR 모드: 반올림된 진입가 기준으로 ATR 목표가2 재산출
+                    target_2 = entry_price + signal.atr_at_entry * engine_cfg.atr_target_mult
+                    target_2 = max(target_2, target_1)  # target_1 하회 방지
+                else:
+                    target_2 = entry_price * (1 + engine_cfg.target_2_pct)
 
                 # 신규 metadata 키 계산
                 risk_pct = (entry_price - stop_loss) / entry_price * 100

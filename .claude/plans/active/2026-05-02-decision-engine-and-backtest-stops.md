@@ -306,7 +306,7 @@ print('ATR on :', run(StrategyDConfig(use_atr_stops=True)))
 - [x] 2026-05-02 PR #3 구현 (백테스트 RR 필터, 387 passed, +4)
 - [x] 2026-05-02 PR #4 구현 (백테스트 ATR 손절, 392 passed, +5)
 - [x] 2026-05-02 PR #5 구현 (백테스트 조건부 시간 손절, 397 passed, +5)
-- [ ] 통합 회귀 검증
+- [x] 2026-05-02 통합 회귀 검증 완료 (397 passed, 디폴트 PF 불변, 3옵션 ON 동작 확인)
 
 ## Decision Log
 

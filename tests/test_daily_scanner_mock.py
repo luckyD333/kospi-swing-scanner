@@ -142,9 +142,9 @@ def test_scanner_end_to_end():
     # 4) 가격 순서 + 비율
     for c in candidates:
         assert c.stop_loss < c.entry_price < c.target_1 <= c.target_2
-        assert 2.0 < c.risk_pct < 4.0  # 100원 반올림·반내림 후 최대 ~3.2%
+        assert 2.0 < c.risk_pct < 6.0  # ATR 손절 활성화 시 고정 2.5% 초과 가능
         assert 2.5 < c.reward_pct_t1 < 3.5
-        assert 4.5 < c.reward_pct_t2 < 5.5
+        assert 3.0 < c.reward_pct_t2 < 8.0  # ATR 목표가2: target_1(3%) 초과, 이상값 감지
 
     # 5) 진입 조건 기록
     for c in candidates:
