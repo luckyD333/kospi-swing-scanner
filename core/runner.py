@@ -76,6 +76,7 @@ class RunResult:
     errors: dict[str, str] = field(default_factory=dict)  # strategy_name → 에러 메시지
     cache_stats: dict[str, int] = field(default_factory=dict)
     funnel_stats: dict[str, Any] = field(default_factory=dict)
+    regime: dict | None = None  # regime_analysis.json 로드 결과
 
 
 class ScanRunner:
@@ -119,6 +120,20 @@ class ScanRunner:
             f"🔍 ScanRunner 시작: {self.config.market} @ {target_date} "
             f"timeframes={self.config.timeframes}"
         )
+
+        # 시장 국면 로드 (cache_root 지정 시)
+        regime_data: dict | None = None
+        if self.config.cache_root:
+            try:
+                from core.decision.market_regime import load_regime_analysis
+                regime_data = load_regime_analysis(self.config.cache_root)
+                if regime_data:
+                    logger.info(
+                        f"📊 시장 국면: {regime_data.get('current_regime')} "
+                        f"(score={regime_data.get('current_score')})"
+                    )
+            except Exception as e:
+                logger.debug(f"시장 국면 로드 실패: {e}")
 
         # 1) 유니버스 필터 (TF 무관 1회)
         univ = build_universe(
@@ -200,6 +215,7 @@ class ScanRunner:
             market=self.config.market,
             ohlcv_by_tf=ohlcv_by_tf,
             fundamentals=fundamentals_lookup,
+            regime=regime_data,
         )
 
         result = RunResult(
@@ -207,6 +223,7 @@ class ScanRunner:
             universe_size=len(univ.tickers),
             cache_stats=cache.stats,
             funnel_stats=dict(funnel),  # Counter를 일반 dict로 변환
+            regime=regime_data,
         )
 
         # 4) 전략 실행 — strategy 의 self.timeframe 으로 ohlcv_by_tf 슬라이스 자동 선택

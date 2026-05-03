@@ -51,20 +51,31 @@ def compute_dynamic_weights(
     # 1. base weights
     base_config = WeightConfig.load(weights_yml)
 
-    # 2. HMM regime
+    # 2. HMM regime — 저장된 regime_analysis.json 우선 로드
     regime_score = 50
     hmm_meta: dict = {}
     try:
-        analysis: RegimeAnalysis = analyze_regime(cache_root)
-        regime_score = analysis.current_score
-        hmm_meta = {
-            "n_components": 2,
-            "n_tickers": analysis.n_tickers,
-            "n_days": analysis.n_days,
-            "bull_state_mean_return": analysis.bull_state_mean_return,
-            "bear_state_mean_return": analysis.bear_state_mean_return,
-        }
-        logger.info(f"HMM regime_score={regime_score}")
+        from core.decision.market_regime import load_regime_analysis
+        cached = load_regime_analysis(cache_root)
+        if cached:
+            regime_score = cached.get("current_score", 50)
+            hmm_meta = {
+                "n_tickers": cached.get("n_tickers", 0),
+                "n_days": cached.get("n_days", 0),
+                "bull_state_mean_return": cached.get("bull_state_mean_return", 0.0),
+                "bear_state_mean_return": cached.get("bear_state_mean_return", 0.0),
+            }
+            logger.info(f"저장된 regime 로드: score={regime_score} ({cached.get('current_regime')})")
+        else:
+            analysis: RegimeAnalysis = analyze_regime(cache_root)
+            regime_score = analysis.current_score
+            hmm_meta = {
+                "n_tickers": analysis.n_tickers,
+                "n_days": analysis.n_days,
+                "bull_state_mean_return": analysis.bull_state_mean_return,
+                "bear_state_mean_return": analysis.bear_state_mean_return,
+            }
+            logger.info(f"HMM regime 직접 계산: score={regime_score}")
     except (ValueError, Exception) as e:
         logger.warning(f"HMM 분석 실패 (regime_score=50 fallback): {e}")
 
@@ -139,17 +150,6 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(result, ensure_ascii=False, indent=2))
     logger.info(f"dynamic_weights 저장: {output_path} (regime_score={result['regime_score']})")
-
-    # regime_analysis.json (UI용)
-    regime_path = cache_root / "regime_analysis.json"
-    regime_data = {
-        "computed_at": result["computed_at"],
-        "current_score": result["regime_score"],
-        "history": [],
-        "hmm_meta": result["meta"],
-    }
-    regime_path.write_text(json.dumps(regime_data, ensure_ascii=False, indent=2))
-    logger.info(f"regime_analysis 저장: {regime_path}")
 
 
 if __name__ == "__main__":

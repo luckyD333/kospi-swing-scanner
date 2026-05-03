@@ -38,6 +38,7 @@ class ScanContext:
     market: str
     ohlcv_by_tf: dict[str, dict[str, pd.DataFrame]] = field(default_factory=dict)
     fundamentals: dict[str, dict] = field(default_factory=dict)
+    regime: dict | None = None  # regime_analysis.json 로드 결과 (없으면 None)
 
     def __post_init__(self):
         if not self.ohlcv_by_tf and self.ohlcv:

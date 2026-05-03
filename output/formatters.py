@@ -305,6 +305,22 @@ def format_run_summary(result, market: str) -> str:
     lines.append(f"  📊 Scan Summary @ {result.target_date}  ({market})")
     lines.append("=" * 66)
 
+    # 시장 국면 섹션 (regime 있을 때만)
+    if result.regime:
+        windows = result.regime.get("windows", {})
+        if windows:
+            parts = []
+            for key, label in [("3d", "3일"), ("7d", "7일"), ("30d", "30일"), ("90d", "90일")]:
+                w = windows.get(key)
+                if w:
+                    parts.append(f"{label} [{w['regime']}] {w['score']}")
+            lines.append("  시장 국면     : " + "  │  ".join(parts))
+        else:
+            score = result.regime.get("current_score", 50)
+            label = result.regime.get("current_regime", "NEUTRAL")
+            lines.append(f"  시장 국면     : [{label}] {score}/100")
+        lines.append("")
+
     # 1. Universe 라인
     if cap_limit > 0 and pre_cap_size > cap_limit:
         universe_line = f"  Universe : {pre_cap_size} → top {cap_limit} 적용 → {uni_size} 종목"
@@ -370,7 +386,7 @@ def format_run_summary_json(result, market: str) -> dict:
 
     funnel = result.funnel_stats or {}
 
-    return {
+    out: dict = {
         "target_date": result.target_date,
         "market": market,
         "funnel": {
@@ -389,6 +405,14 @@ def format_run_summary_json(result, market: str) -> dict:
         },
         "errors": result.errors,
     }
+    if result.regime:
+        out["regime"] = {
+            "current_score": result.regime.get("current_score"),
+            "current_regime": result.regime.get("current_regime"),
+            "n_tickers": result.regime.get("n_tickers"),
+            "n_days": result.regime.get("n_days"),
+        }
+    return out
 
 
 FORMATTERS = {

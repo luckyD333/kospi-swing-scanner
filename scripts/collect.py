@@ -210,6 +210,13 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
     logger.info(f"manifest 저장: {manifest_path}")
 
+    # 시장 국면 저장 (weights.yml 불필요)
+    try:
+        from core.decision.market_regime import save_regime_analysis
+        save_regime_analysis(Path(cfg.cache_root))
+    except Exception as e:
+        logger.warning(f"시장 국면 계산 실패 (skip): {e}")
+
     # 동적 가중치 계산 (실패해도 수집 성공으로 처리)
     try:
         import subprocess as _subprocess

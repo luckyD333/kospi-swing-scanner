@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -246,3 +247,66 @@ def apply_regime_overlay(
         must_have=base_config.must_have,
         strategy_weights=base_config.strategy_weights,
     )
+
+
+def get_regime_label(score: int) -> str:
+    """score(1~100) → BULL / NEUTRAL / BEAR 라벨."""
+    if score >= 70:
+        return "BULL"
+    if score < 30:
+        return "BEAR"
+    return "NEUTRAL"
+
+
+def _window_avg(history: list[dict], n: int) -> dict:
+    """history 마지막 n개의 평균 score → {score, regime, n_days}."""
+    recent = history[-n:] if len(history) >= n else history
+    avg = round(sum(p["score"] for p in recent) / len(recent)) if recent else 50
+    return {"score": avg, "regime": get_regime_label(avg), "n_days": len(recent)}
+
+
+def save_regime_analysis(cache_root: Path) -> None:
+    """HMM regime 계산 → {cache_root}/regime_analysis.json 저장."""
+    analysis = analyze_regime(cache_root)
+    history = [
+        {
+            "date": p.date,
+            "score": p.score,
+            "log_return": p.log_return,
+            "volatility": p.volatility,
+            "prob_bull": p.prob_bull,
+        }
+        for p in analysis.history
+    ]
+    data = {
+        "computed_at": datetime.now().isoformat(),
+        "current_score": analysis.current_score,
+        "current_regime": get_regime_label(analysis.current_score),
+        "windows": {
+            "3d": _window_avg(history, 3),
+            "7d": _window_avg(history, 7),
+            "30d": _window_avg(history, 30),
+            "90d": _window_avg(history, 90),
+        },
+        "history": history,
+        "bull_state_mean_return": analysis.bull_state_mean_return,
+        "bear_state_mean_return": analysis.bear_state_mean_return,
+        "n_tickers": analysis.n_tickers,
+        "n_days": analysis.n_days,
+    }
+    regime_path = Path(cache_root) / "regime_analysis.json"
+    regime_path.parent.mkdir(parents=True, exist_ok=True)
+    regime_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    logger.info(f"regime_analysis 저장: {regime_path} (score={analysis.current_score})")
+
+
+def load_regime_analysis(cache_root: Path) -> dict | None:
+    """저장된 regime_analysis.json 로드. 없거나 파싱 실패 시 None."""
+    regime_path = Path(cache_root) / "regime_analysis.json"
+    if not regime_path.exists():
+        return None
+    try:
+        return json.loads(regime_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning(f"regime_analysis.json 로드 실패: {e}")
+        return None
