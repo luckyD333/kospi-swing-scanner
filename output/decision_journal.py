@@ -211,6 +211,35 @@ def format_ranking_report(
         )
     lines.append("")
 
+    # 기여도 breakdown
+    lines.append("## 기여도 breakdown")
+    lines.append("")
+    lines.append("각 항목의 정규화 점수(0~1) × 가중치 = 기여도. 합산이 final_score.")
+    lines.append("")
+    prio_headers = " | ".join(
+        f"{p.label} ({p.weight}%)" for p in weight_config.priorities
+    )
+    prio_sep = " | ".join("---:" for _ in weight_config.priorities)
+    has_regret = any(
+        "max_regret" in rc.normalized_metrics for rc in top
+    )
+    regret_header = " | max_regret |" if has_regret else " |"
+    regret_sep = " ---: |" if has_regret else " |"
+    lines.append(f"| 순위 | 종목 | final_score | {prio_headers}{regret_header}")
+    lines.append(f"|---:|:---|---:| {prio_sep}{regret_sep}")
+    for i, rc in enumerate(top, 1):
+        c = rc.candidate
+        contribs = " | ".join(
+            _fmt_num(rc.contributions.get(p.key), "{:.2f}")
+            for p in weight_config.priorities
+        )
+        regret_cell = (
+            f" | {_fmt_num(rc.normalized_metrics.get('max_regret'), '{:.4f}')} |"
+            if has_regret else " |"
+        )
+        lines.append(f"| {i} | {c.ticker} | {rc.final_score} | {contribs}{regret_cell}")
+    lines.append("")
+
     lines.append("> 다음: `python cli.py --decide --select 005930,000660 --notes \"...\"` "
                  "로 선택 후보별 Decision Journal 생성.")
     lines.append("")

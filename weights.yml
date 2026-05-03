@@ -1,0 +1,39 @@
+# weights.yml — Multi-factor 점수 가중치.
+# 1~3일 단기 스윙 보유 환경 기준 표준 권장값 (학술 + 실무 종합).
+# 근거:
+#   - momentum 비중 ↑: Jegadeesh-Titman 후속 + 한국 post-2009 momentum 연구
+#   - rr_ratio 비중 ↓: must_have 로 이미 게이팅, 가중치 중복 회피
+#   - roe 비중 ↑: 한국 시장 KOSPI/KOSDAQ profitability factor 유효
+#   - per 비중 ↓: 단기 holding 에서 value factor 효과 약화
+priorities:
+  - key: ensemble_score
+    weight: 25.0
+    direction: higher_better
+    label: 다중 전략 합의도
+  - key: momentum_pct
+    weight: 25.0
+    direction: higher_better
+    label: 가격 모멘텀
+  - key: rr_ratio
+    weight: 15.0
+    direction: higher_better
+    label: 손익비
+  - key: roe
+    weight: 15.0
+    direction: higher_better
+    label: ROE (수익성)
+  - key: per
+    weight: 10.0
+    direction: lower_better
+    label: PER (저평가)
+  - key: regime_score
+    weight: 10.0
+    direction: higher_better
+    label: 시장 국면 (BULL/BEAR 자동 분포 shift)
+must_have:
+  - "ensemble_count>=1"
+  - "rr_ratio>=2.5"
+strategy_weights:
+  strategy_one_d_v2: 1.0
+  strategy_two_cross_sectional_momentum: 1.0
+  strategy_three_trend_following: 1.0

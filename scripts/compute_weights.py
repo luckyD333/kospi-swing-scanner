@@ -159,7 +159,7 @@ def main() -> None:
     if not weights_yml.exists():
         logger.error(
             f"[dynamic_weights] weights.yml not found at {weights_yml}; "
-            f"copy weights.yml.example and edit."
+            f"git restore weights.yml or recreate from priorities/must_have/strategy_weights schema."
         )
         sys.exit(1)
 
