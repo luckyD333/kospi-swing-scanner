@@ -151,18 +151,18 @@ priority weight 자체를 BULL 시 `momentum_pct × 1.3`, BEAR 시 `per/roe × 1
 `momentum_pct × 0.7` 로 조정 후 합=100 으로 정규화. 즉 priority 의 **영향력 비중**이
 시장 국면에 따라 변해요.
 
-**2) 직접 가산 (사용자 옵션)** — `regime_score` priority 등록
+**2) 직접 가산 (디폴트 활성)** — `regime_score` priority 등록
 
-`weights.yml` 의 priorities 에 `regime_score` 를 등록하면 모든 후보가 동일
-regime_score 를 metadata 에 보유하고, percentile_rank 정규화 후 weight 만큼
-contribution 으로 가산돼요. 예:
+`weights.yml.example` 디폴트에 `regime_score` priority 가 weight 10 으로 포함돼
+있어요. 모든 후보가 동일 regime_score 를 metadata 에 보유하고, percentile_rank
+정규화 후 weight 만큼 contribution 으로 가산돼요:
 
 ```yaml
 priorities:
   - key: regime_score
     weight: 10.0
     direction: higher_better
-    label: 시장 국면
+    label: 시장 국면 (BULL/BEAR 자동 분포 shift)
 ```
 
 BULL=85 시: 모든 후보가 동일 값이라 percentile_rank 가 1/m..1.0 분포로 균등 (m=후보 수).
