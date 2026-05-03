@@ -121,8 +121,15 @@ def _candidate_from_json(obj: dict, default_strategy: str) -> Candidate:
 def _build_unique_pool(
     by_strategy: dict[str, list[Candidate]],
     strategy_weights: dict[str, float] | None = None,
+    regime: dict | None = None,
 ) -> list[Candidate]:
-    """ticker별 1개 후보만 유지 (가장 높은 score 우선). ensemble 메타 주입."""
+    """ticker별 1개 후보만 유지 (가장 높은 score 우선). ensemble + regime 메타 주입.
+
+    regime: load_regime_analysis 결과 dict (current_score, current_regime 포함).
+            None 시 metadata 에 regime_* 키 미주입.
+    """
+    from core.decision.market_regime import get_regime_label
+
     sw = strategy_weights or {}
     weighted_scores = compute_weighted_ensemble_score(by_strategy, sw)
     chosen: dict[str, Candidate] = {}
@@ -131,12 +138,24 @@ def _build_unique_pool(
             existing = chosen.get(c.ticker)
             if existing is None or c.score > existing.score:
                 chosen[c.ticker] = c
+
+    regime_meta: dict = {}
+    if regime is not None:
+        score = regime.get("current_score")
+        if score is not None:
+            score_int = int(score)
+            regime_meta["regime_score"] = score_int
+            regime_meta["regime_label"] = (
+                regime.get("current_regime") or get_regime_label(score_int)
+            )
+
     for ticker, cand in chosen.items():
         ws = weighted_scores.get(ticker, 1.0)
         cand.metadata = {
             **(cand.metadata or {}),
             "ensemble_count": int(round(ws)),   # 표시용 (decision_journal.py 기존 코드 호환)
             "ensemble_score": ws,               # aggregator percentile 정렬용 (float)
+            **regime_meta,
         }
     return list(chosen.values())
 
