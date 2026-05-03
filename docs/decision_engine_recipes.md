@@ -123,3 +123,41 @@ python cli.py --decide --select 005930,000660 \
 - **string 값 큰따옴표 불요**: YAML 안에서 `"source_strategy==gap_up_momentum_top"` 처럼 따옴표는 YAML 문법 (DSL 자체에는 따옴표 불필요).
 - **boolean DSL**: `is_high_quality==True` 형식. `True`/`False` 는 case-sensitive (Python True/False).
 - **가중치 합 100% 검증**: priorities.weight 합이 100 이 아니면 `WeightConfig` 생성 시 ValueError.
+
+## 동적 가중치 효과 발현 — `ensemble_score` priority 등록 필수
+
+`scripts/compute_weights.py` 가 산출하는 `strategy_weights` 는 `_build_unique_pool` 에서
+ticker 의 `ensemble_score` (= 등장 전략의 가중 합) 로 변환되어 metadata 에 주입돼요.
+그러나 `aggregator.aggregate_candidates` 의 가중합은 `weights.yml` 의
+`priorities[].key` 에 등재된 키만 반영하므로, 다음을 명시해야 효과가 ranking 에 발현돼요:
+
+```yaml
+priorities:
+  - key: ensemble_score    # 이 항목이 없으면 strategy_weights 변경이 ranking 에 영향 0
+    weight: 30.0
+    direction: higher_better
+    label: 다중 전략 합의도
+```
+
+리포 루트의 `weights.yml.example` 을 복사해 시작하세요. (`cp weights.yml.example weights.yml`)
+
+## 시장 국면 (regime_score) 효과 범위
+
+`apply_regime_overlay` 는 priority weight 자체를 BULL 시 `momentum_pct × 1.3`,
+BEAR 시 `per/roe × 1.2`, `momentum_pct × 0.7` 로 조정 후 합=100 으로 정규화해요.
+즉 BULL/BEAR 시 priority 의 **영향력 비중**이 변할 뿐, 후보별 `regime_score` 가
+ranking 점수에 직접 더해지지는 않아요. 직접 가산이 필요하면 별도 priority 추가가
+필요하나, 이는 본 시점에서는 미지원이에요.
+
+## 동적 가중치 파이프라인 실패 진단
+
+`scan_results/<date>/manifest.json` (또는 `.cache/manifest.json`) 의
+`dynamic_weights_computed` 필드를 확인하세요:
+
+- `true` — `compute_weights.py` 정상 종료, `.cache/dynamic_weights.json` 생성
+- `false` — `dynamic_weights_error` 필드에 stderr 메시지 (최대 500자)
+  - `weights.yml not found at ...` — `cp weights.yml.example weights.yml` 후 재실행
+  - HMM 실패: `.cache/dynamic_weights.json` 의 `meta.regime_failure` 확인
+    - `hmmlearn_not_installed` → `pip install hmmlearn>=0.3.0`
+    - `insufficient_data` → 수집 종목 수/기간 부족
+    - `unknown` → 로그 확인
