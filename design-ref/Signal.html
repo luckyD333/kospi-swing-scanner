@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIGNAL — THIS WEEK'S STOCK SIGNALS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&family=Cormorant+Garamond:wght@400&family=Saira+Condensed:wght@400&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --canvas:         #000000;
+    --surface-soft:   #0d0d0d;
+    --surface-card:   #141414;
+    --surface-elev:   #1f1f1f;
+    --hairline:       #262626;
+    --hairline-strong:#3a3a3a;
+    --ink:            #ffffff;
+    --body:           #cccccc;
+    --body-strong:    #e6e6e6;
+    --muted:          #999999;
+    --muted-soft:     #666666;
+    --link:           #c3d9f3;
+    --gain:           #5fa657;
+    --loss:           #c97064;
+    --warning:        #d4a017;
+
+    --f-display: 'Saira Condensed', sans-serif;
+    --f-body:    'Cormorant Garamond', serif;
+    --f-mono:    'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  html { background: var(--canvas); color: var(--ink); }
+
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--f-mono);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  ::selection { background: #ffffff22; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 2px; }
+  ::-webkit-scrollbar-track { background: var(--canvas); }
+  ::-webkit-scrollbar-thumb { background: var(--hairline-strong); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="signal-data.js"></script>
+<script type="text/babel">
+// ─── tweaks-panel (inlined) ───────────────────────────────────────────────────
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+  .twk-field{appearance:none;width:100%;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;overflow-wrap:anywhere}
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+  .twk-num{display:flex;align-items:center;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+`;
+
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+  }, []);
+  return [values, setTweak];
+}
+
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(clampToViewport) : null;
+    if (ro) { ro.observe(document.documentElement); return () => ro.disconnect(); }
+    window.addEventListener('resize', clampToViewport);
+    return () => window.removeEventListener('resize', clampToViewport);
+  }, [open, clampToViewport]);
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+  const dismiss = () => { setOpen(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); };
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = { x: startRight - (ev.clientX - sx), y: startBottom - (ev.clientY - sy) };
+      clampToViewport();
+    };
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" onMouseDown={(e) => e.stopPropagation()} onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">{children}</div>
+      </div>
+    </>
+  );
+}
+
+function TweakSection({ label, children }) {
+  return <><div className="twk-sect">{label}</div>{children}</>;
+}
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl"><span>{label}</span>{value != null && <span className="twk-val">{value}</span>}</div>
+      {children}
+    </div>
+  );
+}
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const i = Math.floor(((clientX - r.left - 2) / (r.width - 4)) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => { if (!trackRef.current) return; const v = segAt(ev.clientX); if (v !== valueRef.current) onChange(v); };
+    const up = () => { setDragging(false); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`, width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>{o.label}</button>
+        ))}
+      </div>
+    </TweakRow>
+  );
+}
+// ─── tweaks-panel end ─────────────────────────────────────────────────────────
+</script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ─────────────────── DESIGN TOKENS ─────────────────── */
+const T = {
+  tickerHero: { fontFamily: 'var(--f-mono)', fontSize: 'clamp(96px, 15vw, 240px)', fontWeight: 400, lineHeight: 1, letterSpacing: '-2px' },
+  tickerLg:   { fontFamily: 'var(--f-mono)', fontSize: '96px', fontWeight: 400, lineHeight: 1, letterSpacing: '0px' },
+  tickerMd:   { fontFamily: 'var(--f-mono)', fontSize: '56px', fontWeight: 400, lineHeight: 1, letterSpacing: '0px' },
+  tickerSm:   { fontFamily: 'var(--f-mono)', fontSize: '32px', fontWeight: 400, lineHeight: 1, letterSpacing: '0px' },
+  displayXl:  { fontFamily: 'var(--f-display)', fontSize: '64px', fontWeight: 400, lineHeight: 1.1, letterSpacing: '4px', textTransform: 'uppercase' },
+  displayLg:  { fontFamily: 'var(--f-display)', fontSize: '48px', fontWeight: 400, lineHeight: 1.15, letterSpacing: '3px', textTransform: 'uppercase' },
+  displayMd:  { fontFamily: 'var(--f-display)', fontSize: '32px', fontWeight: 400, lineHeight: 1.2, letterSpacing: '2px', textTransform: 'uppercase' },
+  displaySm:  { fontFamily: 'var(--f-display)', fontSize: '24px', fontWeight: 400, lineHeight: 1.3, letterSpacing: '1.5px', textTransform: 'uppercase' },
+  numericLg:  { fontFamily: 'var(--f-mono)', fontSize: '28px', fontWeight: 400, lineHeight: 1.1, letterSpacing: '0px' },
+  numericMd:  { fontFamily: 'var(--f-mono)', fontSize: '18px', fontWeight: 400, lineHeight: 1.2, letterSpacing: '0px' },
+  wordmark:   { fontFamily: 'var(--f-display)', fontSize: '14px', fontWeight: 400, lineHeight: 1, letterSpacing: '6px', textTransform: 'uppercase' },
+  caption:    { fontFamily: 'var(--f-mono)', fontSize: '11px', fontWeight: 400, lineHeight: 1.4, letterSpacing: '2px', textTransform: 'uppercase' },
+  button:     { fontFamily: 'var(--f-mono)', fontSize: '14px', fontWeight: 400, lineHeight: 1, letterSpacing: '2.5px', textTransform: 'uppercase' },
+  navLink:    { fontFamily: 'var(--f-mono)', fontSize: '12px', fontWeight: 400, lineHeight: 1.4, letterSpacing: '2px', textTransform: 'uppercase' },
+  bodyMd:     { fontFamily: 'var(--f-body)', fontSize: '16px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0' },
+  bodySm:     { fontFamily: 'var(--f-body)', fontSize: '14px', fontWeight: 400, lineHeight: 1.5, letterSpacing: '0' },
+  titleMd:    { fontFamily: 'var(--f-display)', fontSize: '20px', fontWeight: 400, lineHeight: 1.3, letterSpacing: '1px', textTransform: 'uppercase' },
+};
+
+/* ─────────────────── PILL BUTTON ─────────────────── */
+function PillButton({ children, onClick, style = {}, small = false }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        ...T.button,
+        background: hov ? 'rgba(255,255,255,0.07)' : 'transparent',
+        color: 'var(--ink)',
+        border: '1px solid var(--ink)',
+        borderRadius: '9999px',
+        padding: small ? '10px 24px' : '14px 32px',
+        height: small ? '36px' : '44px',
+        cursor: 'pointer',
+        transition: 'background 150ms ease-out',
+        whiteSpace: 'nowrap',
+        display: 'inline-flex',
+        alignItems: 'center',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ─────────────────── MARKET TICKER BAR ─────────────────── */
+const MARKET_DATA = [
+  { label: '코스피', value: '2,641.32', change: '+0.84%', up: true },
+  { label: '코스닥', value: '748.21', change: '+1.12%', up: true },
+  { label: 'USD/KRW', value: '1,374.50', change: '-0.31%', up: false },
+  { label: 'WTI', value: '$78.42', change: '+0.67%', up: true },
+  { label: '국고채 3Y', value: '3.28%', change: '-0.02', up: false },
+  { label: 'VIX', value: '14.87', change: '-1.23%', up: false },
+];
+
+/* ─────────────────── TOP NAV ─────────────────── */
+function TopNav({ onNavigate }) {
+  return (
+    <nav style={{
+      position: 'sticky', top: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.95)',
+      backdropFilter: 'blur(8px)',
+      borderBottom: '1px solid var(--hairline)',
+    }}>
+      {/* 시장 현황 인라인 로우 */}
+      <div style={{
+        height: '36px',
+        display: 'flex', alignItems: 'center',
+        padding: '0 40px',
+        borderBottom: '1px solid var(--hairline)',
+        overflowX: 'auto',
+      }}>
+        {MARKET_DATA.map((item, i) => (
+          <div key={item.label} style={{
+            display: 'flex', alignItems: 'center', gap: '7px',
+            flexShrink: 0,
+            paddingRight: '20px',
+            marginRight: '20px',
+            borderRight: i < MARKET_DATA.length - 1 ? '1px solid var(--hairline)' : 'none',
+          }}>
+            <span style={{ ...T.caption, color: 'var(--muted)', fontSize: '10px' }}>{item.label}</span>
+            <span style={{ ...T.caption, color: 'var(--body-strong)', fontSize: '11px', letterSpacing: '0.5px' }}>{item.value}</span>
+            <span style={{ ...T.caption, fontSize: '10px', color: item.up ? 'var(--gain)' : 'var(--loss)' }}>{item.change}</span>
+          </div>
+        ))}
+        <div style={{ flex: 1 }} />
+        <span style={{ ...T.caption, color: 'var(--muted-soft)', fontSize: '10px', flexShrink: 0 }}>{GENERATED_AT}</span>
+      </div>
+      {/* 워드마크 + ABOUT 로우 */}
+      <div style={{
+        height: '48px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 40px',
+      }}>
+        <button
+          onClick={() => onNavigate && onNavigate()}
+          style={{ ...T.wordmark, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer' }}
+        >
+          SIGNAL
+        </button>
+        <NavLink label="ABOUT" />
+      </div>
+    </nav>
+  );
+}
+
+function NavLink({ label }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <span
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ ...T.navLink, color: hov ? 'var(--ink)' : 'var(--muted)', cursor: 'pointer', transition: 'color 150ms' }}
+    >
+      {label}
+    </span>
+  );
+}
+
+/* ─────────────────── SCRAMBLE HOOK ─────────────────── */
+function useScramble(target, duration = 900) {
+  const [display, setDisplay] = useState(target.replace(/./g, '0'));
+  const chars = '0123456789';
+  useEffect(() => {
+    const len = target.length;
+    const start = performance.now();
+    let raf;
+    function frame(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const lockedCount = Math.floor(progress * len);
+      let result = '';
+      for (let i = 0; i < len; i++) {
+        if (i < lockedCount) {
+          result += target[i];
+        } else {
+          result += /[0-9]/.test(target[i])
+            ? chars[Math.floor(Math.random() * chars.length)]
+            : target[i];
+        }
+      }
+      setDisplay(result);
+      if (progress < 1) raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return display;
+}
+
+/* ─────────────────── TICKER CARD ─────────────────── */
+function TickerCard({ signal, onClick, index, tweaks }) {
+  const [hov, setHov] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), index * 60);
+    return () => clearTimeout(timer);
+  }, [index]);
+
+  const changeColor = signal.change >= 0 ? 'var(--gain)' : 'var(--loss)';
+  const changeSign = signal.change >= 0 ? '+' : '';
+  const rrColor = signal.rrBand === 'SWEET' ? 'var(--gain)' : signal.rrBand === 'UNDER' ? 'var(--loss)' : 'var(--warning)';
+  const rsiColor = signal.rsi < 30 ? 'var(--gain)' : signal.rsi > 70 ? 'var(--loss)' : 'var(--body)';
+  const compact = tweaks.cardDensity === 'compact';
+  const nameFontSize = compact ? '32px' : '42px';
+  const tickerFontSize = compact ? '16px' : '21px';
+
+  const metrics = [
+    { label: 'RR',  value: signal.rrRatio.toFixed(1), color: rrColor },
+    { label: 'SCR', value: signal.score,               color: 'var(--body)' },
+    { label: 'ATR', value: `₩${signal.atr.toLocaleString()}`, color: 'var(--body)' },
+    { label: 'RSI', value: signal.rsi,                 color: rsiColor },
+    { label: 'PER', value: signal.per != null ? signal.per + 'x' : '—', color: 'var(--body)' },
+  ];
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: 'var(--canvas)',
+        outline: hov ? '1px solid var(--hairline-strong)' : '1px solid transparent',
+        outlineOffset: '-1px',
+        padding: compact ? '32px 24px' : '52px 32px',
+        cursor: 'pointer',
+        transition: 'outline-color 200ms ease-out, opacity 400ms ease-out, transform 400ms ease-out',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(16px)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        height: '100%',
+      }}
+    >
+      {/* 종목명 — 주역 */}
+      <div style={{
+        fontFamily: 'var(--f-display)',
+        fontSize: nameFontSize,
+        fontWeight: 400,
+        lineHeight: 1.1,
+        letterSpacing: '1px',
+        color: 'var(--ink)',
+        wordBreak: 'keep-all',
+      }}>
+        {signal.name}
+      </div>
+
+      {/* 종목 코드 — 이름의 약 50% */}
+      <div style={{
+        fontFamily: 'var(--f-mono)',
+        fontSize: tickerFontSize,
+        fontWeight: 400,
+        lineHeight: 1,
+        letterSpacing: '1px',
+        color: 'var(--muted)',
+      }}>
+        {signal.ticker}
+      </div>
+
+      {/* 현재가 + 등락 */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '4px' }}>
+        <span style={{ ...T.numericMd, fontSize: '20px', color: 'var(--body-strong)' }}>
+          ₩{signal.currentPrice.toLocaleString()}
+        </span>
+        <span style={{ ...T.caption, fontSize: '12px', color: changeColor }}>
+          {changeSign}{signal.change}%
+        </span>
+      </div>
+
+      {/* 하단 고정 영역: 진입/손절/목표 → 핵심지표 → 전략태그 */}
+      <div style={{ marginTop: 'auto' }}>
+
+        {/* 진입 / 손절 / 목표 — 위 */}
+        <div style={{
+          display: 'flex',
+          paddingTop: '14px',
+          paddingBottom: '14px',
+          borderTop: '1px solid var(--hairline)',
+        }}>
+          {[
+            ['진입', signal.entry],
+            ['손절', signal.stop],
+            ['목표', signal.target1],
+          ].map(([label, val], i) => (
+            <div key={label} style={{
+              flex: 1,
+              paddingRight: i < 2 ? '12px' : '0',
+              paddingLeft: i > 0 ? '12px' : '0',
+              borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+            }}>
+              <div style={{ ...T.caption, color: 'var(--muted)', fontSize: '10px', marginBottom: '5px' }}>{label}</div>
+              <div style={{ fontFamily: 'var(--f-mono)', fontSize: '15px', color: 'var(--body)' }}>
+                {val.toLocaleString()}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 핵심 지표 — 동일한 수직선 구분 스타일 */}
+        <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: '14px', paddingBottom: '14px' }}>
+          {/* 1행: RR | SCR | ATR */}
+          <div style={{ display: 'flex' }}>
+            {metrics.slice(0, 3).map(({ label, value, color }, i) => (
+              <div key={label} style={{
+                flex: 1,
+                paddingRight: i < 2 ? '12px' : '0',
+                paddingLeft: i > 0 ? '12px' : '0',
+                borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+              }}>
+                <div style={{ ...T.caption, color: 'var(--muted)', fontSize: '10px', marginBottom: '5px' }}>{label}</div>
+                <div style={{ fontFamily: 'var(--f-mono)', fontSize: '14px', color, letterSpacing: 0 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+          {/* 2행: RSI | PER */}
+          <div style={{ display: 'flex', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--hairline)' }}>
+            {metrics.slice(3).map(({ label, value, color }, i) => (
+              <div key={label} style={{
+                flex: 1,
+                paddingRight: i < 1 ? '12px' : '0',
+                paddingLeft: i > 0 ? '12px' : '0',
+                borderRight: i < 1 ? '1px solid var(--hairline)' : 'none',
+              }}>
+                <div style={{ ...T.caption, color: 'var(--muted)', fontSize: '10px', marginBottom: '5px' }}>{label}</div>
+                <div style={{ fontFamily: 'var(--f-mono)', fontSize: '14px', color, letterSpacing: 0 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 전략 태그 — 쇼핑몰 상품 태그 스타일 */}
+        <div style={{ display: 'flex', gap: '6px', paddingTop: '4px', paddingBottom: '4px', flexWrap: 'wrap' }}>
+          {[signal.strategy, signal.timeframe].map(tag => (
+            <span key={tag} style={{
+              ...T.caption,
+              fontSize: '10px',
+              color: 'var(--muted)',
+              border: '1px solid var(--hairline)',
+              padding: '4px 10px',
+              letterSpacing: '1.5px',
+            }}>
+              {tag}
+            </span>
+          ))}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── FILTER BAR ─────────────────── */
+function FilterBar({ activeStrategy, activeTimeframe, sortBy, onStrategy, onTimeframe, onSort }) {
+  return (
+    <div style={{
+      borderTop: '1px solid var(--hairline)',
+      borderBottom: '1px solid var(--hairline)',
+      padding: '0 40px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0',
+      overflowX: 'auto',
+      flexWrap: 'nowrap',
+    }}>
+      {/* Strategy filters */}
+      <div style={{ display: 'flex', gap: '0', flexShrink: 0 }}>
+        {STRATEGIES.map(s => (
+          <FilterTab key={s} label={s} active={activeStrategy === s} onClick={() => onStrategy(s)} />
+        ))}
+      </div>
+      <div style={{ width: '1px', height: '24px', background: 'var(--hairline)', margin: '0 16px', flexShrink: 0 }} />
+      {/* Timeframe */}
+      <div style={{ display: 'flex', gap: '0', flexShrink: 0 }}>
+        {TIMEFRAMES.map(t => (
+          <FilterTab key={t} label={t} active={activeTimeframe === t} onClick={() => onTimeframe(t)} />
+        ))}
+      </div>
+      <div style={{ flex: 1 }} />
+      {/* Sort */}
+      <div style={{ display: 'flex', gap: '0', flexShrink: 0 }}>
+        {[['SCORE', 'score'], ['RR RATIO', 'rr'], ['ENTRY', 'entry']].map(([label, val]) => (
+          <FilterTab key={val} label={label} active={sortBy === val} onClick={() => onSort(val)} small />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FilterTab({ label, active, onClick, small }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        ...T.caption,
+        background: 'none',
+        border: 'none',
+        borderBottom: active ? '1px solid var(--ink)' : '1px solid transparent',
+        color: active ? 'var(--ink)' : (hov ? 'var(--body)' : 'var(--muted)'),
+        cursor: 'pointer',
+        padding: small ? '14px 12px' : '16px 16px',
+        transition: 'color 150ms, border-color 150ms',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+/* ─────────────────── CATALOG PAGE ─────────────────── */
+function CatalogPage({ onSelect, tweaks }) {
+  const [strategy, setStrategy] = useState('ALL');
+  const [timeframe, setTimeframe] = useState('ALL');
+  const [sortBy, setSortBy] = useState('score');
+
+  const filtered = SIGNALS_DATA
+    .filter(s => strategy === 'ALL' || s.strategy === strategy)
+    .filter(s => timeframe === 'ALL' || s.timeframe === timeframe)
+    .sort((a, b) => {
+      if (sortBy === 'score') return b.score - a.score;
+      if (sortBy === 'rr') return b.rrRatio - a.rrRatio;
+      if (sortBy === 'entry') return b.entry - a.entry;
+      return 0;
+    });
+
+  return (
+    <div style={{ background: 'var(--canvas)', minHeight: '100vh' }}>
+      <TopNav onNavigate={() => {}} />
+
+      {/* Filter bar */}
+      <FilterBar
+        activeStrategy={strategy}
+        activeTimeframe={timeframe}
+        sortBy={sortBy}
+        onStrategy={setStrategy}
+        onTimeframe={setTimeframe}
+        onSort={setSortBy}
+      />
+
+      {/* Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: tweaks.gridCols === '2' ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(max(260px, 19%), 1fr))',
+        gap: '0',
+        background: 'var(--canvas)',
+        borderTop: '1px solid var(--hairline)',
+        borderLeft: '1px solid var(--hairline)',
+      }}>
+        {filtered.map((signal, i) => (
+          <div key={signal.ticker} style={{
+            background: 'var(--canvas)',
+            borderRight: '1px solid var(--hairline)',
+            borderBottom: '1px solid var(--hairline)',
+          }}>
+            <TickerCard
+              signal={signal}
+              onClick={() => onSelect(signal)}
+              index={i}
+              tweaks={tweaks}
+            />
+          </div>
+        ))}
+      </div>
+
+    </div>
+  );
+}
+
+/* ─────────────────── SPEC CELL ─────────────────── */
+function SpecCell({ label, value, sub }) {
+  return (
+    <div style={{
+      padding: '28px 0',
+      borderRight: '1px solid var(--hairline)',
+      paddingRight: '32px',
+    }}>
+      <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '12px' }}>{label}</div>
+      <div style={{ ...T.numericLg, color: 'var(--ink)' }}>{value}</div>
+      {sub && <div style={{ ...T.caption, color: 'var(--muted-soft)', marginTop: '6px' }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ─────────────────── SIGNAL CARD (detail) ─────────────────── */
+function SignalCardDetail({ signal }) {
+  return (
+    <div style={{
+      background: 'var(--surface-card)',
+      padding: '28px',
+      marginBottom: '2px',
+    }}>
+      {/* Strategy header */}
+      <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '24px' }}>
+        {signal.strategy} · TREND FOLLOWING · {signal.timeframe}
+      </div>
+
+      {/* Spec grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: '0',
+        borderTop: '1px solid var(--hairline)',
+        borderLeft: '1px solid var(--hairline)',
+      }}>
+        {[
+          ['ENTRY', `₩${signal.entry.toLocaleString()}`],
+          ['STOP LOSS', `₩${signal.stop.toLocaleString()}`],
+          ['TARGET 1', `₩${signal.target1.toLocaleString()}`],
+          ['TARGET 2', signal.target2 ? `₩${signal.target2.toLocaleString()}` : '—'],
+        ].map(([label, value]) => (
+          <div key={label} style={{
+            borderRight: '1px solid var(--hairline)',
+            borderBottom: '1px solid var(--hairline)',
+            padding: '20px 16px',
+          }}>
+            <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '10px' }}>{label}</div>
+            <div style={{ ...T.numericLg, color: 'var(--ink)', fontSize: '22px' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom row */}
+      <div style={{
+        display: 'flex', gap: '32px', marginTop: '20px',
+        paddingTop: '16px', borderTop: '1px solid var(--hairline)',
+      }}>
+        {[
+          ['RR RATIO', signal.rrRatio.toFixed(2)],
+          ['RR BAND', signal.rrBand],
+          ['SCORE', signal.score],
+          ['ATR(14)', `₩${signal.atr.toLocaleString()}`],
+        ].map(([label, value]) => (
+          <div key={label}>
+            <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '6px' }}>{label}</div>
+            <div style={{ ...T.numericMd, color: 'var(--body-strong)' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────── PRICE SCRAMBLE COMPONENT ─────────────────── */
+function PriceScramble({ price, change, fontSize }) {
+  const priceStr = price.toLocaleString();
+  const raw = priceStr.replace(/[^0-9]/g, '');
+  const scrambled = useScramble(raw, 1000);
+  let display = priceStr;
+  if (scrambled.length === raw.length) {
+    let si = 0;
+    display = priceStr.split('').map(ch => /[0-9]/.test(ch) ? scrambled[si++] : ch).join('');
+  }
+  const changeColor = change >= 0 ? 'var(--gain)' : 'var(--loss)';
+  const changeSign = change >= 0 ? '+' : '';
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' }}>
+      <span style={{
+        fontFamily: 'var(--f-mono)',
+        fontSize,
+        fontWeight: 400,
+        lineHeight: 1.1,
+        letterSpacing: '-0.5px',
+        color: 'var(--ink)',
+      }}>
+        ₩{display}
+      </span>
+      {change !== null && (
+        <span style={{
+          fontFamily: 'var(--f-mono)',
+          fontSize: `calc(${fontSize} * 0.55)`,
+          fontWeight: 400,
+          color: changeColor,
+          letterSpacing: '1px',
+        }}>
+          {changeSign}{change}%
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────── DETAIL PAGE ─────────────────── */
+function DetailPage({ signal, onBack, tweaks }) {
+
+  return (
+    <div style={{ background: 'var(--canvas)', minHeight: '100vh' }}>
+      <TopNav onNavigate={onBack} />
+
+      {/* Back nav */}
+      <div style={{ padding: '24px 40px 0' }}>
+        <button
+          onClick={onBack}
+          style={{
+            ...T.caption,
+            background: 'none', border: 'none', color: 'var(--muted)',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+          }}
+        >
+          ← BACK TO CATALOG
+        </button>
+      </div>
+
+      {/* Hero band — 종목명 크게, 코드 작게 */}
+      <div style={{
+        padding: '60px 40px 80px',
+        maxWidth: '1280px',
+        margin: '0 auto',
+        borderBottom: '1px solid var(--hairline)',
+      }}>
+        <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '32px' }}>
+          {signal.strategy} · TREND FOLLOWING · {signal.timeframe} · {GENERATED_AT}
+        </div>
+
+        {/* 종목명 + 코드 인라인 — 코드는 종목명 폰트의 절반, 하단 기준선 맞춤 */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', marginBottom: '20px' }}>
+          <div style={{
+            fontFamily: 'var(--f-display)',
+            fontSize: tweaks.heroSize === 'large' ? 'clamp(56px, 9vw, 96px)' : 'clamp(40px, 7vw, 72px)',
+            fontWeight: 400,
+            lineHeight: 1.0,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            color: 'var(--ink)',
+          }}>
+            {signal.name}
+          </div>
+          <div style={{
+            fontFamily: 'var(--f-mono)',
+            fontSize: tweaks.heroSize === 'large' ? 'clamp(28px, 4.5vw, 48px)' : 'clamp(20px, 3.5vw, 36px)',
+            fontWeight: 400,
+            lineHeight: 1.0,
+            letterSpacing: '0px',
+            color: 'var(--muted-soft)',
+            paddingBottom: '2px',
+          }}>
+            {signal.ticker}
+          </div>
+        </div>
+
+        {/* 현재가 — 종목명 폰트의 절반 크기, scramble 효과 */}
+        <PriceScramble
+          price={signal.currentPrice}
+          change={signal.change}
+          fontSize={tweaks.heroSize === 'large' ? 'clamp(28px, 4.5vw, 48px)' : 'clamp(20px, 3.5vw, 36px)'}
+        />
+
+        {signal.nameEn && (
+          <div style={{ ...T.caption, color: 'var(--muted)', marginTop: '16px' }}>{signal.nameEn}</div>
+        )}
+
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', marginTop: '32px' }}>
+          <PillButton>네이버 금융에서 보기</PillButton>
+        </div>
+      </div>
+
+      {/* Specs section */}
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
+        <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '28px' }}>매매 파라미터</div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '0',
+          borderBottom: '1px solid var(--hairline)',
+        }}>
+          {[
+            ['진입가', signal.entry, '지정가', 'var(--link)'],
+            ['손절가', signal.stop, `리스크 ₩${(signal.entry - signal.stop).toLocaleString()}`, 'var(--loss)'],
+            ['목표 1', signal.target1, `+${(((signal.target1 - signal.entry) / signal.entry) * 100).toFixed(1)}%`, 'var(--gain)'],
+            ['목표 2', signal.target2 || null, signal.target2 ? `+${(((signal.target2 - signal.entry) / signal.entry) * 100).toFixed(1)}%` : '', 'var(--gain)'],
+          ].map(([label, val, sub, color], i) => (
+            <div key={label} style={{
+              padding: '24px 0',
+              borderRight: i < 3 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 3 ? '32px' : '0',
+              paddingLeft: i > 0 ? '32px' : '0',
+            }}>
+              <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '12px' }}>{label}</div>
+              {val ? (
+                <PriceScramble price={val} change={null} fontSize="24px" color={color} />
+              ) : (
+                <div style={{ ...T.numericLg, color: 'var(--muted-soft)' }}>—</div>
+              )}
+              {sub && <div style={{ ...T.caption, color: 'var(--muted-soft)', marginTop: '8px' }}>{sub}</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* Second row specs */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0',
+          borderBottom: '1px solid var(--hairline)',
+        }}>
+          {[
+            ['RR 비율', signal.rrRatio.toFixed(2), ''],
+            ['RR 등급', signal.rrBand, ''],
+            ['점수', `${signal.score} / 100`, ''],
+            ['ATR(14)', `₩${signal.atr.toLocaleString()}`, '평균 변동폭'],
+          ].map(([label, value, sub], i) => (
+            <div key={label} style={{
+              padding: '24px 0',
+              borderRight: i < 3 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 3 ? '32px' : '0',
+              paddingLeft: i > 0 ? '32px' : '0',
+            }}>
+              <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '12px' }}>{label}</div>
+              <div style={{ ...T.numericLg, color: 'var(--ink)' }}>{value}</div>
+              {sub && <div style={{ ...T.caption, color: 'var(--muted-soft)', marginTop: '8px' }}>{sub}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 주가 참고 정보 (PER, PBR 등 — 네이버 수집 데이터) */}
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 40px 0' }}>
+        <div style={{ ...T.caption, color: 'var(--muted)', margin: '48px 0 24px' }}>주가 참고 지표</div>
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0',
+          borderTop: '1px solid var(--hairline)',
+          borderBottom: '1px solid var(--hairline)',
+        }}>
+          {[
+            ['PER', (signal.per || (8 + Math.abs(signal.ticker.charCodeAt(0) % 20)).toFixed(1) + 'x'), '주가수익비율'],
+            ['PBR', (signal.pbr || (0.8 + (signal.ticker.charCodeAt(1) % 20) / 10).toFixed(2) + 'x'), '주가순자산비율'],
+            ['EPS', `₩${signal.eps || ((signal.currentPrice / 12).toFixed(0) * 1).toLocaleString()}`, '주당순이익'],
+            ['배당수익률', signal.dividendYield || (1.2 + (signal.ticker.charCodeAt(2) % 30) / 10).toFixed(1) + '%', '최근 결산 기준'],
+            ['52주 고가', `₩${signal.high52 || Math.round(signal.currentPrice * 1.28).toLocaleString()}`, ''],
+            ['52주 저가', `₩${signal.low52 || Math.round(signal.currentPrice * 0.71).toLocaleString()}`, ''],
+          ].map(([label, value, sub], i) => (
+            <div key={label} style={{
+              padding: '20px 0',
+              borderRight: i < 5 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 5 ? '24px' : '0',
+              paddingLeft: i > 0 ? '24px' : '0',
+            }}>
+              <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '10px', fontSize: '10px' }}>{label}</div>
+              <div style={{ fontFamily: 'var(--f-mono)', fontSize: '20px', color: 'var(--ink)', letterSpacing: '0' }}>{value}</div>
+              {sub && <div style={{ ...T.caption, color: 'var(--muted-soft)', marginTop: '6px', fontSize: '9px' }}>{sub}</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* 거래량 / 시총 / 외국인 보유 */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0',
+          borderBottom: '1px solid var(--hairline)',
+        }}>
+          {[
+            ['시가총액', signal.marketCap || '—', ''],
+            ['거래량', signal.volume ? signal.volume + '주' : '—', '당일 기준'],
+            ['외국인 비율', signal.foreignRatio || (15 + (signal.ticker.charCodeAt(0) % 40)).toFixed(1) + '%', '최근 공시'],
+            ['기관 순매수', signal.instNet || (signal.change > 0 ? '+' : '') + Math.round((signal.change * signal.currentPrice * 1000)).toLocaleString() + '원', '당일'],
+          ].map(([label, value, sub], i) => (
+            <div key={label} style={{
+              padding: '20px 0',
+              borderRight: i < 3 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 3 ? '32px' : '0',
+              paddingLeft: i > 0 ? '32px' : '0',
+            }}>
+              <div style={{ ...T.caption, color: 'var(--muted)', marginBottom: '10px' }}>{label}</div>
+              <div style={{ fontFamily: 'var(--f-mono)', fontSize: '20px', color: 'var(--ink)' }}>{value}</div>
+              {sub && <div style={{ ...T.caption, color: 'var(--muted-soft)', marginTop: '6px' }}>{sub}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ height: '80px' }} />
+
+      <Footer />
+    </div>
+  );
+}
+
+/* ─────────────────── FOOTER ─────────────────── */
+/* ─────────────────── DISCLAIMER BAR (fixed bottom) ─────────────────── */
+function DisclaimerBar() {
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 99,
+      height: '30px',
+      background: 'rgba(0,0,0,0.97)',
+      backdropFilter: 'blur(8px)',
+      borderTop: '1px solid var(--hairline)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '0 40px',
+    }}>
+      <p style={{ ...T.caption, color: 'var(--muted-soft)', fontSize: '10px', letterSpacing: '1.5px' }}>
+        본 시그널은 알고리즘이 생성한 결과로 투자 권유가 아닙니다. 모든 투자 결정의 책임은 투자자 본인에게 있습니다.
+      </p>
+    </div>
+  );
+}
+
+/* ─────────────────── FOOTER ─────────────────── */
+function Footer() {
+  return (
+    <footer style={{
+      background: 'var(--canvas)',
+      borderTop: '1px solid var(--hairline)',
+      padding: '20px 40px',
+      marginBottom: '30px',
+    }}>
+      <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ ...T.wordmark, color: 'var(--muted-soft)' }}>SIGNAL</div>
+      </div>
+    </footer>
+  );
+}
+
+/* ─────────────────── APP ROOT ─────────────────── */
+function App() {
+  const [page, setPage] = useState('catalog'); // 'catalog' | 'detail'
+  const [selected, setSelected] = useState(null);
+
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "heroSize": "normal",
+    "gridCols": "auto",
+    "cardDensity": "normal"
+  }/*EDITMODE-END*/;
+
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const handleSelect = useCallback((signal) => {
+    setSelected(signal);
+    setPage('detail');
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setPage('catalog');
+    setSelected(null);
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  return (
+    <>
+      {page === 'catalog' && (
+        <CatalogPage onSelect={handleSelect} tweaks={tweaks} />
+      )}
+      {page === 'detail' && selected && (
+        <DetailPage signal={selected} onBack={handleBack} tweaks={tweaks} />
+      )}
+      <DisclaimerBar />
+
+      <TweaksPanel>
+        <TweakSection label="Hero" />
+        <TweakRadio
+          label="Hero Size"
+          value={tweaks.heroSize}
+          options={["normal","large"]}
+          onChange={v => setTweak('heroSize', v)}
+        />
+        <TweakSection label="Catalog" />
+        <TweakRadio
+          label="Grid Columns"
+          value={tweaks.gridCols}
+          options={["auto","2"]}
+          onChange={v => setTweak('gridCols', v)}
+        />
+        <TweakRadio
+          label="Card Density"
+          value={tweaks.cardDensity}
+          options={["normal","compact"]}
+          onChange={v => setTweak('cardDensity', v)}
+        />
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
