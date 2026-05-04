@@ -20,9 +20,11 @@ _TIMEFRAME_KEYS = {"1D": "rsi_1d", "1h": "rsi_1h", "30m": "rsi_30m"}
 def apply_snapshot_overlay(
     signal: dict[str, Any], snapshot_ticker: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """signal entry 를 deepcopy 해서 fundamentals/flow/external_links 만 latest 로 override.
+    """signal entry 를 deepcopy 해서 fundamentals/flow/external_links 와
+    live_quote(current_price/change_pct/volume) 를 latest snapshot 으로 override.
 
     snapshot_ticker 가 None 이면 signal 그대로 반환 (deepcopy).
+    trade_plan(entry/stop/target/rr_ratio) 과 signal_date 는 freeze 유지.
     """
     out = deepcopy(signal)
     if snapshot_ticker is None:
@@ -33,6 +35,27 @@ def apply_snapshot_overlay(
         out["flow"] = snapshot_ticker["flow"]
     if "external_links" in snapshot_ticker:
         out["external_links"] = snapshot_ticker["external_links"]
+    # collect_live.py 가 갱신한 현재가 적용 (current_price 있을 때만)
+    cp = snapshot_ticker.get("current_price")
+    if cp:
+        chg = snapshot_ticker.get("change_pct") or 0.0
+        vol = snapshot_ticker.get("volume")
+        direction = "up" if chg > 0 else ("down" if chg < 0 else "flat")
+        existing_lq = out.get("live_quote") or {}
+        existing_display = (existing_lq.get("_display") or {})
+        out["live_quote"] = {
+            **existing_lq,
+            "current_price": cp,
+            "change_pct": chg,
+            "volume": vol,
+            "_display": {
+                **existing_display,
+                "current_price": f"{int(cp):,}",
+                "change": f"+{chg:.2f}%" if chg >= 0 else f"{chg:.2f}%",
+                "direction": direction,
+                "volume": f"{int(vol):,}" if vol else existing_display.get("volume"),
+            },
+        }
     return out
 
 

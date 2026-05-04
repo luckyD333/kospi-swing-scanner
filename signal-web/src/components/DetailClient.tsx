@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CardProps } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
@@ -139,6 +139,11 @@ function getScoreCaption(strategyId: string): string {
 
 export default function DetailClient({ card, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
   const router = useRouter();
+
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), 120_000);
+    return () => clearInterval(id);
+  }, []);
   const {
     name, nameEn, ticker,
     priceDisplay, changeDisplay, direction,

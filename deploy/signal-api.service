@@ -5,10 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/opt/kospi-scanner/signal-api
-Environment="SIGNAL_API_DATA_DIR=/opt/kospi-scanner/data"
+WorkingDirectory=/opt/apps/kospi-scanner/signal-api
+Environment="SIGNAL_API_DATA_DIR=/opt/apps/kospi-scanner/data"
 Environment="SIGNAL_API_CORS_ORIGINS=http://YOUR_VM_IP"
-ExecStart=/opt/kospi-scanner/.venv/bin/uvicorn app.main:app \
+ExecStart=/opt/apps/kospi-scanner/.venv/bin/uvicorn app.main:app \
           --host 127.0.0.1 --port 8000 --workers 2
 Restart=always
 RestartSec=5

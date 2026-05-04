@@ -12,13 +12,14 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2-Job 운영 워크플로우
+### 3-Job 운영 워크플로우
 
 | Job | 명령어 | 출력 | 주기 |
 |-----|--------|------|------|
-| A: 시장 데이터 수집 | `python scripts/collect.py ...` | `.cache/{tf}/{ticker}.parquet` + `data/market_snapshot.json` (KOSPI/KOSDAQ + ETF + 매크로 USD/KRW·WTI·국고채3Y·VIX) | 매일 장 마감 후 1회 |
+| A: 시장 데이터 수집 | `python scripts/collect.py ...` | `.cache/{tf}/{ticker}.parquet` + `data/market_snapshot.json` | 매일 장 마감 후 1회 |
 | B-일봉 | `python cli.py --format signals_ui ...` | `data/signals.json` (SSOT) | Job A 완료 후 1회 |
-| B-장중 (30m/1h) | `python cli.py --format signals_ui ...` | `data/signals.json` | 장 중 30분마다 (09:00~15:30) |
+| B-장중 (30m/1h) | `collect.py + cli.py 페어링` | `data/signals.json` | 장 중 30분마다 (09:01, 09:31 …) |
+| C: 실시간 현재가 | `python scripts/collect_live.py` | `data/market_snapshot.json` 부분 갱신 | 장 중 2분마다 (09:00~15:59) |
 
 > **TF별 재계산 필요 주기**: 1D/1W 전략은 장 마감 후 1회로 충분. 30m/1h 전략은 새 캔들이 확정되는 시점마다 재실행이 필요해요.
 > 30m 파일은 디스크에 캐시되지 않고 매 실행마다 `.cache/1m/` parquet에서 리샘플링해 즉석 생성돼요.
@@ -29,7 +30,7 @@ pip install -r requirements.txt
 python scripts/collect.py --market KOSPI --cache-root .cache
 ```
 
-출력: `data/market_snapshot.json` — KOSPI 전 종목 시장 데이터
+출력: `data/market_snapshot.json` — KOSPI 전 종목 시장 데이터 (OHLCV + 펀더멘털 + 매크로)
 
 #### Job B: 전략 실행 + 시그널 생성
 
@@ -38,6 +39,16 @@ python cli.py --strategy all --cache-root .cache --format signals_ui --output-di
 ```
 
 출력: `data/signals.json` — UI 직접 소비 포맷 (Pydantic 검증 통과)
+
+#### Job C: 실시간 현재가 갱신
+
+```bash
+python scripts/collect_live.py
+```
+
+`data/market_snapshot.json`의 `market_indices`(KOSPI/KOSDAQ/VIX/환율/WTI)와 시그널 종목 `current_price`만 경량 갱신해요.
+Job A/B의 전체 OHLCV 수집 없이 수초 안에 완료되며, 2분 cron으로 장중 실시간성을 유지해요.
+signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 
 ### cron 예시
 
@@ -48,8 +59,11 @@ python cli.py --strategy all --cache-root .cache --format signals_ui --output-di
 # Job B (일봉): 수집 완료 후 1D/1W 전략 실행
 30 16 * * 1-5 /path/to/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data
 
-# Job B (장중): 30m/1h 전략 — 장 중 30분마다 재계산 (09:00~15:30)
-*/30 9-15 * * 1-5 /path/to/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data
+# Job B (장중): 30m/1h 전략 — bar close + 1분 지연 (09:01, 09:31, …, 15:31)
+1,31 9-15 * * 1-5 /path/to/scripts/run_30m.sh
+
+# Job C: 실시간 현재가 — 2분 주기 경량 갱신 (09:00~15:59)
+*/2 9-15 * * 1-5 /path/to/.venv/bin/python scripts/collect_live.py
 ```
 
 ---
@@ -167,7 +181,8 @@ kospi-swing-scanner/
 │
 ├── cli.py                            # 스캔 CLI 진입점
 ├── scripts/
-│   ├── collect.py                    # 데이터 수집 전용
+│   ├── collect.py                    # 데이터 수집 전용 (Job A/B-장중)
+│   ├── collect_live.py               # 실시간 현재가 경량 갱신 (Job C, 2분 cron)
 │   └── backtest_run.py               # 백테스트 일괄 실행
 │
 ├── core/                             # 공통 모듈
@@ -208,7 +223,7 @@ kospi-swing-scanner/
 │       └── services/
 │           ├── signal_loader.py      # signals.json 로드
 │           ├── market_loader.py      # market_snapshot.json 로드
-│           └── join.py               # 응답 시 overlay (fundamentals/flow/RSI/links)
+│           └── join.py               # 응답 시 overlay (fundamentals/flow/RSI/links/live_quote)
 │
 ├── signal-web/                       # Next.js UI (:3000)
 │   └── src/
