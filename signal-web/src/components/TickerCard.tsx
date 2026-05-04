@@ -23,8 +23,8 @@ export default function TickerCard({ card, onClick, index }: Props) {
   }, [index]);
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
-    entry, stop, target1, score, per,
-    rsi, strategyLabel, timeframe, dataQuality } = card;
+    entry, stop, target1, per,
+    rsi, strategyLabel, timeframe, rank } = card;
 
   // 한국 주식 관례: 상승=빨강 / 하락=파랑 / 보합=화이트
   const dirGlyph = direction === 'up' ? '▲' : direction === 'down' ? '▼' : '─';
@@ -35,14 +35,16 @@ export default function TickerCard({ card, onClick, index }: Props) {
 
   const nameLen = name.length;
   const nameFontSize = nameLen > 12
-    ? `${Math.max(24, Math.round(42 * 12 / nameLen))}px`
-    : '42px';
-  const tickerFontSize = nameLen > 12 ? '17px' : '21px';
+    ? `${Math.max(18, Math.round(27 * 12 / nameLen))}px`
+    : '27px';
+  const tickerFontSize = nameLen > 12 ? '14px' : '16px';
+
+  const rankDisplay = rank != null ? `#${rank}` : '—';
 
   const primaryMetrics = [
     { label: 'RSI', value: rsi != null ? rsi.toFixed(1) : '—' },
-    { label: 'PER', value: per != null ? `${per}x` : '—' },
-    { label: '신뢰도', value: score != null ? `${(score / 10).toFixed(0)}%` : '—' },
+    { label: 'PER', value: per != null && per > 0 ? `${per}x` : '—' },
+    { label: '랭킹', value: rankDisplay },
   ];
 
   // 라벨은 muted-soft로 한 톤 낮춰 데이터가 자연스럽게 떠오르게 함
@@ -57,9 +59,7 @@ export default function TickerCard({ card, onClick, index }: Props) {
         background: 'var(--canvas)',
         outline: hov ? '1px solid var(--hairline-strong)' : '1px solid transparent',
         outlineOffset: '-1px',
-        // design.md known-gap — data-quality flag 시 좌측 4px warning 막대
-        borderLeft: `4px solid ${dataQuality === 'warn' ? 'var(--warning)' : 'transparent'}`,
-        padding: '52px 32px 52px 28px',  // 좌측 4px 막대 보정 (32px - 4px)
+        padding: '52px 32px',
         cursor: 'pointer',
         transition: 'outline-color 200ms ease-out, opacity 400ms ease-out, transform 400ms ease-out',
         opacity: visible ? 1 : 0,

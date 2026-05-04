@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { MarketIndex, RegimeScore } from '@/types/signal';
+import type { MarketIndex, RegimeScore, BreadthScore, AxesScore } from '@/types/signal';
 import type { CardProps } from '@/lib/adapt';
 import TopNav from './TopNav';
 import FilterBar from './FilterBar';
@@ -15,21 +15,44 @@ interface Props {
   timeframes: string[];
   marketIndices: Record<string, MarketIndex>;
   generatedAtDisplay: string;
+  targetDateDisplay?: string;
   marketRegime?: Record<string, RegimeScore> | null;
+  marketBreadth?: Record<string, BreadthScore> | null;
+  marketAxes?: Record<string, AxesScore> | null;
 }
 
-export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay, marketRegime }: Props) {
+export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes }: Props) {
   const router = useRouter();
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
-  const [sortBy, setSortBy] = useState('score');
+  const [sortBy, setSortBy] = useState('rank');
 
+  // 'ALL' 탭은 서버 dedup 결과 (strategy.id === 'all') 만 노출.
+  // 'all' entry 가 없는 환경 (legacy) 에서는 모든 카드 표시 fallback.
+  const hasAllEntry = cards.some(c => c.strategyId === 'all');
   const filtered = cards
-    .filter(c => strategy === 'ALL' || c.strategyLabel === strategy)
+    .filter(c => {
+      if (strategy === 'ALL') {
+        return hasAllEntry ? c.strategyId === 'all' : true;
+      }
+      // 다른 strategy 탭은 raw 전략 entry 만 (ALL 통합 entry 제외)
+      return c.strategyId !== 'all' && c.strategyLabel === strategy;
+    })
     .filter(c => timeframe === 'ALL' || c.timeframe === timeframe)
     .sort((a, b) => {
-      if (sortBy === 'score') return (b.score ?? -Infinity) - (a.score ?? -Infinity);
-      if (sortBy === 'entry') return b.entry - a.entry;
+      if (sortBy === 'rank') {
+        const ar = a.rank ?? Infinity;
+        const br = b.rank ?? Infinity;
+        if (ar !== br) return ar - br;
+        return (b.score ?? -Infinity) - (a.score ?? -Infinity);
+      }
+      if (sortBy === 'rsi') return (a.rsi ?? Infinity) - (b.rsi ?? Infinity);
+      if (sortBy === 'per') {
+        const ap = a.per != null && a.per > 0 ? a.per : Infinity;
+        const bp = b.per != null && b.per > 0 ? b.per : Infinity;
+        return ap - bp;
+      }
+      if (sortBy === 'price') return a.entry - b.entry;
       return 0;
     });
 
@@ -38,7 +61,10 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       <TopNav
         marketIndices={marketIndices}
         generatedAtDisplay={generatedAtDisplay}
+        targetDateDisplay={targetDateDisplay}
         marketRegime={marketRegime}
+        marketBreadth={marketBreadth}
+        marketAxes={marketAxes}
         onHome={() => router.push('/')}
       />
 
@@ -63,7 +89,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         borderLeft: '1px solid var(--hairline)',
       }}>
         {filtered.map((card, i) => (
-          <div key={`${card.ticker}-${card.strategyLabel}`} style={{
+          <div key={`${card.ticker}-${card.strategyId}`} style={{
             background: 'var(--canvas)',
             borderRight: '1px solid var(--hairline)',
             borderBottom: '1px solid var(--hairline)',
