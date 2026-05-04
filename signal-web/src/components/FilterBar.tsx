@@ -46,7 +46,6 @@ interface Props {
 
 const SORT_OPTIONS: [string, string][] = [
   ['SCORE', 'score'],
-  ['RR RATIO', 'rr'],
   ['ENTRY', 'entry'],
 ];
 

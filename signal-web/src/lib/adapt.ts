@@ -1,4 +1,4 @@
-import type { Signal } from '@/types/signal';
+import type { Signal, DecisionFactor } from '@/types/signal';
 import { formatStrategyLabel } from '@/lib/strategy';
 
 export interface CardProps {
@@ -12,9 +12,6 @@ export interface CardProps {
   stop: number;
   target1: number | null;
   target2: number | null;
-  rrRatio: number | null;
-  rrBand: string | null;
-  atr: number | null;
   score: number | null;
   per: number | null;
   high52w: number | null;
@@ -36,6 +33,9 @@ export interface CardProps {
   naverUrl: string | null;
   generatedAtDisplay: string;
   dataQuality: 'ok' | 'warn';
+  decisionScore: number | null;
+  decisionFactors: DecisionFactor[] | null;
+  decisionMaxRegret: number | null;
 }
 
 export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardProps {
@@ -44,8 +44,10 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
   const cp = lq?.current_price ?? null;
   const ch = lq?.change_pct ?? null;
 
-  const priceDisplay = d?.current_price
-    ?? (cp != null ? `₩${cp.toLocaleString('ko-KR')}` : '—');
+  // ₩ 기호 제거 (백엔드 캐시 데이터 호환)
+  const rawPrice = d?.current_price
+    ?? (cp != null ? cp.toLocaleString('ko-KR') : '—');
+  const priceDisplay = rawPrice.replace(/^₩\s*/, '');
   const changeDisplay = d?.change
     ?? (ch != null ? `${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%` : '—');
   const direction = d?.direction ?? 'flat';
@@ -70,9 +72,6 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     stop: tp.stop,
     target1: tp.target_1,
     target2: tp.target_2,
-    rrRatio: tp.rr_ratio,
-    rrBand: tp.rr_band,
-    atr: tp.atr_14,
     score: signal.ranking?.score ?? null,
     per: signal.fundamentals?.per ?? null,
     high52w: signal.fundamentals?.high_52w ?? null,
@@ -96,5 +95,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     naverUrl: signal.external_links?.naver_finance ?? null,
     generatedAtDisplay,
     dataQuality,
+    decisionScore: signal.ranking?.decision?.final_score ?? null,
+    decisionFactors: signal.ranking?.decision?.factors ?? null,
+    decisionMaxRegret: signal.ranking?.decision?.max_regret ?? null,
   };
 }

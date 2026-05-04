@@ -23,11 +23,15 @@ export default function TickerCard({ card, onClick, index }: Props) {
   }, [index]);
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
-    entry, stop, target1, rrRatio, rrBand, atr, score, per,
-    strategyLabel, timeframe, dataQuality } = card;
+    entry, stop, target1, score, per,
+    rsi, strategyLabel, timeframe, dataQuality } = card;
 
-  // design.md "gain/loss는 realized P&L only" — 일중 등락은 모노 + 방향 글리프로 표현
+  // 한국 주식 관례: 상승=빨강 / 하락=파랑 / 보합=화이트
   const dirGlyph = direction === 'up' ? '▲' : direction === 'down' ? '▼' : '─';
+  const priceColor =
+    direction === 'up' ? 'var(--gain)' :
+    direction === 'down' ? 'var(--loss)' :
+    'var(--flat)';
 
   const nameLen = name.length;
   const nameFontSize = nameLen > 12
@@ -35,15 +39,10 @@ export default function TickerCard({ card, onClick, index }: Props) {
     : '42px';
   const tickerFontSize = nameLen > 12 ? '17px' : '21px';
 
-  // luminance 위계: 1행(RR/SCR/ATR)은 body, 2행(RSI/PER)은 한 톤 낮은 muted
   const primaryMetrics = [
-    { label: 'RR',  value: rrRatio != null ? rrRatio.toFixed(1) : '—',                 band: rrBand },
-    { label: 'SCR', value: score != null ? String(Math.round(score)) : '—',            band: null },
-    { label: 'ATR', value: atr != null ? `₩${atr.toLocaleString('ko-KR')}` : '—',      band: null },
-  ];
-  const secondaryMetrics = [
-    { label: 'RSI', value: '—' },
+    { label: 'RSI', value: rsi != null ? rsi.toFixed(1) : '—' },
     { label: 'PER', value: per != null ? `${per}x` : '—' },
+    { label: '신뢰도', value: score != null ? `${(score / 10).toFixed(0)}%` : '—' },
   ];
 
   // 라벨은 muted-soft로 한 톤 낮춰 데이터가 자연스럽게 떠오르게 함
@@ -96,17 +95,17 @@ export default function TickerCard({ card, onClick, index }: Props) {
         {ticker}
       </div>
 
-      {/* 현재가 + 등락 — 시선 앵커 2: 현재가 ink, 등락은 글리프+모노 */}
+      {/* 현재가 + 등락 — 한국 관례 색 분기 */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '4px' }}>
         <span style={{
           fontFamily: 'var(--f-mono-stack)', fontSize: '20px', fontWeight: 400,
           lineHeight: 1.2, letterSpacing: '0',
-          color: 'var(--ink)',
+          color: priceColor,
         }}>
           {priceDisplay}
         </span>
         <span style={{
-          ...ts('caption', 'var(--body-strong)'),
+          ...ts('caption', priceColor),
           fontSize: '12px',
         }}>
           {dirGlyph} {changeDisplay}
@@ -143,7 +142,7 @@ export default function TickerCard({ card, onClick, index }: Props) {
         {/* 핵심 지표 1행: RR | SCR | ATR — body 톤. RR band 색 분기 제거 */}
         <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: '14px', paddingBottom: '14px' }}>
           <div style={{ display: 'flex' }}>
-            {primaryMetrics.map(({ label, value, band }, i) => (
+            {primaryMetrics.map(({ label, value }, i) => (
               <div key={label} style={{
                 flex: 1,
                 paddingRight: i < 2 ? '12px' : '0',
@@ -151,27 +150,9 @@ export default function TickerCard({ card, onClick, index }: Props) {
                 borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
               }}>
                 <div style={labelStyle}>
-                  {label}{band != null && label === 'RR' ? ` · ${band}` : ''}
-                </div>
-                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '14px', color: 'var(--body)', letterSpacing: 0 }}>
-                  {value}
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* 2행: RSI | PER — muted (참고지표, 한 톤 낮춤) */}
-          <div style={{ display: 'flex', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--hairline)' }}>
-            {secondaryMetrics.map(({ label, value }, i) => (
-              <div key={label} style={{
-                flex: 1,
-                paddingRight: i < 1 ? '12px' : '0',
-                paddingLeft: i > 0 ? '12px' : '0',
-                borderRight: i < 1 ? '1px solid var(--hairline)' : 'none',
-              }}>
-                <div style={labelStyle}>
                   {label}
                 </div>
-                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '14px', color: 'var(--muted)', letterSpacing: 0 }}>
+                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '14px', color: 'var(--body)', letterSpacing: 0 }}>
                   {value}
                 </div>
               </div>

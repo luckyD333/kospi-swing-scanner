@@ -426,7 +426,27 @@ def _handle_signals_ui_format(args, result) -> int:
         return 1
 
     snapshot = MarketSnapshot.model_validate_json(snap_path.read_text(encoding="utf-8"))
-    payload = build_signals_payload(snapshot, result.candidates_by_strategy)
+
+    regime = None
+    regime_path = Path(".cache") / "regime_analysis.json"
+    if regime_path.exists():
+        import json as _json
+        _r = _json.loads(regime_path.read_text(encoding="utf-8"))
+        regime = _r.get("timeframe_scores")
+
+    weight_config = None
+    weights_path = Path("weights.yml")
+    if weights_path.exists():
+        try:
+            from core.decision.config import WeightConfig
+            weight_config = WeightConfig.load(weights_path)
+        except Exception as e:
+            logger.warning(f"weights.yml 로드 실패 (decision 데이터 생략): {e}")
+
+    payload = build_signals_payload(
+        snapshot, result.candidates_by_strategy,
+        market_regime=regime, weight_config=weight_config,
+    )
 
     data_dir = Path(args.output_dir or "data")
     data_dir.mkdir(exist_ok=True)

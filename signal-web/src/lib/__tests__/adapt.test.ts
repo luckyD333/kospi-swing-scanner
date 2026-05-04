@@ -21,6 +21,7 @@ const minimal: Signal = {
     rr_ratio: null,
     rr_band: null,
     atr_14: null,
+    rsi_14: null,
     derived: null,
   },
   ranking: null,
@@ -38,7 +39,6 @@ describe('adaptSignal', () => {
     expect(c.direction).toBe('flat');
     expect(c.target1).toBeNull();
     expect(c.score).toBeNull();
-    expect(c.rrRatio).toBeNull();
     expect(c.naverUrl).toBeNull();
   });
 
@@ -74,7 +74,7 @@ describe('adaptSignal', () => {
     };
     const c = adaptSignal(ok, '2026-05-03');
     expect(c.dataQuality).toBe('ok');
-    expect(c.priceDisplay).toBe('₩15,050');
+    expect(c.priceDisplay).toBe('15,050');
     expect(c.changeDisplay).toBe('+0.50%');
   });
 
@@ -111,7 +111,8 @@ describe('adaptSignal', () => {
       },
     };
     const c = adaptSignal(formatted, '2026-05-03');
-    expect(c.priceDisplay).toBe('₩15 050');
+    // ₩ 기호는 adapt에서 strip
+    expect(c.priceDisplay).toBe('15 050');
     expect(c.direction).toBe('up');
   });
 });

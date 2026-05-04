@@ -39,6 +39,10 @@ data/
 # Local orchestration state (oh-my-claudecode etc.)
 .omc/
 
+# Next.js 빌드 산출물
+signal-web/.next/
+signal-web/node_modules/
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb

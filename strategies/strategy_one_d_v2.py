@@ -15,7 +15,7 @@ import logging
 import math
 from dataclasses import dataclass
 
-from backtest_engine.core import calc_atr
+from backtest_engine.core import calc_atr, calc_rsi
 from backtest_engine.detectors import (
     DoubleBottomDetector,
     DoubleBottomFractal,
@@ -184,6 +184,13 @@ class StrategyOneDv2:
                 else:
                     atr_14 = float(atr_val) if atr_val is not None else None
 
+                try:
+                    _r = calc_rsi(df["close"], period=14).iloc[-1]
+                    rsi_14_val: float | None = round(float(_r), 1)
+                    if rsi_14_val != rsi_14_val: rsi_14_val = None  # NaN guard
+                except Exception:
+                    rsi_14_val = None
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -204,6 +211,7 @@ class StrategyOneDv2:
                         "rr_ratio": rr_ratio,
                         "rr_band": rr_band,
                         "atr_14": atr_14,
+                        "rsi_14": rsi_14_val,
                     },
                 ))
             except Exception as e:

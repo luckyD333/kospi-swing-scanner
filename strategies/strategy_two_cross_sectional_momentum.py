@@ -25,7 +25,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from backtest_engine.core import calc_atr
+from backtest_engine.core import calc_atr, calc_rsi
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
@@ -156,6 +156,13 @@ class StrategyTwoCrossSectionalMomentum:
             else:
                 atr_14 = float(atr_val) if atr_val is not None else None
 
+            try:
+                _r = calc_rsi(df["close"], period=14).iloc[-1]
+                rsi_14_val: float | None = round(float(_r), 1)
+                if rsi_14_val != rsi_14_val: rsi_14_val = None
+            except Exception:
+                rsi_14_val = None
+
             candidates.append(Candidate(
                 ticker=ticker,
                 name=ctx.names.get(ticker, ticker),
@@ -183,6 +190,7 @@ class StrategyTwoCrossSectionalMomentum:
                     "rr_ratio": rr_ratio,
                     "rr_band": rr_band,
                     "atr_14": atr_14,
+                    "rsi_14": rsi_14_val,
                 },
             ))
 

@@ -44,10 +44,25 @@ export interface TradePlan {
   derived: TradePlanDerived | null;
 }
 
+export interface DecisionFactor {
+  key: string;
+  label: string;
+  weight: number;
+  normalized: number;
+  contribution: number;
+}
+
+export interface DecisionMeta {
+  final_score: number;
+  factors: DecisionFactor[];
+  max_regret: number | null;
+}
+
 export interface Ranking {
   score: number | null;
   rank: number | null;
   percentile: number | null;
+  decision: DecisionMeta | null;
 }
 
 export interface Fundamentals {

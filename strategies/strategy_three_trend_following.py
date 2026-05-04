@@ -28,7 +28,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from core.indicators import calc_atr
+from core.indicators import calc_atr, calc_rsi
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
@@ -153,6 +153,13 @@ class StrategyThreeTrendFollowing:
                 # ATR 14일은 이미 계산했으므로 재사용
                 atr_14 = float(atr_now) if atr_now is not None else None
 
+                try:
+                    _r = calc_rsi(df["close"], period=14).iloc[-1]
+                    rsi_14_val: float | None = round(float(_r), 1)
+                    if rsi_14_val != rsi_14_val: rsi_14_val = None
+                except Exception:
+                    rsi_14_val = None
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -182,6 +189,7 @@ class StrategyThreeTrendFollowing:
                         "rr_ratio": rr_ratio,
                         "rr_band": rr_band,
                         "atr_14": atr_14,
+                        "rsi_14": rsi_14_val,
                     },
                 ))
             except Exception as e:

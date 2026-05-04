@@ -13,8 +13,9 @@
   --muted:          #999999;
   --muted-soft:     #666666;
   --link:           #c3d9f3;
-  --gain:           #5fa657;
-  --loss:           #c97064;
+  --gain:           #e8453c;
+  --loss:           #4488cc;
+  --flat:           #e6e6e6;
   --warning:        #d4a017;
 
   /* Font 스택 — 라틴(--f-*)이 우선, 한글은 KO fallback이 받음.

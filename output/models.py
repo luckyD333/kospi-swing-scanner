@@ -56,6 +56,7 @@ class TradePlan(BaseModel):
     rr_ratio: float
     rr_band: Literal["SWEET", "UNDER", "OVER"]
     atr_14: Optional[int] = None
+    rsi_14: Optional[float] = None
     derived: Optional[TradePlanDerived] = Field(default=None)
 
     @model_validator(mode="after")
@@ -72,10 +73,25 @@ class TradePlan(BaseModel):
         return self
 
 
+class DecisionFactor(BaseModel):
+    key: str
+    label: str
+    weight: float
+    normalized: float
+    contribution: float
+
+
+class DecisionMeta(BaseModel):
+    final_score: float
+    factors: list[DecisionFactor]
+    max_regret: Optional[float] = None
+
+
 class Ranking(BaseModel):
     score: float
     rank: int
     percentile: float
+    decision: Optional[DecisionMeta] = None
 
 
 class LiveQuoteDisplay(BaseModel):
@@ -129,6 +145,7 @@ class SignalsPayload(BaseModel):
     generated_at: str
     generated_at_display: str
     market_indices: dict[str, MarketIndexDisplay]
+    market_regime: Optional[dict] = None
     filters: dict
     signals: list[Signal]
     stats: dict

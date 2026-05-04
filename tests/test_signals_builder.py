@@ -60,8 +60,8 @@ def test_rr_band_mapping():
 
 
 def test_fmt_krw():
-    assert _fmt_krw(475300000000) == "₩4,753억"
-    assert _fmt_krw(1200000000000) == "₩1조 2,000억"
+    assert _fmt_krw(475300000000) == "4,753억"
+    assert _fmt_krw(1200000000000) == "1조 2,000억"
 
 
 def test_fmt_pct():

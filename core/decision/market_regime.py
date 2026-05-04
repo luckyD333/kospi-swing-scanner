@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -41,6 +41,7 @@ class RegimeAnalysis:
     bear_state_mean_return: float
     n_tickers: int
     n_days: int
+    timeframe_scores: dict = field(default_factory=dict)
 
 
 def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame:
@@ -129,6 +130,91 @@ def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame
     return proxy
 
 
+def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[int, float, float, list[dict]]:
+    """GaussianHMM 학습 → (current_score, bull_mean_return, bear_mean_return, history)."""
+    X = proxy.values
+    model = hmm.GaussianHMM(n_components=2, covariance_type="full", n_iter=100)
+    model.fit(X)
+    mean_returns = model.means_[:, 0]
+    bull_idx = int(np.argmax(mean_returns))
+    bear_idx = 1 - bull_idx
+    prob_bull = model.predict_proba(X)[:, bull_idx]
+    scores = np.clip(np.round(prob_bull * 100), 1, 100).astype(int)
+    history = []
+    for i, (date_idx, row) in enumerate(proxy.iterrows()):
+        date_str = str(date_idx.date()) if hasattr(date_idx, "date") else str(date_idx)
+        history.append({
+            "date": date_str,
+            "score": int(scores[i]),
+            "log_return": float(row["mean_return"]),
+            "volatility": float(row["rolling_std"]),
+            "prob_bull": float(prob_bull[i]),
+        })
+    return (
+        int(scores[-1]),
+        float(model.means_[bull_idx, 0]),
+        float(model.means_[bear_idx, 0]),
+        history,
+    )
+
+
+def _build_proxy_1h(cache_root: Path, max_tickers: int = 30) -> pd.DataFrame:
+    """1m 캐시에서 1h 리샘플링 → 마켓 프록시. 데이터 부족 시 빈 DataFrame."""
+    root = Path(cache_root)
+    manifest_path = root / "manifest.json"
+    if not manifest_path.exists():
+        return pd.DataFrame()
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        tickers_meta = manifest.get("tickers_meta", {})
+    except Exception:
+        return pd.DataFrame()
+
+    sorted_tickers = sorted(
+        tickers_meta.items(),
+        key=lambda x: x[1].get("market_cap_bil", 0),
+        reverse=True,
+    )
+    selected = sorted_tickers[:max_tickers]
+
+    disk = OhlcvDiskCache(root)
+    returns_list = []
+    for ticker, _ in selected:
+        try:
+            df_1m = disk.read(ticker, "1m")
+            if df_1m.empty or "close" not in df_1m.columns:
+                continue
+            df_1h = df_1m.resample("1h").agg(
+                {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+            ).dropna(subset=["close"])
+            if df_1h.empty:
+                continue
+            log_ret = np.log(df_1h["close"] / df_1h["close"].shift(1)).dropna()
+            if not log_ret.empty:
+                returns_list.append(log_ret)
+        except Exception as e:
+            logger.debug(f"1h proxy {ticker} 실패: {e}")
+            continue
+
+    if len(returns_list) < 10:
+        logger.debug(f"1h proxy 종목 부족: {len(returns_list)} < 10")
+        return pd.DataFrame()
+
+    all_returns = pd.concat(returns_list, axis=1)
+    mean_return = all_returns.mean(axis=1)
+
+    if len(mean_return) < 210:  # 30일 × 7거래시간
+        logger.debug(f"1h proxy 봉 부족: {len(mean_return)} < 210")
+        return pd.DataFrame()
+
+    rolling_std = mean_return.rolling(140).std()  # 20일 × 7거래시간
+    proxy = pd.DataFrame({
+        "mean_return": mean_return,
+        "rolling_std": rolling_std,
+    }).dropna()
+    return proxy
+
+
 def analyze_regime(cache_root: Path) -> RegimeAnalysis:
     """GaussianHMM(2-state)으로 BEAR/BULL 국면 추정.
 
@@ -141,56 +227,42 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
     예외:
         ValueError: 캐시 부족 또는 HMM 학습 실패 시
     """
-    proxy = build_market_proxy(cache_root)
-
-    if proxy.empty:
+    proxy_1d = build_market_proxy(cache_root)
+    if proxy_1d.empty:
         raise ValueError("캐시 부족: HMM 학습 불가")
 
-    # 2-state GaussianHMM 학습
-    X = proxy.values  # (n_days, 2)
     try:
-        model = hmm.GaussianHMM(n_components=2, covariance_type="full", n_iter=100)
-        model.fit(X)
+        score_1d, bull_mean, bear_mean, history_dicts = _fit_hmm_score(proxy_1d)
     except Exception as e:
         raise ValueError(f"HMM 수렴 실패: {e}") from e
 
-    # BULL state 판별 (mean_return이 큰 쪽이 BULL)
-    mean_returns = model.means_[:, 0]  # 각 state의 첫 번째 feature(mean_return)
-    bull_state_idx = np.argmax(mean_returns)
-    bear_state_idx = 1 - bull_state_idx
+    timeframe_scores: dict = {"1d": score_1d}
+    try:
+        proxy_1h = _build_proxy_1h(cache_root)
+        if not proxy_1h.empty:
+            score_1h, _, _, _ = _fit_hmm_score(proxy_1h)
+            timeframe_scores["1h"] = score_1h
+    except Exception as e:
+        logger.debug(f"1h regime 계산 실패 (skip): {e}")
 
-    # 상태별 평균 수익률
-    bull_mean_return = float(model.means_[bull_state_idx, 0])
-    bear_mean_return = float(model.means_[bear_state_idx, 0])
-
-    # 각 시점의 BULL 확률
-    prob_bull = model.predict_proba(X)[:, bull_state_idx]
-
-    # score = 1~100
-    scores = np.clip(np.round(prob_bull * 100), 1, 100).astype(int)
-
-    # history 구성
-    history = []
-    for i, (date_idx, row) in enumerate(proxy.iterrows()):
-        date_str = str(date_idx.date()) if hasattr(date_idx, "date") else str(date_idx)
-        point = RegimePoint(
-            date=date_str,
-            score=int(scores[i]),
-            log_return=float(row["mean_return"]),
-            volatility=float(row["rolling_std"]),
-            prob_bull=float(prob_bull[i]),
+    history = [
+        RegimePoint(
+            date=h["date"], score=h["score"], log_return=h["log_return"],
+            volatility=h["volatility"], prob_bull=h["prob_bull"],
         )
-        history.append(point)
+        for h in history_dicts
+    ]
 
     return RegimeAnalysis(
-        current_score=int(scores[-1]),
+        current_score=score_1d,
         history=history,
-        bull_state_mean_return=bull_mean_return,
-        bear_state_mean_return=bear_mean_return,
+        bull_state_mean_return=bull_mean,
+        bear_state_mean_return=bear_mean,
         n_tickers=len(json.loads(
             (Path(cache_root) / "manifest.json").read_text(encoding="utf-8")
-        ).get("tickers_meta", {})),  # manifest 전체 종목 수 (실제 HMM 학습에 쓰인 수의 상한)
-        n_days=len(proxy),
+        ).get("tickers_meta", {})),
+        n_days=len(proxy_1d),
+        timeframe_scores=timeframe_scores,
     )
 
 
@@ -282,6 +354,10 @@ def save_regime_analysis(cache_root: Path) -> None:
         "computed_at": datetime.now().isoformat(),
         "current_score": analysis.current_score,
         "current_regime": get_regime_label(analysis.current_score),
+        "timeframe_scores": {
+            tf: {"score": s, "regime": get_regime_label(s)}
+            for tf, s in analysis.timeframe_scores.items()
+        },
         "windows": {
             "3d": _window_avg(history, 3),
             "7d": _window_avg(history, 7),

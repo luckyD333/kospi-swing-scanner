@@ -46,7 +46,7 @@ function NaverLink({ href }: { href: string }) {
 
 function fmt(n: number | null): string {
   if (n == null) return '—';
-  return `₩${n.toLocaleString('ko-KR')}`;
+  return n.toLocaleString('ko-KR');
 }
 
 function fmtNull(n: number | null, suffix = ''): string {
@@ -64,13 +64,14 @@ export default function DetailClient({ card, marketIndices, marketRegime }: Prop
     name, nameEn, ticker,
     priceDisplay, changeDisplay, direction,
     entry, stop, target1, target2,
-    rrRatio, rrBand, atr, score, rsi,
+    score, rsi,
     rsi1d, rsi1h, rsi30m,
     per, high52w, low52w,
     foreignRatioPct, volumeDisplay, marketCapDisplay,
     riskPerShare, riskPct, reward1Pct, reward2Pct,
     strategyLabel, strategyCategory, timeframe,
     naverUrl, generatedAtDisplay,
+    decisionScore, decisionFactors, decisionMaxRegret,
   } = card;
 
   return (
@@ -129,7 +130,7 @@ export default function DetailClient({ card, marketIndices, marketRegime }: Prop
           </div>
         </div>
 
-        {/* 현재가 scramble */}
+        {/* 현재가 scramble — direction 기반 색 (한국 관례) */}
         <PriceScramble
           priceDisplay={priceDisplay}
           changeDisplay={changeDisplay}
@@ -162,11 +163,11 @@ export default function DetailClient({ card, marketIndices, marketRegime }: Prop
           borderBottom: '1px solid var(--hairline)',
         }}>
           {[
-            { label: '진입가', val: entry, sub: '지정가' },
-            { label: '손절가', val: stop, sub: riskPerShare != null && riskPct != null ? `리스크 ₩${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '' },
-            { label: '목표 1', val: target1, sub: target1 != null && reward1Pct != null ? `+${reward1Pct.toFixed(1)}%` : '' },
-            { label: '목표 2', val: target2, sub: target2 != null && reward2Pct != null ? `+${reward2Pct.toFixed(1)}%` : '' },
-          ].map(({ label, val, sub }, i) => (
+            { label: '진입가', val: entry,   sub: '지정가', color: 'var(--link)' },
+            { label: '손절가', val: stop,    sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '', color: 'var(--loss)' },
+            { label: '목표 1', val: target1, sub: target1 != null && reward1Pct != null ? `+${reward1Pct.toFixed(1)}%` : '', color: 'var(--gain)' },
+            { label: '목표 2', val: target2, sub: target2 != null && reward2Pct != null ? `+${reward2Pct.toFixed(1)}%` : '', color: 'var(--gain)' },
+          ].map(({ label, val, sub, color }, i) => (
             <div key={label} style={{
               padding: '24px 0',
               borderRight: i < 3 ? '1px solid var(--hairline)' : 'none',
@@ -178,8 +179,9 @@ export default function DetailClient({ card, marketIndices, marketRegime }: Prop
               </div>
               {val != null ? (
                 <PriceScramble
-                  priceDisplay={`₩${val.toLocaleString('ko-KR')}`}
+                  priceDisplay={val.toLocaleString('ko-KR')}
                   fontSize="24px"
+                  color={color}
                 />
               ) : (
                 <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '28px', color: 'var(--muted-soft)' }}>—</div>
@@ -193,22 +195,19 @@ export default function DetailClient({ card, marketIndices, marketRegime }: Prop
           ))}
         </div>
 
-        {/* RR / 등급 / 점수 / ATR / RSI */}
+        {/* 신뢰도 / RSI */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0',
+          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0',
           borderBottom: '1px solid var(--hairline)',
         }}>
           {[
-            { label: 'RR 비율', value: rrRatio != null ? rrRatio.toFixed(2) : '—', sub: '리스크 1 대비 기대 보상', tip: '≥ 1.5 진입 후보, ≥ 2.0 우호' },
-            { label: 'RR 등급', value: rrBand ?? '—', sub: '손익비 정성 등급', tip: 'SWEET ≥ GOOD ≥ FAIR ≥ WEAK' },
-            { label: '점수', value: score != null ? String(Math.round(score)) : '—', sub: '전략 신뢰도 점수', tip: '높을수록 우선 진입' },
-            { label: 'ATR(14)', value: atr != null ? `₩${atr.toLocaleString('ko-KR')}` : '—', sub: '평균 변동폭', tip: '손절 폭 산정 기준' },
-            { label: 'RSI(14)', value: rsi != null ? rsi.toFixed(1) : '—', sub: rsi != null ? (rsi < 30 ? '과매도' : rsi > 70 ? '과매수' : '중립') : '', tip: undefined as string | undefined },
-          ].map(({ label, value, sub, tip }, i) => (
+            { label: '신뢰도', value: score != null ? `${(score / 10).toFixed(0)}%` : '—', sub: '전략 신뢰도' },
+            { label: 'RSI(14)', value: rsi != null ? rsi.toFixed(1) : '—', sub: rsi != null ? (rsi < 30 ? '과매도' : rsi > 70 ? '과매수' : '중립') : '' },
+          ].map(({ label, value, sub }, i) => (
             <div key={label} style={{
               padding: '24px 0',
-              borderRight: i < 4 ? '1px solid var(--hairline)' : 'none',
-              paddingRight: i < 4 ? '32px' : '0',
+              borderRight: i < 1 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 1 ? '32px' : '0',
               paddingLeft: i > 0 ? '32px' : '0',
             }}>
               <div style={{ ...LABEL, marginBottom: '12px' }}>
@@ -220,11 +219,6 @@ export default function DetailClient({ card, marketIndices, marketRegime }: Prop
               {sub && (
                 <div style={SUBLABEL}>
                   {sub}
-                </div>
-              )}
-              {tip && (
-                <div style={{ ...SUBLABEL, marginTop: '4px' }}>
-                  {tip}
                 </div>
               )}
             </div>
@@ -335,6 +329,68 @@ export default function DetailClient({ card, marketIndices, marketRegime }: Prop
           ))}
         </div>
       </div>
+
+      {/* 의사결정 스코어 */}
+      {decisionScore != null && decisionFactors != null && (
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
+          <div style={SECTION_HEAD}>
+            의사결정 스코어
+          </div>
+
+          {/* 최종 스코어 */}
+          <div style={{
+            display: 'flex', alignItems: 'baseline', gap: '12px',
+            paddingBottom: '32px',
+            borderBottom: '1px solid var(--hairline)',
+          }}>
+            <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+              {decisionScore.toFixed(1)}
+            </div>
+            <div style={{ ...ts('caption', 'var(--muted)') }}>
+              / 100
+            </div>
+          </div>
+
+          {/* Factor Breakdown */}
+          <div style={{ paddingTop: '24px' }}>
+            {decisionFactors.map((f) => {
+              const fillPct = f.weight > 0 ? Math.min(100, (f.contribution / f.weight) * 100) : 0;
+              return (
+                <div key={f.key} style={{
+                  display: 'grid',
+                  gridTemplateColumns: '160px 56px 1fr 56px',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '14px 0',
+                  borderBottom: '1px solid var(--hairline)',
+                }}>
+                  <div style={{ ...ts('caption', 'var(--ink)') }}>{f.label}</div>
+                  <div style={{ ...ts('caption', 'var(--muted)'), textAlign: 'right' }}>
+                    {f.weight.toFixed(0)}%
+                  </div>
+                  <div style={{ background: 'var(--hairline)', borderRadius: '2px', height: '4px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${fillPct.toFixed(1)}%`,
+                      height: '100%',
+                      background: 'var(--ink)',
+                      borderRadius: '2px',
+                    }} />
+                  </div>
+                  <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '13px', color: 'var(--ink)', textAlign: 'right' }}>
+                    {f.contribution.toFixed(1)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {decisionMaxRegret != null && (
+            <div style={{ ...ts('caption', 'var(--muted-soft)'), marginTop: '16px' }}>
+              최대 후회값 {decisionMaxRegret.toFixed(2)} — 낮을수록 하방 시나리오에서 안정적
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ height: '80px' }} />
       <Footer />

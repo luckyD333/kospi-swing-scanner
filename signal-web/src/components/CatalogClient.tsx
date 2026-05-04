@@ -29,7 +29,6 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
     .filter(c => timeframe === 'ALL' || c.timeframe === timeframe)
     .sort((a, b) => {
       if (sortBy === 'score') return (b.score ?? -Infinity) - (a.score ?? -Infinity);
-      if (sortBy === 'rr') return (b.rrRatio ?? -Infinity) - (a.rrRatio ?? -Infinity);
       if (sortBy === 'entry') return b.entry - a.entry;
       return 0;
     });

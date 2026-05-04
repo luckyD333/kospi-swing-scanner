@@ -1,12 +1,16 @@
 # output/signals_builder.py
 from __future__ import annotations
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from output.models import (
     Fundamentals, Flow,
     SignalsPayload, Signal, TradePlan, Ranking, LiveQuote, LiveQuoteDisplay,
     StrategyContext, MarketSnapshot, MarketIndexDisplay,
+    DecisionFactor, DecisionMeta,
 )
+
+logger = logging.getLogger(__name__)
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -58,8 +62,8 @@ def _fmt_krw(val: int | None) -> str | None:
     if bil >= 10000:
         jo  = int(bil // 10000)
         rem = int(bil % 10000)
-        return f"₩{jo}조 {rem:,}억" if rem else f"₩{jo}조"
-    return f"₩{int(bil):,}억"
+        return f"{jo}조 {rem:,}억" if rem else f"{jo}조"
+    return f"{int(bil):,}억"
 
 
 def _fmt_pct(val: float | None, positive_prefix: str = "") -> str | None:
@@ -81,6 +85,7 @@ def build_signals_payload(
     snapshot: MarketSnapshot,
     candidates_by_strategy: dict[str, list],
     market_regime: dict | None = None,
+    weight_config: "WeightConfig | None" = None,
 ) -> SignalsPayload:
     # market_indices (display-ready)
     mi_display: dict[str, MarketIndexDisplay] = {}
@@ -92,7 +97,7 @@ def build_signals_payload(
 
     def _fmt_index_value(key: str, val: float) -> str:
         if key == "usd_krw":
-            return f"₩{val:,.2f}"
+            return f"{val:,.2f}"
         if key == "wti":
             return f"${val:.2f}"
         if key == "kr_treasury_3y":
@@ -128,6 +133,34 @@ def build_signals_payload(
     all_candidates.sort(key=lambda x: x[1].score, reverse=True)
     total = len(all_candidates)
 
+    # 의사결정 스코어 계산 (weight_config 제공 시)
+    ticker_to_ranked: dict = {}
+    if weight_config is not None:
+        try:
+            from core.decision.aggregator import aggregate_candidates
+            from core.decision.ensemble import compute_weighted_ensemble_score
+
+            weighted_scores = compute_weighted_ensemble_score(
+                candidates_by_strategy, weight_config.strategy_weights
+            )
+            # ticker별 best-score 후보로 deduplicate
+            best_per_ticker: dict[str, object] = {}
+            for _sid, c in all_candidates:
+                if c.ticker not in best_per_ticker or c.score > best_per_ticker[c.ticker].score:
+                    best_per_ticker[c.ticker] = c
+            # ensemble_score 메타 주입
+            for ticker, cand in best_per_ticker.items():
+                ws = weighted_scores.get(ticker, 1.0)
+                cand.metadata = {
+                    **(cand.metadata or {}),
+                    "ensemble_score": ws,
+                    "ensemble_count": int(round(ws)),
+                }
+            ranked = aggregate_candidates(list(best_per_ticker.values()), weight_config)
+            ticker_to_ranked = {rc.candidate.ticker: rc for rc in ranked}
+        except Exception as e:
+            logger.warning(f"의사결정 스코어 계산 실패 (생략): {e}")
+
     signals: list[Signal] = []
     for rank_idx, (strategy_id, c) in enumerate(all_candidates, start=1):
         label, category = _STRATEGY_LABELS.get(strategy_id, (strategy_id.upper(), ""))
@@ -158,6 +191,29 @@ def build_signals_payload(
 
         naver_url = str(meta.get("naver_url", ""))
 
+        rc = ticker_to_ranked.get(c.ticker)
+        decision: DecisionMeta | None = None
+        if rc is not None and weight_config is not None:
+            prio_map = {p.key: p for p in weight_config.priorities}
+            factors = [
+                DecisionFactor(
+                    key=key,
+                    label=prio_map[key].label,
+                    weight=prio_map[key].weight,
+                    normalized=rc.normalized_metrics.get(key, 0.0),
+                    contribution=contrib,
+                )
+                for key, contrib in rc.contributions.items()
+                if key in prio_map
+            ]
+            factors.sort(key=lambda f: f.contribution, reverse=True)
+            mr = rc.normalized_metrics.get("max_regret")
+            decision = DecisionMeta(
+                final_score=rc.final_score,
+                factors=factors,
+                max_regret=float(mr) if mr is not None else None,
+            )
+
         signals.append(Signal(
             ticker=c.ticker,
             name=c.name,
@@ -172,11 +228,12 @@ def build_signals_payload(
                 score=round(c.score, 1),
                 rank=rank_idx,
                 percentile=round((1 - rank_idx / total) * 100, 1) if total > 1 else 100.0,
+                decision=decision,
             ),
             live_quote=LiveQuote(
                 current_price=cp, change_pct=chg, volume=vol, market_cap_krw=mcap,
                 **{"_display": LiveQuoteDisplay(
-                    current_price=f"₩{cp:,}",
+                    current_price=f"{cp:,}",
                     change=_fmt_pct(chg, positive_prefix="+") or "0.00%",
                     direction=_direction(chg),
                     volume=f"{vol:,}",

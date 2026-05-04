@@ -36,9 +36,10 @@ interface Props {
   changeDisplay?: string | null;
   direction?: 'up' | 'down' | 'flat';
   fontSize: string;
+  color?: string;
 }
 
-export default function PriceScramble({ priceDisplay, changeDisplay, direction, fontSize }: Props) {
+export default function PriceScramble({ priceDisplay, changeDisplay, direction, fontSize, color }: Props) {
   const raw = priceDisplay.replace(/[^0-9]/g, '');
   const scrambled = useScramble(raw);
 
@@ -48,10 +49,11 @@ export default function PriceScramble({ priceDisplay, changeDisplay, direction, 
     display = priceDisplay.split('').map(ch => /[0-9]/.test(ch) ? scrambled[si++] : ch).join('');
   }
 
-  const changeColor =
+  // 한국 관례: 상승=빨강 / 하락=파랑 / 보합=화이트
+  const directionColor =
     direction === 'up' ? 'var(--gain)' :
     direction === 'down' ? 'var(--loss)' :
-    'var(--muted)';
+    'var(--flat)';
 
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' }}>
@@ -61,7 +63,7 @@ export default function PriceScramble({ priceDisplay, changeDisplay, direction, 
         fontWeight: 400,
         lineHeight: 1.1,
         letterSpacing: '-0.5px',
-        color: 'var(--ink)',
+        color: color ?? directionColor,
       }}>
         {display}
       </span>
@@ -70,7 +72,7 @@ export default function PriceScramble({ priceDisplay, changeDisplay, direction, 
           fontFamily: 'var(--f-mono-stack)',
           fontSize: `calc(${fontSize} * 0.55)`,
           fontWeight: 400,
-          color: changeColor,
+          color: directionColor,
           letterSpacing: '1px',
         }}>
           {changeDisplay}
