@@ -60,7 +60,8 @@ _TF_TO_BASE = {
 class CollectConfig:
     market: str = "KOSPI"
     cache_root: Path = Path(".cache")
-    max_universe_size: int = 500
+    max_universe_size: int = 300
+    max_etf_size: int = 100
     # 1D+1W는 base 1D로, 1h/30m는 base 1m으로 저장 후 리샘플링
     base_tfs: list[str] = field(default_factory=lambda: ["1D", "1m"])
     lookback_days: int = 90
@@ -71,6 +72,7 @@ class CollectConfig:
     smart_skip: bool = True
     include_etf: bool = True
     force_refetch: bool = False  # True면 기존 parquet 무시하고 전 구간 재수집
+    max_cache_days: int = 365   # 0이면 비활성화
     scan_root: Path = field(default_factory=lambda: Path("scan_results"))
 
 
@@ -129,7 +131,9 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     if cfg.include_etf:
         try:
             etf_tickers = client.get_tickers("ETF", target_date)
-            logger.info(f"ETF 유니버스: {len(etf_tickers)}개")
+            if cfg.max_etf_size > 0:
+                etf_tickers = etf_tickers[:cfg.max_etf_size]
+            logger.info(f"ETF 유니버스: {len(etf_tickers)}개 (상위 {cfg.max_etf_size}개 제한)")
         except Exception as e:
             logger.warning(f"ETF 유니버스 수집 실패 (skip): {e}")
 
@@ -314,6 +318,11 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         _patch_manifest(manifest_path, {"market_indices_collected_at": market_indices_collected_at})
     except Exception as e:
         logger.warning(f"market_snapshot.json 저장 실패 (skip): {e}")
+
+    if cfg.max_cache_days > 0:
+        pruned_files, pruned_rows = disk.prune_old(max_days=cfg.max_cache_days)
+        if pruned_files:
+            logger.info(f"캐시 정리: {pruned_files}개 파일, {pruned_rows}행 삭제 ({cfg.max_cache_days}일 초과)")
 
 
 def _subprocess_run(cmd: list[str], **kw):
@@ -610,7 +619,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="OHLCV 수집 Job")
     parser.add_argument("--market", default="KOSPI", choices=["KOSPI", "KOSDAQ"])
     parser.add_argument("--cache-root", default=".cache")
-    parser.add_argument("--max-universe", type=int, default=500)
+    parser.add_argument("--max-universe", type=int, default=300)
+    parser.add_argument("--max-etf", type=int, default=100, help="ETF 상위 N개 제한 (0=전종목, 기본: 100)")
     parser.add_argument(
         "--timeframes", nargs="+", default=["1D", "1W", "1h", "30m"],
         metavar="TF", help="1D 1W 1h 30m → 내부에서 base TF로 변환 (기본: 전 구간)",
@@ -638,6 +648,10 @@ def main() -> None:
         "--force-refetch", action="store_true",
         help="기존 parquet 캐시를 무시하고 전 구간 재수집 (schema migration 즉시 적용)",
     )
+    parser.add_argument(
+        "--max-cache-days", type=int, default=365,
+        help="캐시 보관 기간 (일). 초과 데이터는 수집 완료 후 자동 삭제 (기본: 365, 0=비활성화)",
+    )
     args = parser.parse_args()
 
     base_tfs = sorted(set(
@@ -651,9 +665,11 @@ def main() -> None:
         lookback_days=args.lookback_days,
         min_daily_volume=args.min_volume,
         include_etf=not args.no_etf,
+        max_etf_size=args.max_etf,
         skip_collected=args.skip_collected,
         smart_skip=not args.no_smart_skip,
         force_refetch=args.force_refetch,
+        max_cache_days=args.max_cache_days,
         scan_root=Path(args.scan_root),
     )
     run_collect(cfg, target_date=args.date)

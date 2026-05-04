@@ -63,3 +63,31 @@ class OhlcvDiskCache:
         merged = merged[~merged.index.duplicated(keep="last")].sort_index()
         self.write(ticker, tf, merged)
         return merged
+
+    def prune_old(self, max_days: int = 365) -> tuple[int, int]:
+        """캐시 전체를 순회해 max_days 초과 오래된 row를 삭제.
+
+        Returns: (pruned_files, pruned_rows) 통계.
+        """
+        import datetime
+        cutoff = pd.Timestamp.now(tz=None) - pd.Timedelta(days=max_days)
+        pruned_files, pruned_rows = 0, 0
+        for pq in self.root.rglob("*.parquet"):
+            try:
+                df = pd.read_parquet(pq)
+                if df.empty:
+                    continue
+                idx = df.index
+                # tz-aware index는 tz 제거 후 비교
+                if hasattr(idx, "tz") and idx.tz is not None:
+                    idx = idx.tz_localize(None)
+                mask = idx >= cutoff
+                removed = int((~mask).sum())
+                if removed == 0:
+                    continue
+                df[mask.values].to_parquet(pq)
+                pruned_files += 1
+                pruned_rows += removed
+            except Exception as e:
+                logger.warning(f"prune 실패 ({pq}): {e}")
+        return pruned_files, pruned_rows

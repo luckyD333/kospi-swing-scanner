@@ -9,7 +9,7 @@ KOSPI 스윙 스캐너의 수집(collect) 및 전략 스캔(strategy scan)을 cr
 - **수집(collect)**: 네이버 금융에서 OHLCV 데이터를 가져와 `.cache/{tf}/{ticker}.parquet`에 저장
   - 네트워크 의존. 장 마감(15:30 KST) 이후 실행 권장
   - 여러 타임프레임(1D, 1W, 1h, 30m) 동시 수집 가능
-  - 증분 수집이므로 `--smart-skip` 으로 재수집 주기 회피
+  - 증분 수집이므로 smart-skip(기본 활성화)으로 재수집 주기 회피
   
 - **스캔(scan)**: 수집된 cache를 읽어 지표 계산 및 시그널 감지
   - 오프라인(cache 기반) 실행 가능. 매우 빠름 (수초 내)
@@ -49,14 +49,13 @@ export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 # 로그 디렉토리 생성
 mkdir -p logs
 
-# KOSPI/KOSDAQ 수집 (이미 수집된 종목은 --smart-skip으로 건너뛰기)
+# KOSPI/KOSDAQ 수집 (smart-skip 기본 활성화 — TF별 최소 주기 미달 시 기존 종목 건너뜀)
 .venv/bin/python scripts/collect.py \
   --market KOSPI \
   --market KOSDAQ \
   --cache-root .cache \
   --timeframes 1D 1W 1h 30m \
   --lookback-days 90 \
-  --smart-skip \
   --max-universe 500 \
   >> logs/collect.log 2>&1
 ```
@@ -88,12 +87,13 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 | `--cache-root` | `.cache` | 캐시 저장 경로 |
 | `--timeframes` | `1D 1W 1h 30m` | 수집할 타임프레임 |
 | `--lookback-days` | `90` | 과거 몇 일까지 수집할지 (기본: 90) |
-| `--smart-skip` | flag | 이미 수집된 타임프레임은 건너뛰기 (10분 주기 실행용) |
+| `--no-smart-skip` | flag | smart-skip 비활성화 (기본: 활성화 — TF별 최소 주기 미달 시 기존 종목 skip) |
 | `--max-universe` | `500` | 시총 상위 N개만 수집 (빠른 수집용) |
 
-**`--smart-skip` 활용:**
+**smart-skip (기본 활성화) 동작:**
 - 1D는 마지막 수집 이후 20시간 이상, 1h는 1시간 이상 경과 후 재수집
 - 10~30분 주기로 수집 job을 돌려야 할 때 유용 (중복 네트워크 호출 회피)
+- 비활성화하려면 `--no-smart-skip` 플래그 사용
 
 ---
 
