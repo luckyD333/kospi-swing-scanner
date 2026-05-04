@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.strategy_base import ScanContext
-from strategies.strategy_four_pullback_ma import StrategyFourConfig, StrategyFourPullbackMa
+from strategies.strategy_four_pullback_ma import StrategyFourPullbackMa
 
 
 def _make_df(close_arr, vol_arr=None, base_vol=200_000):

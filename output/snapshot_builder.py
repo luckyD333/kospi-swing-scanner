@@ -14,6 +14,10 @@ def build_market_snapshot(
     universe: dict,
     ohlcv_latest: dict[str, dict],
     market_indices: dict[str, dict],
+    market_regime: dict | None = None,
+    market_breadth: dict | None = None,
+    market_axes: dict | None = None,
+    fear_greed: dict | None = None,
 ) -> MarketSnapshot:
     tickers: dict[str, TickerSnapshot] = {}
     for ticker, meta in universe.get("tickers", {}).items():
@@ -27,7 +31,12 @@ def build_market_snapshot(
         highs_52w = highs[-_LOOKBACK:] if highs else []
         lows_52w  = lows[-_LOOKBACK:]  if lows  else []
 
-        current_price = int(closes[-1]) if closes else 0
+        # 분봉 raw 가 있으면 분봉 close 가 더 최신 — 우선 사용
+        minute_close = ohlcv.get("minute_close")
+        if minute_close is not None:
+            current_price = int(minute_close)
+        else:
+            current_price = int(closes[-1]) if closes else 0
         volume        = int(vols[-1])   if vols   else 0
         change_list   = ohlcv.get("change_pct", [0])
         last_chg      = float(change_list[-1]) if isinstance(change_list, list) else float(change_list)
@@ -54,6 +63,7 @@ def build_market_snapshot(
                 foreign_ratio_pct=meta.get("foreign_pct"),
             ),
             external_links={"naver_finance": meta.get("naver_url", "")},
+            rsi_by_tf=ohlcv.get("rsi_by_tf"),
         )
 
     indices = {
@@ -68,4 +78,8 @@ def build_market_snapshot(
         source={"collected_at": now_kst},
         market_indices=indices,
         tickers=tickers,
+        market_regime=market_regime,
+        market_breadth=market_breadth,
+        market_axes=market_axes,
+        fear_greed=fear_greed,
     )

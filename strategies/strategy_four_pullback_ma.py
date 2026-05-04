@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from core.indicators import calc_atr, calc_rsi, moving_average
+from core.indicators import calc_atr, latest_rsi_or_none, moving_average
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
@@ -124,12 +124,7 @@ class StrategyFourPullbackMa:
                 atr_val = float(atr_series.iloc[-1])
                 atr_14 = None if pd.isna(atr_val) else atr_val
 
-                try:
-                    _r = calc_rsi(df["close"], period=14).iloc[-1]
-                    rsi_14_val: float | None = round(float(_r), 1)
-                    if rsi_14_val != rsi_14_val: rsi_14_val = None
-                except Exception:
-                    rsi_14_val = None
+                rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
                 cap_bil = float(ctx.market_caps.get(ticker, 0.0)) / 100_000_000
 

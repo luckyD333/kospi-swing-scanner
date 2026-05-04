@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from core.indicators import calc_atr, calc_rsi
+from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
@@ -148,12 +148,7 @@ class StrategyFiveBullFlag:
 
                 cap_bil = float(ctx.market_caps.get(ticker, 0.0)) / 100_000_000
 
-                try:
-                    _r = calc_rsi(df["close"], period=14).iloc[-1]
-                    rsi_14_val: float | None = round(float(_r), 1)
-                    if rsi_14_val != rsi_14_val: rsi_14_val = None
-                except Exception:
-                    rsi_14_val = None
+                rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
                 candidates.append(Candidate(
                     ticker=ticker,

@@ -214,22 +214,38 @@ class OhlcvCache:
     def _fetch_with_disk(
         self, ticker: str, start: str, end: str, timeframe: str
     ) -> pd.DataFrame:
-        """디스크 hit 이면 incremental, miss 이면 full fetch + 디스크 저장."""
+        """디스크 hit 이면 incremental, miss 이면 full fetch + 디스크 저장.
+
+        timeframe 은 client/디스크 양쪽에 일관되게 전달. 1m timeframe 일 때는
+        gap_start 를 분 단위로 계산해 분봉 raw 가 분 단위 incremental 로 누적.
+        caller 가 YYYYMMDD 로만 줘도 1m 의 경우 자동 normalize.
+        """
+        if timeframe == "1m":
+            if len(start) == 8:
+                start = f"{start}0000"
+            if len(end) == 8:
+                end = f"{end}2359"
         if self._disk is None:
-            return self._client.get_ohlcv(ticker, start, end)
+            return self._client.get_ohlcv(ticker, start, end, timeframe=timeframe)
 
         cached_disk = self._disk.read(ticker, timeframe)
         if cached_disk.empty:
-            df = self._client.get_ohlcv(ticker, start, end)
+            df = self._client.get_ohlcv(ticker, start, end, timeframe=timeframe)
             self._disk.write(ticker, timeframe, df)
             return df
 
         # warm: gap 만 fetch
         last = cached_disk.index.max()
-        gap_start_dt = last + pd.Timedelta(days=1)
-        gap_start = gap_start_dt.strftime("%Y%m%d")
+        if timeframe == "1m":
+            gap_start_dt = last + pd.Timedelta(minutes=1)
+            gap_start = gap_start_dt.strftime("%Y%m%d%H%M")
+        else:
+            gap_start_dt = last + pd.Timedelta(days=1)
+            gap_start = gap_start_dt.strftime("%Y%m%d")
         if gap_start <= end:
-            new = self._client.get_ohlcv(ticker, gap_start, end)
+            new = self._client.get_ohlcv(
+                ticker, gap_start, end, timeframe=timeframe
+            )
             if not new.empty:
                 cached_disk = self._disk.append(ticker, timeframe, new)
         # 요청 [start,end] 범위로 슬라이스

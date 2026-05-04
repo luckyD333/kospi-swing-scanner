@@ -108,23 +108,24 @@ def test_aggregate_must_have_excludes_failing_candidates():
     assert "B" not in tickers
 
 
-def test_aggregate_handles_missing_metric_as_worst():
-    """priority 메트릭이 None 인 후보는 해당 항목 0점 처리."""
+def test_aggregate_handles_missing_metric_as_neutral():
+    """결측(None) 메트릭은 0.5 중립 rank 처리 — ETF 등 N/A 종목을 최하위 취급하지 않음."""
     cfg = WeightConfig(
         priorities=[
             Priority("per", 100.0, "lower_better", "저PER"),
         ],
     )
     cands = [
-        _make_cand("A", per=10.0),
-        _make_cand("B", per=None),  # 결측
-        _make_cand("C", per=20.0),
+        _make_cand("A", per=10.0),   # 최적 (낮을수록 좋음)
+        _make_cand("B", per=None),   # 결측 → 중립(0.5)
+        _make_cand("C", per=20.0),   # 최하위 (가장 높은 PER)
     ]
     ranked = aggregate_candidates(cands, cfg)
-    # B 는 결측이라 가장 낮은 점수
     by_ticker = {r.candidate.ticker: r for r in ranked}
-    assert by_ticker["B"].final_score < by_ticker["A"].final_score
-    assert by_ticker["B"].final_score <= by_ticker["C"].final_score
+    # B 는 중립(0.5) → C (최하위 = 0.0) 보다 높아야 함
+    assert by_ticker["B"].final_score > by_ticker["C"].final_score
+    # B 의 정규화 점수가 정확히 0.5
+    assert by_ticker["B"].normalized_metrics["per"] == 0.5
 
 
 def test_aggregate_uses_score_as_metric_key():

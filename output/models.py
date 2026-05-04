@@ -26,6 +26,8 @@ class TickerSnapshot(BaseModel):
     flow: Flow
     price_history_atr14: Optional[int] = None
     external_links: dict[str, str] = {}
+    # timeframe 별 RSI(14). strategy 후보 여부와 무관하게 ticker 의 indicator.
+    rsi_by_tf: Optional[dict[str, Optional[float]]] = None
 
 
 class MarketIndexRaw(BaseModel):
@@ -39,6 +41,16 @@ class MarketSnapshot(BaseModel):
     source: dict[str, str]
     market_indices: dict[str, MarketIndexRaw]
     tickers: dict[str, TickerSnapshot]
+    # strategy 후보 여부와 무관한 시장 국면 (timeframe_scores: {"1d": {...}, "1h": {...}})
+    market_regime: Optional[dict] = None
+    # 다축 시황 — timeframe → breadth/axes 지표
+    market_breadth: Optional[dict] = None
+    market_axes: Optional[dict] = None
+    # Fear & Greed 컴포지트 (Momentum + Breadth + Volatility) + 30일 sparkline.
+    # 형식: {"score": 0-100, "label": "Extreme Fear|...|Extreme Greed",
+    #         "components": {"momentum": .., "breadth": .., "volatility": ..},
+    #         "history": [{"date": "YYYY-MM-DD", "score": ..}, ...]}
+    fear_greed: Optional[dict] = None
 
 
 class TradePlanDerived(BaseModel):
@@ -138,12 +150,16 @@ class Signal(BaseModel):
     fundamentals: Fundamentals
     flow: Flow
     external_links: dict[str, str] = {}
+    signal_date: Optional[str] = None  # 마지막 bar timestamp (ISO 8601)
 
 
 class SignalsPayload(BaseModel):
     schema_version: str = "1.0"
     generated_at: str
     generated_at_display: str
+    target_date: str = ""  # 스캔 기준 영업일 (YYYY-MM-DD)
+    target_date_display: str = ""  # 예: "2026-05-04 (장중)"
+    asof: str = ""  # 신호 생성 시각 (ISO 8601)
     market_indices: dict[str, MarketIndexDisplay]
     market_regime: Optional[dict] = None
     filters: dict

@@ -8,6 +8,11 @@ from typing import Any
 @dataclass
 class LoadedMarket:
     indices: dict[str, Any]
+    tickers: dict[str, Any]  # ticker_id → TickerSnapshot dict (fundamentals/flow/external_links 등)
+    regime: dict[str, Any] | None  # timeframe_scores ({"1d": {...}, "1h": {...}})
+    breadth: dict[str, Any] | None  # timeframe → breadth metrics
+    axes: dict[str, Any] | None    # timeframe → {trend_score, volatility_regime}
+    fear_greed: dict[str, Any] | None  # {score, label, components, history}
     etag: str
     mtime: float
     size: int
@@ -16,8 +21,8 @@ class LoadedMarket:
 class MarketLoader:
     """SignalLoader와 동일한 (mtime,size) 캐시 패턴.
 
-    market_snapshot.json은 schema 검증을 강제하지 않고
-    market_indices만 추출해 반환한다.
+    market_snapshot.json 에서 market_indices + tickers 를 추출해 반환.
+    /api/market 은 indices 만 응답, /api/signals join 은 tickers 도 사용.
     """
 
     def __init__(self, path: Path):
@@ -44,8 +49,18 @@ class MarketLoader:
                 return None
 
             indices = data.get("market_indices", {})
+            tickers = data.get("tickers", {})
+            regime = data.get("market_regime")
+            breadth = data.get("market_breadth")
+            axes = data.get("market_axes")
+            fear_greed = data.get("fear_greed")
             self._cache = LoadedMarket(
                 indices=indices,
+                tickers=tickers,
+                regime=regime,
+                breadth=breadth,
+                axes=axes,
+                fear_greed=fear_greed,
                 etag=f'"{mtime}-{size}"',
                 mtime=mtime,
                 size=size,

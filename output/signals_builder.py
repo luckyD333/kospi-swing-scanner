@@ -2,6 +2,7 @@
 from __future__ import annotations
 import logging
 from datetime import datetime
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 from output.models import (
     Fundamentals, Flow,
@@ -9,6 +10,9 @@ from output.models import (
     StrategyContext, MarketSnapshot, MarketIndexDisplay,
     DecisionFactor, DecisionMeta,
 )
+
+if TYPE_CHECKING:
+    from core.decision.config import WeightConfig
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,18 @@ _BAND_MAP: dict[str, str] = {
 }
 
 
+def _infer_timeframe_from_id(strategy_id: str) -> str:
+    """strategy_id 토큰으로 timeframe 추정. Candidate.timeframe 이 비어있을 때 fallback."""
+    sid = strategy_id.lower()
+    if "_30m" in sid:
+        return "30m"
+    if "_1h" in sid:
+        return "1h"
+    if "_w_v2" in sid or sid.endswith("_w") or "_1w" in sid:
+        return "1W"
+    return "1D"
+
+
 def _fmt_krw(val: int | None) -> str | None:
     if val is None:
         return None
@@ -81,11 +97,40 @@ def _direction(change_pct: float) -> str:
     return "flat"
 
 
+def _format_target_display(target_date: str | None, now_kst: datetime) -> str:
+    """target_date(YYYYMMDD or YYYY-MM-DD)와 현재 KST를 비교해 사용자 친화 라벨 생성.
+
+    - 오늘 이고 < 15:30 → "YYYY-MM-DD (장중)"
+    - 오늘 이고 < 16:00 → "YYYY-MM-DD (장 마감 직후)"
+    - 그 외 → "YYYY-MM-DD"
+    """
+    if not target_date:
+        return ""
+    raw = target_date.replace("-", "")
+    try:
+        td = datetime.strptime(raw, "%Y%m%d").date()
+    except ValueError:
+        return target_date
+    iso = td.isoformat()
+    if td == now_kst.date():
+        if now_kst.hour < 15 or (now_kst.hour == 15 and now_kst.minute < 30):
+            return f"{iso} (장중)"
+        if now_kst.hour < 16:
+            return f"{iso} (장 마감 직후)"
+    return iso
+
+
+def _timeframe_sort_key(tf: str) -> tuple[int, str]:
+    order = {"1D": 0, "1W": 1, "1h": 2, "30m": 3}
+    return (order.get(tf, 99), tf)
+
+
 def build_signals_payload(
     snapshot: MarketSnapshot,
     candidates_by_strategy: dict[str, list],
     market_regime: dict | None = None,
     weight_config: "WeightConfig | None" = None,
+    target_date: str | None = None,
 ) -> SignalsPayload:
     # market_indices (display-ready)
     mi_display: dict[str, MarketIndexDisplay] = {}
@@ -120,11 +165,6 @@ def build_signals_payload(
             direction=_direction(chg),
         )
 
-    strategy_names = sorted({
-        _STRATEGY_LABELS.get(s, (s.upper(), ""))[0]
-        for s in candidates_by_strategy
-    })
-
     # 전체 candidates 수집 → score 내림차순 정렬
     all_candidates: list[tuple[str, object]] = []
     for strategy_id, candidates in candidates_by_strategy.items():
@@ -135,10 +175,12 @@ def build_signals_payload(
 
     # 의사결정 스코어 계산 (weight_config 제공 시)
     ticker_to_ranked: dict = {}
+    ranked_for_all: list = []
     if weight_config is not None:
         try:
             from core.decision.aggregator import aggregate_candidates
             from core.decision.ensemble import compute_weighted_ensemble_score
+            from core.decision.regret_scorer import compute_regret_scores
 
             weighted_scores = compute_weighted_ensemble_score(
                 candidates_by_strategy, weight_config.strategy_weights
@@ -157,15 +199,24 @@ def build_signals_payload(
                     "ensemble_count": int(round(ws)),
                 }
             ranked = aggregate_candidates(list(best_per_ticker.values()), weight_config)
+            if ranked:
+                ranked = compute_regret_scores(
+                    ranked, ensemble_scores=weighted_scores,
+                )
+            ranked_for_all = ranked
             ticker_to_ranked = {rc.candidate.ticker: rc for rc in ranked}
         except Exception as e:
             logger.warning(f"의사결정 스코어 계산 실패 (생략): {e}")
 
-    signals: list[Signal] = []
-    for rank_idx, (strategy_id, c) in enumerate(all_candidates, start=1):
-        label, category = _STRATEGY_LABELS.get(strategy_id, (strategy_id.upper(), ""))
-        tf = getattr(c, "timeframe", "1D")
-
+    def _build_signal(
+        strategy_id: str,
+        label: str,
+        category: str,
+        tf: str,
+        c,
+        fallback_rank: int,
+        fallback_total: int,
+    ) -> Signal:
         meta = getattr(c, "metadata", {}) or {}
         entry = int(getattr(c, "entry_price", 0))
         stop  = int(getattr(c, "stop_loss",   0))
@@ -193,6 +244,16 @@ def build_signals_payload(
 
         rc = ticker_to_ranked.get(c.ticker)
         decision: DecisionMeta | None = None
+        # ranking 우선순위: regret_rank > fallback_rank
+        if rc is not None:
+            r_rank = int(rc.normalized_metrics.get("regret_rank", fallback_rank))
+            r_total = int(rc.normalized_metrics.get("regret_total", fallback_total))
+            r_score = float(rc.normalized_metrics.get("regret_score", c.score))
+        else:
+            r_rank = fallback_rank
+            r_total = fallback_total
+            r_score = round(c.score, 1)
+
         if rc is not None and weight_config is not None:
             prio_map = {p.key: p for p in weight_config.priorities}
             factors = [
@@ -207,27 +268,40 @@ def build_signals_payload(
                 if key in prio_map
             ]
             factors.sort(key=lambda f: f.contribution, reverse=True)
-            mr = rc.normalized_metrics.get("max_regret")
+            mr = rc.normalized_metrics.get("regret_score")
             decision = DecisionMeta(
                 final_score=rc.final_score,
                 factors=factors,
                 max_regret=float(mr) if mr is not None else None,
             )
 
-        signals.append(Signal(
+        sig_date = getattr(c, "signal_date", None)
+        signal_date_iso: str | None = None
+        if sig_date is not None and hasattr(sig_date, "isoformat"):
+            try:
+                iso = sig_date.isoformat()
+                if isinstance(iso, str):
+                    signal_date_iso = iso
+            except Exception:
+                signal_date_iso = None
+
+        return Signal(
             ticker=c.ticker,
             name=c.name,
             strategy=StrategyContext(
-                id=strategy_id, label=label, category=category, timeframe=tf
+                id=strategy_id, label=label, category=category, timeframe=tf,
             ),
             trade_plan=TradePlan(
                 entry=entry, stop=stop, target_1=t1, target_2=t2,
                 rr_ratio=rr_ratio, rr_band=rr_band, atr_14=atr_14, rsi_14=rsi_14,
             ),
             ranking=Ranking(
-                score=round(c.score, 1),
-                rank=rank_idx,
-                percentile=round((1 - rank_idx / total) * 100, 1) if total > 1 else 100.0,
+                score=round(r_score, 1),
+                rank=r_rank,
+                percentile=(
+                    round((1 - r_rank / r_total) * 100, 1)
+                    if r_total > 1 else 100.0
+                ),
                 decision=decision,
             ),
             live_quote=LiveQuote(
@@ -243,7 +317,32 @@ def build_signals_payload(
             fundamentals=fund,
             flow=flow,
             external_links={"naver_finance": naver_url} if naver_url else {},
+            signal_date=signal_date_iso,
+        )
+
+    signals: list[Signal] = []
+    for rank_idx, (strategy_id, c) in enumerate(all_candidates, start=1):
+        label, category = _STRATEGY_LABELS.get(
+            strategy_id, (strategy_id.upper(), ""),
+        )
+        tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(strategy_id)
+        signals.append(_build_signal(
+            strategy_id, label, category, tf, c, rank_idx, total,
         ))
+
+    # 'all' 통합 entry — ticker dedup + regret 기반 정렬
+    if ranked_for_all:
+        n_all = len(ranked_for_all)
+        for rc in ranked_for_all:
+            c = rc.candidate
+            origin_tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(
+                getattr(c, "strategy", "") or "",
+            )
+            signals.append(_build_signal(
+                "all", "ALL", "MULTI", origin_tf, c,
+                fallback_rank=int(rc.normalized_metrics.get("regret_rank", 1)),
+                fallback_total=n_all,
+            ))
 
     by_strategy: dict[str, int] = {}
     by_rr_band: dict[str, int] = {}
@@ -251,20 +350,38 @@ def build_signals_payload(
         by_strategy[s.strategy.label] = by_strategy.get(s.strategy.label, 0) + 1
         by_rr_band[s.trade_plan.rr_band] = by_rr_band.get(s.trade_plan.rr_band, 0) + 1
 
+    has_all_entry = any(s.strategy.id == "all" for s in signals)
+    strategy_names = sorted({
+        s.strategy.label for s in signals if s.strategy.id != "all"
+    })
+    timeframe_names = sorted({
+        s.strategy.timeframe for s in signals if s.strategy.timeframe
+    }, key=_timeframe_sort_key)
+
     now_kst = datetime.now(KST)
+    target_date_iso = ""
+    if target_date:
+        raw = target_date.replace("-", "")
+        try:
+            target_date_iso = datetime.strptime(raw, "%Y%m%d").date().isoformat()
+        except ValueError:
+            target_date_iso = target_date
     return SignalsPayload(
         generated_at=now_kst.isoformat(),
         generated_at_display=now_kst.strftime("%Y-%m-%d %H:%M KST"),
+        target_date=target_date_iso,
+        target_date_display=_format_target_display(target_date, now_kst),
+        asof=now_kst.isoformat(),
         market_indices=mi_display,
         market_regime=market_regime,
         filters={
-            "strategies": ["ALL"] + strategy_names,
-            "timeframes":  ["ALL", "1H", "4H", "1D"],
+            "strategies": (["ALL"] if has_all_entry else []) + strategy_names,
+            "timeframes":  ["ALL"] + timeframe_names,
             "sort_options": ["score", "rr_ratio", "entry"],
         },
         signals=signals,
         stats={
-            "total_signals": total,
+            "total_signals": len(signals),
             "by_strategy": by_strategy,
             "by_rr_band":  by_rr_band,
         },

@@ -52,7 +52,9 @@ def test_disk_cold_does_full_fetch_then_persist(tmp_path):
     cache.get_or_fetch("005930", "20260102", "20260430", timeframe="1D")
 
     assert not disk.read("005930", "1D").empty
-    client.get_ohlcv.assert_called_once_with("005930", "20260102", "20260430")
+    client.get_ohlcv.assert_called_once_with(
+        "005930", "20260102", "20260430", timeframe="1D"
+    )
 
 
 def test_disk_warm_does_incremental_fetch(tmp_path):

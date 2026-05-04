@@ -16,6 +16,7 @@ class LoadedSignals:
     mtime: float
     size: int
     by_ticker: dict[str, dict[str, Any]]
+    entries_by_ticker: dict[str, list[dict[str, Any]]]
 
 
 class SignalLoader:
@@ -47,11 +48,15 @@ class SignalLoader:
                 raise ValueError("schema_invalid") from e
 
             by_ticker = {s["ticker"]: s for s in raw.get("signals", [])}
+            entries_by_ticker: dict[str, list[dict[str, Any]]] = {}
+            for s in raw.get("signals", []):
+                entries_by_ticker.setdefault(s["ticker"], []).append(s)
             self._cache = LoadedSignals(
                 raw=raw,
                 etag=f'"{mtime}-{size}"',
                 mtime=mtime,
                 size=size,
                 by_ticker=by_ticker,
+                entries_by_ticker=entries_by_ticker,
             )
             return self._cache

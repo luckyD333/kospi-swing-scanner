@@ -309,9 +309,16 @@ class NaverSource(DailyDataSource):
         if "foreign_rate" in df.columns:
             cols.append("foreign_rate")
         df = df[cols]
-        # minute 응답에서 거래 없는 분봉은 OHLC=None → 제거 (close/volume 만 있는 행)
-        df = df.dropna(subset=["open", "high", "low", "close"])
-        return df.astype(float)
+        # minute 응답: close 만 있고 OHL 가 null 인 분봉 → 체결가만 채워진 분봉.
+        # close 만 dropna 기준으로 두고, OHL null 은 close 로 채움 (네이버 응답 특성).
+        df = df.dropna(subset=["close"])
+        # fillna 전에 numeric cast — object dtype silent downcast 경고 회피
+        for col in cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        for col in ("open", "high", "low"):
+            df[col] = df[col].fillna(df["close"])
+        # 네이버 분봉 응답은 최신 → 과거 역순. cache.loc[start:end] 슬라이스 안전 보장.
+        return df.sort_index().astype(float)
 
     # ------------------------------------------------------------------
     # 전종목 리스트 크롤링 (내부 helper)

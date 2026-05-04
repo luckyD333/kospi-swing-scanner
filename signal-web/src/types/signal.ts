@@ -94,6 +94,7 @@ export interface Signal {
   fundamentals: Fundamentals | null;
   flow: Flow | null;
   external_links: ExternalLinks | null;
+  signal_date?: string | null;
 }
 
 export interface MarketIndex {
@@ -120,12 +121,55 @@ export interface RegimeScore {
   regime: string;
 }
 
+export interface BreadthScore {
+  up_ratio: number | null;
+  above_ma20_ratio: number | null;
+  avg_atr_pct: number | null;
+  top_volume_return_avg: number | null;
+}
+
+export interface AxesScore {
+  trend_score: number;
+  volatility_regime: 'LOW' | 'MID' | 'HIGH';
+}
+
+export type FearGreedLabel =
+  | 'Extreme Fear'
+  | 'Fear'
+  | 'Neutral'
+  | 'Greed'
+  | 'Extreme Greed';
+
+export interface FearGreedComponents {
+  momentum: number;
+  breadth: number;
+  volatility: number;
+}
+
+export interface FearGreedHistoryPoint {
+  date: string;
+  score: number;
+}
+
+export interface FearGreedSnapshot {
+  score: number;
+  label: FearGreedLabel;
+  components: FearGreedComponents;
+  history: FearGreedHistoryPoint[];
+}
+
 export interface SignalsResponse {
   schema_version: string;
   generated_at: string;
   generated_at_display: string;
+  target_date?: string;
+  target_date_display?: string;
+  asof?: string;
   market_indices: Record<string, MarketIndex>;
   market_regime: Record<string, RegimeScore> | null;
+  market_breadth?: Record<string, BreadthScore> | null;
+  market_axes?: Record<string, AxesScore> | null;
+  fear_greed?: FearGreedSnapshot | null;
   filters: Filters;
   signals: Signal[];
   stats: Stats;

@@ -42,6 +42,10 @@ class RegimeAnalysis:
     n_tickers: int
     n_days: int
     timeframe_scores: dict = field(default_factory=dict)
+    # 디버그용 — UI 비노출
+    model_log_likelihood: float = 0.0
+    state_means: list = field(default_factory=list)
+    state_covars: list = field(default_factory=list)
 
 
 def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame:
@@ -130,11 +134,20 @@ def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame
     return proxy
 
 
-def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[int, float, float, list[dict]]:
-    """GaussianHMM 학습 → (current_score, bull_mean_return, bear_mean_return, history)."""
+def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[int, float, float, list[dict], float, list, list]:
+    """GaussianHMM 학습 (multi-init best-likelihood) → score + 디버그 메타."""
     X = proxy.values
-    model = hmm.GaussianHMM(n_components=2, covariance_type="full", n_iter=100)
-    model.fit(X)
+    best_model, best_ll = None, float("-inf")
+    for seed in (42, 7, 13, 21, 99):
+        m = hmm.GaussianHMM(
+            n_components=2, covariance_type="diag",
+            n_iter=200, random_state=seed,
+        )
+        m.fit(X)
+        ll = m.score(X)
+        if ll > best_ll:
+            best_ll, best_model = ll, m
+    model = best_model
     mean_returns = model.means_[:, 0]
     bull_idx = int(np.argmax(mean_returns))
     bear_idx = 1 - bull_idx
@@ -155,6 +168,9 @@ def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[int, float, float, list[dict]]:
         float(model.means_[bull_idx, 0]),
         float(model.means_[bear_idx, 0]),
         history,
+        float(best_ll),
+        model.means_.tolist(),
+        [c.tolist() for c in model.covars_],
     )
 
 
@@ -203,11 +219,13 @@ def _build_proxy_1h(cache_root: Path, max_tickers: int = 30) -> pd.DataFrame:
     all_returns = pd.concat(returns_list, axis=1)
     mean_return = all_returns.mean(axis=1)
 
-    if len(mean_return) < 210:  # 30일 × 7거래시간
-        logger.debug(f"1h proxy 봉 부족: {len(mean_return)} < 210")
+    if len(mean_return) < 30:  # ~5거래일 × 7거래시간 — HMM 최소 학습 분량
+        logger.debug(f"1h proxy 봉 부족: {len(mean_return)} < 30")
         return pd.DataFrame()
 
-    rolling_std = mean_return.rolling(140).std()  # 20일 × 7거래시간
+    # 적응형 window: 데이터 부족 시 NaN 방지 (최소 5봉, 최대 20봉)
+    _win = min(20, max(5, len(mean_return) // 3))
+    rolling_std = mean_return.rolling(_win).std()
     proxy = pd.DataFrame({
         "mean_return": mean_return,
         "rolling_std": rolling_std,
@@ -232,7 +250,7 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
         raise ValueError("캐시 부족: HMM 학습 불가")
 
     try:
-        score_1d, bull_mean, bear_mean, history_dicts = _fit_hmm_score(proxy_1d)
+        score_1d, bull_mean, bear_mean, history_dicts, best_ll, s_means, s_covars = _fit_hmm_score(proxy_1d)
     except Exception as e:
         raise ValueError(f"HMM 수렴 실패: {e}") from e
 
@@ -240,7 +258,7 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
     try:
         proxy_1h = _build_proxy_1h(cache_root)
         if not proxy_1h.empty:
-            score_1h, _, _, _ = _fit_hmm_score(proxy_1h)
+            score_1h, _, _, _, _, _, _ = _fit_hmm_score(proxy_1h)
             timeframe_scores["1h"] = score_1h
     except Exception as e:
         logger.debug(f"1h regime 계산 실패 (skip): {e}")
@@ -263,6 +281,9 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
         ).get("tickers_meta", {})),
         n_days=len(proxy_1d),
         timeframe_scores=timeframe_scores,
+        model_log_likelihood=best_ll,
+        state_means=s_means,
+        state_covars=s_covars,
     )
 
 

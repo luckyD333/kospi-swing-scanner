@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { MarketIndex, RegimeScore, BreadthScore, AxesScore } from '@/types/signal';
+import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import type { CardProps } from '@/lib/adapt';
 import TopNav from './TopNav';
 import FilterBar from './FilterBar';
@@ -19,9 +19,10 @@ interface Props {
   marketRegime?: Record<string, RegimeScore> | null;
   marketBreadth?: Record<string, BreadthScore> | null;
   marketAxes?: Record<string, AxesScore> | null;
+  fearGreed?: FearGreedSnapshot | null;
 }
 
-export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes }: Props) {
+export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
   const router = useRouter();
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
@@ -65,6 +66,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         marketRegime={marketRegime}
         marketBreadth={marketBreadth}
         marketAxes={marketAxes}
+        fearGreed={fearGreed}
         onHome={() => router.push('/')}
       />
 

@@ -322,8 +322,10 @@ class ScanRunner:
             funnel["source_counts"][source] += 1
             return resample_to(df_d, "1W") if not df_d.empty else df_d
         if tf in ("30m", "1h", "2h", "4h"):
+            # 분봉 end 는 YYYYMMDD2359 — 그 날 분봉 raw 끝까지 포함 (장중 미완료 분봉도)
+            minute_end = f"{end_str}2359"
             source, df_m = cache.get_or_fetch_with_source(
-                ticker, minute_start_str, end_str, timeframe="1m"
+                ticker, minute_start_str, minute_end, timeframe="1m"
             )
             funnel["source_counts"][source] += 1
             return resample_to(df_m, tf) if not df_m.empty else df_m

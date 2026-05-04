@@ -45,8 +45,10 @@ interface Props {
 }
 
 const SORT_OPTIONS: [string, string][] = [
-  ['SCORE', 'score'],
-  ['ENTRY', 'entry'],
+  ['랭킹', 'rank'],
+  ['RSI', 'rsi'],
+  ['PER', 'per'],
+  ['가격', 'price'],
 ];
 
 export default function FilterBar({

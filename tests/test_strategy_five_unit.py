@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.strategy_base import ScanContext
-from strategies.strategy_five_bull_flag import StrategyFiveConfig, StrategyFiveBullFlag
+from strategies.strategy_five_bull_flag import StrategyFiveBullFlag
 
 
 def _make_df(close_arr, vol_arr, high_mult=1.001, low_mult=0.999):
@@ -47,14 +47,18 @@ def _pass_df():
     """flagpole +8.9% + 거래량 수축 + 가격 압축 + 돌파 패턴 (33 bars)."""
     close, vol = [], []
     # bars 0-9: 패딩
-    close += [1000.0] * 10;  vol += [200_000] * 10
+    close += [1000.0] * 10
+    vol += [200_000] * 10
     # bars 10-24: pole 1000→1084 (step 6, 15 bars)
     for i in range(15):
-        close.append(1000.0 + i * 6); vol.append(300_000)
+        close.append(1000.0 + i * 6)
+        vol.append(300_000)
     # bars 25-31: flag 1089 (7 bars, low volume, tight range)
-    close += [1089.0] * 7;  vol += [100_000] * 7
+    close += [1089.0] * 7
+    vol += [100_000] * 7
     # bar 32: today, breakout
-    close.append(1100.0);   vol.append(400_000)
+    close.append(1100.0)
+    vol.append(400_000)
     return _make_df(close, vol)
 
 
@@ -75,11 +79,15 @@ def test_fail_pole_too_small():
     flag 가격도 pole 상승 범위(~1035)에 맞춰야 한다.
     """
     close, vol = [], []
-    close += [1000.0] * 10;  vol += [200_000] * 10
+    close += [1000.0] * 10
+    vol += [200_000] * 10
     for i in range(15):
-        close.append(1000.0 + i * 2.5); vol.append(300_000)  # pole +3.5%
-    close += [1035.0] * 7;  vol += [100_000] * 7  # flag near pole end
-    close.append(1040.0);   vol.append(400_000)
+        close.append(1000.0 + i * 2.5)
+        vol.append(300_000)  # pole +3.5%
+    close += [1035.0] * 7
+    vol += [100_000] * 7  # flag near pole end
+    close.append(1040.0)
+    vol.append(400_000)
     df = _make_df(close, vol)
     ctx = _make_ctx({"TEST": df})
     assert StrategyFiveBullFlag().scan(ctx, top_n=5) == []
@@ -88,11 +96,15 @@ def test_fail_pole_too_small():
 def test_fail_no_volume_shrink():
     """flag 거래량 수축 없음 → 신호 없음."""
     close, vol = [], []
-    close += [1000.0] * 10;  vol += [200_000] * 10
+    close += [1000.0] * 10
+    vol += [200_000] * 10
     for i in range(15):
-        close.append(1000.0 + i * 6); vol.append(300_000)
-    close += [1089.0] * 7;  vol += [300_000] * 7  # same volume as pole
-    close.append(1100.0);   vol.append(400_000)
+        close.append(1000.0 + i * 6)
+        vol.append(300_000)
+    close += [1089.0] * 7
+    vol += [300_000] * 7  # same volume as pole
+    close.append(1100.0)
+    vol.append(400_000)
     df = _make_df(close, vol)
     ctx = _make_ctx({"TEST": df})
     assert StrategyFiveBullFlag().scan(ctx, top_n=5) == []
@@ -101,11 +113,15 @@ def test_fail_no_volume_shrink():
 def test_fail_not_price_compressed():
     """flag 가격 범위 너무 넓음 → 신호 없음."""
     close, vol = [], []
-    close += [1000.0] * 10;  vol += [200_000] * 10
+    close += [1000.0] * 10
+    vol += [200_000] * 10
     for i in range(15):
-        close.append(1000.0 + i * 6); vol.append(300_000)
-    close += [1089.0] * 7;  vol += [100_000] * 7
-    close.append(1100.0);   vol.append(400_000)
+        close.append(1000.0 + i * 6)
+        vol.append(300_000)
+    close += [1089.0] * 7
+    vol += [100_000] * 7
+    close.append(1100.0)
+    vol.append(400_000)
     # 넓은 high/low 범위 (3%) → ATR 대비 flag_range 초과
     df = _make_df(close, vol, high_mult=1.03, low_mult=0.97)
     ctx = _make_ctx({"TEST": df})
@@ -115,11 +131,15 @@ def test_fail_not_price_compressed():
 def test_fail_no_breakout():
     """당일 close <= flag_high → 신호 없음."""
     close, vol = [], []
-    close += [1000.0] * 10;  vol += [200_000] * 10
+    close += [1000.0] * 10
+    vol += [200_000] * 10
     for i in range(15):
-        close.append(1000.0 + i * 6); vol.append(300_000)
-    close += [1089.0] * 7;  vol += [100_000] * 7
-    close.append(1089.0);   vol.append(400_000)  # 돌파 없음
+        close.append(1000.0 + i * 6)
+        vol.append(300_000)
+    close += [1089.0] * 7
+    vol += [100_000] * 7
+    close.append(1089.0)
+    vol.append(400_000)  # 돌파 없음
     df = _make_df(close, vol)
     ctx = _make_ctx({"TEST": df})
     assert StrategyFiveBullFlag().scan(ctx, top_n=5) == []
@@ -128,11 +148,15 @@ def test_fail_no_breakout():
 def test_fail_low_breakout_volume():
     """돌파 거래량 < avg_volume → 신호 없음."""
     close, vol = [], []
-    close += [1000.0] * 10;  vol += [200_000] * 10
+    close += [1000.0] * 10
+    vol += [200_000] * 10
     for i in range(15):
-        close.append(1000.0 + i * 6); vol.append(300_000)
-    close += [1089.0] * 7;  vol += [100_000] * 7
-    close.append(1100.0);   vol.append(50_000)  # 거래량 너무 낮음
+        close.append(1000.0 + i * 6)
+        vol.append(300_000)
+    close += [1089.0] * 7
+    vol += [100_000] * 7
+    close.append(1100.0)
+    vol.append(50_000)  # 거래량 너무 낮음
     df = _make_df(close, vol)
     ctx = _make_ctx({"TEST": df})
     assert StrategyFiveBullFlag().scan(ctx, top_n=5) == []
@@ -141,11 +165,15 @@ def test_fail_low_breakout_volume():
 def test_fail_avg_volume_below_min():
     """평균 거래량 < min_daily_volume → 스킵."""
     close, vol = [], []
-    close += [1000.0] * 10;  vol += [50_000] * 10
+    close += [1000.0] * 10
+    vol += [50_000] * 10
     for i in range(15):
-        close.append(1000.0 + i * 6); vol.append(50_000)
-    close += [1089.0] * 7;  vol += [50_000] * 7
-    close.append(1100.0);   vol.append(50_000)
+        close.append(1000.0 + i * 6)
+        vol.append(50_000)
+    close += [1089.0] * 7
+    vol += [50_000] * 7
+    close.append(1100.0)
+    vol.append(50_000)
     df = _make_df(close, vol)
     ctx = _make_ctx({"TEST": df})
     assert StrategyFiveBullFlag().scan(ctx, top_n=5) == []

@@ -363,6 +363,40 @@ def test_extract_ohlcv_latest_skips_minute_close_for_previous_day(tmp_path, monk
     assert "minute_close" not in result[ticker]
 
 
+def test_collect_writes_vix_history_parquet(tmp_path):
+    """yfinance ^VIX 90일+ close history가 .cache/macro/vix.parquet 로 저장된다.
+
+    fear/greed 컴포지트의 Volatility 컴포넌트 입력 (90일 percentile rank).
+    """
+    from scripts.collect import CollectConfig, run_collect
+
+    mock_hist = pd.DataFrame(
+        {"Close": [15.0 + i * 0.1 for i in range(120)]},
+        index=pd.date_range("2026-01-01", periods=120, freq="B"),
+    )
+    mock_yf_ticker = MagicMock()
+    mock_yf_ticker.history.return_value = mock_hist
+
+    cfg = CollectConfig(
+        market="KOSPI",
+        cache_root=tmp_path / ".cache",
+        max_universe_size=10,
+        base_tfs=["1D"],
+        lookback_days=60,
+        min_market_cap_bil=0.0,
+        max_market_cap_bil=999999.0,
+    )
+    with patch("scripts.collect.DataClient", return_value=_make_mock_client()), \
+            patch("yfinance.Ticker", return_value=mock_yf_ticker):
+        run_collect(cfg, target_date="20260430")
+
+    vix_path = tmp_path / ".cache" / "macro" / "vix.parquet"
+    assert vix_path.exists(), f"VIX history parquet 부재: {vix_path}"
+    df = pd.read_parquet(vix_path)
+    assert len(df) >= 90, f"VIX history 90일 미만: {len(df)} rows"
+    assert "close" in df.columns
+
+
 def test_extract_ohlcv_latest_sets_minute_close_for_today(tmp_path):
     """1m 마지막 바가 오늘이면 minute_close를 설정해야 한다."""
     from scripts.collect import _extract_ohlcv_latest

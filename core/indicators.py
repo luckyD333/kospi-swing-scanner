@@ -22,6 +22,7 @@ __all__ = [
     "calc_bollinger",
     "calc_macd",
     "calc_atr",
+    "latest_rsi_or_none",
     "moving_average",
     "momentum_pct",
     "volume_zscore",
@@ -31,6 +32,15 @@ __all__ = [
 def moving_average(prices: pd.Series, period: int) -> pd.Series:
     """단순 이동평균 (SMA)"""
     return prices.rolling(window=period, min_periods=period).mean()
+
+
+def latest_rsi_or_none(prices: pd.Series, period: int = 14) -> float | None:
+    """마지막 RSI 값을 소수 1자리로 반올림해 반환. 계산 불가/NaN이면 None."""
+    try:
+        value = round(float(calc_rsi(prices, period=period).iloc[-1]), 1)
+    except Exception:
+        return None
+    return None if pd.isna(value) else value
 
 
 def momentum_pct(prices: pd.Series, lookback: int) -> pd.Series:

@@ -242,6 +242,20 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         market_indices = _fetch_market_indices(target_date)
         market_indices_collected_at = datetime.now().isoformat()
 
+        # VIX 90일 close history → fear/greed Volatility 컴포넌트 입력
+        try:
+            vix_history = _fetch_vix_history()
+            if vix_history is not None and not vix_history.empty:
+                macro_dir = Path(cfg.cache_root) / "macro"
+                macro_dir.mkdir(parents=True, exist_ok=True)
+                vix_path = macro_dir / "vix.parquet"
+                vix_history.to_parquet(vix_path)
+                logger.info(
+                    f"[collect] VIX history 저장 → {vix_path} ({len(vix_history)} rows)"
+                )
+        except Exception as e:
+            logger.warning(f"VIX history 저장 실패 (skip): {e}")
+
         # regime_analysis.json 이 있으면 snapshot 에도 함께 박아 signal-api join 으로 latest 응답
         regime_payload: dict | None = None
         regime_path = Path(cfg.cache_root) / "regime_analysis.json"
@@ -272,6 +286,16 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         except Exception as e:
             logger.warning(f"breadth/axes 계산 실패 (skip): {e}")
 
+        # Fear & Greed 컴포지트 (Momentum + Breadth + Volatility)
+        fear_greed_payload: dict | None = None
+        try:
+            from core.decision.fear_greed import build_fear_greed_payload
+            fear_greed_payload = build_fear_greed_payload(
+                cfg.cache_root, list(tickers_meta.keys())
+            )
+        except Exception as e:
+            logger.warning(f"fear/greed 계산 실패 (skip): {e}")
+
         snapshot = build_market_snapshot(
             universe={"tickers": tickers_meta},
             ohlcv_latest=ohlcv_latest,
@@ -279,6 +303,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             market_regime=regime_payload,
             market_breadth=breadth_payload,
             market_axes=axes_payload,
+            fear_greed=fear_greed_payload,
         )
 
         data_dir = pathlib.Path("data")
@@ -537,6 +562,26 @@ def _fetch_vix() -> dict | None:
         return {"value": close, "change_pct": round(change_pct, 2)}
     except Exception as e:
         logger.warning(f"VIX 수집 실패 (skip): {e}")
+        return None
+
+
+def _fetch_vix_history(period: str = "6mo"):
+    """yfinance ^VIX close history. fear/greed Volatility 컴포넌트의 90일 percentile 입력.
+
+    Returns: pandas.DataFrame(columns=['close'], index=date) or None on failure.
+    """
+    try:
+        import pandas as pd
+        import yfinance as yf
+        hist = yf.Ticker("^VIX").history(period=period)
+        if hist.empty:
+            return None
+        return pd.DataFrame(
+            {"close": hist["Close"].values},
+            index=hist.index.normalize(),
+        )
+    except Exception as e:
+        logger.warning(f"VIX history 수집 실패 (skip): {e}")
         return None
 
 

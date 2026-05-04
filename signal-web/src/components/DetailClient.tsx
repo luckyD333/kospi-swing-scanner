@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CardProps } from '@/lib/adapt';
-import type { MarketIndex, RegimeScore, BreadthScore, AxesScore } from '@/types/signal';
+import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
@@ -17,6 +17,7 @@ interface Props {
   marketRegime?: Record<string, RegimeScore> | null;
   marketBreadth?: Record<string, BreadthScore> | null;
   marketAxes?: Record<string, AxesScore> | null;
+  fearGreed?: FearGreedSnapshot | null;
 }
 
 function NaverLink({ href }: { href: string }) {
@@ -136,7 +137,7 @@ function getScoreCaption(strategyId: string): string {
   return '전략 점수';
 }
 
-export default function DetailClient({ card, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes }: Props) {
+export default function DetailClient({ card, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
   const router = useRouter();
   const {
     name, nameEn, ticker,
@@ -163,6 +164,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         marketRegime={marketRegime}
         marketBreadth={marketBreadth}
         marketAxes={marketAxes}
+        fearGreed={fearGreed}
         onHome={() => router.push('/')}
       />
 

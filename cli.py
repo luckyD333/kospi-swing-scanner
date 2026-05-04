@@ -348,6 +348,57 @@ def save_output(
     return path
 
 
+def _save_all_merged_output(
+    result, target_date: str, output_dir: Path, filters: dict | None = None,
+) -> Path | None:
+    """`--strategy all` 통합 archive — ticker dedup (best score) JSON.
+
+    저장 경로: scan_results/<target_date>/all/scan_<target_date>_all_<HHMM>.json
+    manifest 키: 'all__merged'.
+    """
+    best_per_ticker: dict = {}
+    for (_strat_name, _tf), cands in result.candidates_by_strategy_tf.items():
+        for c in cands:
+            existing = best_per_ticker.get(c.ticker)
+            if existing is None or c.score > existing.score:
+                best_per_ticker[c.ticker] = c
+    if not best_per_ticker:
+        return None
+
+    merged = sorted(best_per_ticker.values(), key=lambda c: c.score, reverse=True)
+    body = formatters.format_json(
+        merged, target_date,
+        strategy_name="all", timeframe="merged", filters=filters,
+    )
+
+    date_dir = output_dir / target_date / "all"
+    try:
+        date_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.warning(f"all 디렉토리 생성 실패: {e}")
+        return None
+
+    timestamp = datetime.now().strftime("%H%M")
+    filename = f"scan_{target_date}_all_{timestamp}.json"
+    path = date_dir / filename
+    path.write_text(body, encoding="utf-8")
+    logger.info(f"💾 all 통합 결과 저장: {path}")
+
+    try:
+        _update_scan_manifest(
+            output_dir,
+            strategy_name="all",
+            target_date=target_date,
+            timeframe="merged",
+            saved_path=path,
+            fmt="json",
+        )
+    except OSError as e:
+        logger.error(f"all manifest 갱신 중 오류: {e}")
+
+    return path
+
+
 # ============================================================================
 # main
 # ============================================================================
@@ -428,11 +479,13 @@ def _handle_signals_ui_format(args, result) -> int:
     snapshot = MarketSnapshot.model_validate_json(snap_path.read_text(encoding="utf-8"))
 
     regime = None
+    regime_full = None
     regime_path = Path(".cache") / "regime_analysis.json"
     if regime_path.exists():
         import json as _json
         _r = _json.loads(regime_path.read_text(encoding="utf-8"))
         regime = _r.get("timeframe_scores")
+        regime_full = _r
 
     weight_config = None
     weights_path = Path("weights.yml")
@@ -443,9 +496,17 @@ def _handle_signals_ui_format(args, result) -> int:
         except Exception as e:
             logger.warning(f"weights.yml 로드 실패 (decision 데이터 생략): {e}")
 
+    # candidates_by_strategy 는 1D timeframe 만 담음 (legacy alias).
+    # 1h/30m 전략 결과까지 포함하려면 candidates_by_strategy_tf 를 평면화.
+    candidates_for_signals: dict[str, list] = {
+        name: cands
+        for (name, _tf), cands in result.candidates_by_strategy_tf.items()
+        if cands
+    }
     payload = build_signals_payload(
-        snapshot, result.candidates_by_strategy,
+        snapshot, candidates_for_signals,
         market_regime=regime, weight_config=weight_config,
+        target_date=result.target_date,
     )
 
     data_dir = Path(args.output_dir or "data")
@@ -463,6 +524,46 @@ def _handle_signals_ui_format(args, result) -> int:
     archive_path.write_text(json_str, encoding="utf-8")
 
     logger.info(f"[cli] signals.json 저장 → {out_path} ({payload.stats['total_signals']}개 시그널)")
+
+    # ranking 보고서 생성 (weight_config 존재 시)
+    if weight_config is not None:
+        try:
+            from core.decision.runner import _build_unique_pool
+            from core.decision.aggregator import aggregate_candidates
+            from core.decision.regret_scorer import compute_regret_scores
+            from output.decision_journal import format_ranking_report
+
+            pool = _build_unique_pool(
+                result.candidates_by_strategy,
+                strategy_weights=weight_config.strategy_weights,
+                regime=regime_full,
+            )
+            ranked = aggregate_candidates(pool, weight_config)
+            if ranked:
+                ensemble_map = {
+                    rc.candidate.ticker: (rc.candidate.metadata or {}).get(
+                        "ensemble_score", 1.0,
+                    )
+                    for rc in ranked
+                }
+                ranked = compute_regret_scores(
+                    ranked, ensemble_scores=ensemble_map,
+                )
+
+            top_n = getattr(args, "top_n", 10)
+            target_date = date.today().isoformat()
+            md = format_ranking_report(ranked, target_date, top_n, weight_config)
+
+            report_path = data_dir / "ranking_report.md"
+            report_path.write_text(md, encoding="utf-8")
+
+            archive_report_path = archive_dir / f"ranking_report_{date.today().isoformat()}.md"
+            archive_report_path.write_text(md, encoding="utf-8")
+
+            logger.info(f"[cli] ranking_report.md 저장 → {report_path}")
+        except Exception as e:
+            logger.warning(f"ranking 보고서 생성 실패 (생략): {e}")
+
     return 0
 
 
@@ -610,6 +711,20 @@ def main(argv: list[str] | None = None) -> int:
                 body, args.format, target, strat_name, Path(args.output_dir),
                 summary_text=summary_text, summary_dict=summary_dict, tf=tf,
             )
+
+    # --strategy all + JSON 일 때 ticker dedup 통합 결과를 별도 archive 로 저장.
+    # signals.json 의 strategy='all' entry 와 별개로 디스크 archive + manifest 'all__merged' 등록.
+    if (
+        args.strategy == "all"
+        and args.output_dir
+        and args.format == "json"
+    ):
+        try:
+            _save_all_merged_output(
+                result, target, Path(args.output_dir), filters_dict,
+            )
+        except OSError as e:
+            logger.warning(f"all merged 저장 실패 (skip): {e}")
 
     return 0 if not result.errors else 1
 

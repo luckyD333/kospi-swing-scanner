@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
+from core.cache.ohlcv_disk import OhlcvDiskCache
 from core.data_fetch import DataClient, OhlcvCache
 from core.data_sources.base import DailyDataSource
 
@@ -156,6 +157,64 @@ def test_cache_get_or_fetch_with_source_miss():
     assert source == "fdr"
     assert not df.empty
     assert len(stub.calls) == 1
+
+
+class _MultiTfStubSource(DailyDataSource):
+    """timeframe 별 다른 응답을 주는 stub — disk fix 회귀용."""
+    name = "stub_mtf"
+
+    def __init__(self):
+        self.calls: list[tuple[str, str, str, str]] = []
+
+    def get_tickers(self, market: str, target_date: str) -> list[str]:
+        return ["005930"]
+
+    def get_ticker_name(self, ticker: str) -> str:
+        return ticker
+
+    def get_ohlcv(
+        self, ticker: str, start: str, end: str, timeframe: str = "1D"
+    ) -> pd.DataFrame:
+        self.calls.append((ticker, start, end, timeframe))
+        if timeframe == "1m":
+            base = pd.to_datetime(start[:8])
+            return pd.DataFrame(
+                {"close": [100.0, 101.0]},
+                index=[base + pd.Timedelta(minutes=540),
+                       base + pd.Timedelta(minutes=541)],
+            )
+        return _make_df(ticker, start, end)
+
+
+def test_disk_cache_passes_timeframe_to_client_for_1m(tmp_path):
+    """디스크 캐시 cold path 에서도 timeframe='1m' 이 client 에 전달되어야 함.
+
+    회귀: 이전엔 timeframe 인자가 빠져 1m 디렉토리에 1D 응답이 저장됐음.
+    """
+    stub = _MultiTfStubSource()
+    client = DataClient(ticker_list_sources=[stub], ohlcv_sources=[stub])
+    disk = OhlcvDiskCache(tmp_path)
+    cache = OhlcvCache(client, disk=disk)
+
+    cache.get_or_fetch("005930", "20260504", "20260504", timeframe="1m")
+
+    assert len(stub.calls) == 1
+    _, _, _, tf = stub.calls[0]
+    assert tf == "1m"
+
+
+def test_disk_cache_normalizes_1m_dates(tmp_path):
+    """1m 일 때 caller 가 YYYYMMDD 만 줘도 분 단위로 normalize."""
+    stub = _MultiTfStubSource()
+    client = DataClient(ticker_list_sources=[stub], ohlcv_sources=[stub])
+    disk = OhlcvDiskCache(tmp_path)
+    cache = OhlcvCache(client, disk=disk)
+
+    cache.get_or_fetch("005930", "20260504", "20260504", timeframe="1m")
+
+    _, start, end, _ = stub.calls[0]
+    assert start == "202605040000"
+    assert end == "202605042359"
 
 
 def test_get_ohlcv_with_source_propagates_when_all_sources_fail():

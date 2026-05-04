@@ -147,6 +147,75 @@ def test_update_factor_records_creates_parquet(mock_cache_cls, tmp_path):
 
 
 @patch("core.decision.factor_performance.OhlcvDiskCache")
+def test_update_factor_records_uses_previous_business_day_for_weekend_scan(
+    mock_cache_cls, tmp_path
+):
+    """비거래일 scan_date 는 직전 거래일 종가를 진입가로 사용."""
+    mock_disk = MagicMock()
+    mock_cache_cls.return_value = mock_disk
+    mock_disk.read.return_value = _make_ohlcv_for_ticker(
+        90, end_date=date(2026, 4, 30)
+    )
+
+    scan_root = tmp_path / "scan_results"
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+
+    candidates = [
+        {
+            "ticker": "005930",
+            "score": 500.0,
+            "metrics": {
+                "per": 15.0,
+                "roe": 12.0,
+                "momentum_pct": 3.0,
+                "rr_ratio": 2.5,
+            },
+        }
+    ]
+    _make_scan_manifest(scan_root, "20260404", candidates)  # 토요일
+
+    result = update_factor_records(scan_root, cache_root, hold_days=3)
+
+    assert len(result) == 1
+    assert result.iloc[0]["ticker"] == "005930"
+
+
+@patch("core.decision.factor_performance.OhlcvDiskCache")
+def test_update_factor_records_skips_when_no_prior_business_day(
+    mock_cache_cls, tmp_path
+):
+    """scan_date 이전 거래일이 전혀 없으면 해당 candidate 는 skip."""
+    mock_disk = MagicMock()
+    mock_cache_cls.return_value = mock_disk
+    mock_disk.read.return_value = _make_ohlcv_for_ticker(
+        5, end_date=date(2026, 4, 30)
+    )
+
+    scan_root = tmp_path / "scan_results"
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+
+    candidates = [
+        {
+            "ticker": "005930",
+            "score": 500.0,
+            "metrics": {
+                "per": 15.0,
+                "roe": 12.0,
+                "momentum_pct": 3.0,
+                "rr_ratio": 2.5,
+            },
+        }
+    ]
+    _make_scan_manifest(scan_root, "20260401", candidates)
+
+    result = update_factor_records(scan_root, cache_root, hold_days=3)
+
+    assert result.empty
+
+
+@patch("core.decision.factor_performance.OhlcvDiskCache")
 def test_update_factor_records_skips_recent_dates(mock_cache_cls, tmp_path):
     """scan_date > cutoff → 해당 날짜 row 없음."""
     mock_disk = MagicMock()

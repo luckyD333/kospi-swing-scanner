@@ -15,7 +15,7 @@ import logging
 import math
 from dataclasses import dataclass
 
-from backtest_engine.core import calc_atr, calc_rsi
+from backtest_engine.core import calc_atr
 from backtest_engine.detectors import (
     DoubleBottomDetector,
     DoubleBottomFractal,
@@ -23,6 +23,7 @@ from backtest_engine.detectors import (
     DoubleBottomSimple,
 )
 from backtest_engine.strategy import StrategyD, StrategyDConfig
+from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
 logger = logging.getLogger(__name__)
@@ -184,12 +185,7 @@ class StrategyOneDv2:
                 else:
                     atr_14 = float(atr_val) if atr_val is not None else None
 
-                try:
-                    _r = calc_rsi(df["close"], period=14).iloc[-1]
-                    rsi_14_val: float | None = round(float(_r), 1)
-                    if rsi_14_val != rsi_14_val: rsi_14_val = None  # NaN guard
-                except Exception:
-                    rsi_14_val = None
+                rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
                 candidates.append(Candidate(
                     ticker=ticker,

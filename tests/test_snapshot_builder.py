@@ -47,3 +47,31 @@ def test_build_market_snapshot_52w():
     # tail(252) 범위에서 high max / low min
     assert snapshot.tickers["001390"].fundamentals.high_52w == 7200
     assert snapshot.tickers["001390"].fundamentals.low_52w == 5050
+
+
+def test_build_market_snapshot_uses_minute_close_when_available():
+    """1m 분봉 close 가 있으면 current_price 는 그 값 (= 더 신선)."""
+    ohlcv = {
+        "001390": {
+            **MOCK_OHLCV["001390"],
+            "minute_close": 7185.0,
+            "minute_close_at": "2026-05-04T12:30:00+09:00",
+        }
+    }
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=ohlcv,
+        market_indices={},
+    )
+    # 일봉 close 7120 대신 분봉 close 7185 사용
+    assert snapshot.tickers["001390"].current_price == 7185
+
+
+def test_build_market_snapshot_falls_back_to_daily_close():
+    """1m 분봉 close 없으면 일봉 마지막 close fallback."""
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=MOCK_OHLCV,
+        market_indices={},
+    )
+    assert snapshot.tickers["001390"].current_price == 7120

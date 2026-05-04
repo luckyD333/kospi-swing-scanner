@@ -32,6 +32,8 @@ ENV/
 scan_results/
 # Job A/B 런타임 산출물 (signals.json, market_snapshot.json)
 data/
+# signal-web 정적 fallback (레거시) — 운영은 signal-api 경유 fetch만 사용
+signal-web/src/data/
 *.log
 .env
 .env.local
@@ -46,3 +48,4 @@ signal-web/node_modules/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+/.claude/

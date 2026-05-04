@@ -16,8 +16,8 @@ pip install -r requirements.txt
 
 | Job | 명령어 | 출력 | 주기 |
 |-----|--------|------|------|
-| A: 시장 데이터 수집 | `python scripts/collect.py ...` | `data/market_snapshot.json` | 매일 장 마감 후 1회 |
-| B-일봉 | `python cli.py --format signals_ui ...` | `data/signals.json` | Job A 완료 후 1회 |
+| A: 시장 데이터 수집 | `python scripts/collect.py ...` | `.cache/{tf}/{ticker}.parquet` + `data/market_snapshot.json` (KOSPI/KOSDAQ + ETF + 매크로 USD/KRW·WTI·국고채3Y·VIX) | 매일 장 마감 후 1회 |
+| B-일봉 | `python cli.py --format signals_ui ...` | `data/signals.json` (SSOT) | Job A 완료 후 1회 |
 | B-장중 (30m/1h) | `python cli.py --format signals_ui ...` | `data/signals.json` | 장 중 30분마다 (09:00~15:30) |
 
 > **TF별 재계산 필요 주기**: 1D/1W 전략은 장 마감 후 1회로 충분. 30m/1h 전략은 새 캔들이 확정되는 시점마다 재실행이 필요해요.
@@ -135,8 +135,23 @@ UI 직접 소비. `_display` 서브객체로 포매팅 완료.
    ┌──────────────────────────────────────────────────────────┐
    │  strategies/  (Strategy Protocol 구현체들)                 │
    │   ├─ strategy_one_d_v2       Mean Reversion + Confluence  │
+   │   │   └─ _r1/_r2 fallback (engulf 완화 → 0건 시 자동)     │
    │   ├─ strategy_two_cross_...  Cross-sectional Momentum     │
-   │   └─ strategy_three_trend_.. Donchian 20일 채널 돌파       │
+   │   ├─ strategy_three_trend_.. Donchian 20일 채널 돌파       │
+   │   ├─ strategy_four_pullback_ma  MA20+MA5 눌림목 회복      │
+   │   └─ strategy_five_bull_flag    Flagpole+8% → 압축 돌파   │
+   │   * 모든 전략 1D / 1h / 30m 변형 (자동 등록)               │
+   └──────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+   ┌──────────────────────────────────────────────────────────┐
+   │  core/decision/  (Phase 2 의사결정 엔진)                   │
+   │   ├─ aggregator       다축 가중합 ranking + breakdown     │
+   │   ├─ ensemble         교차전략 합의도 점수                 │
+   │   ├─ market_regime    HMM BULL/BEAR/SIDEWAYS              │
+   │   ├─ market_axes      Trend score + Volatility regime     │
+   │   ├─ market_breadth   상승비율 / MA20 상회 / 거래대금 상위 │
+   │   └─ regret_scorer    "안 사면 후회" 비대칭 점수           │
    └──────────────────────────────────────────────────────────┘
 ```
 
@@ -157,22 +172,48 @@ kospi-swing-scanner/
 │
 ├── core/                             # 공통 모듈
 │   ├── cache/                        # OhlcvDiskCache (parquet R/W)
-│   ├── data_sources/                 # DailyDataSource ABC + 네이버 구현
+│   ├── data_sources/                 # DailyDataSource ABC + 네이버 구현 (ETF + 매크로)
 │   ├── data_fetch.py                 # DataClient + OhlcvCache
+│   ├── dates.py                      # 영업일 / 다중 TF 시간 유틸
 │   ├── universe.py                   # build_universe + UniverseFilter
 │   ├── indicators.py                 # RSI/BB/MACD/ATR/MA/모멘텀
 │   ├── strategy_base.py              # Strategy Protocol + ScanContext
-│   └── runner.py                     # ScanRunner
+│   ├── runner.py                     # ScanRunner
+│   └── decision/                     # Phase 2 의사결정 엔진
+│       ├── aggregator.py / ensemble.py / config.py
+│       ├── market_regime.py          # HMM BULL/BEAR/SIDEWAYS
+│       ├── market_axes.py            # Trend score + Volatility regime
+│       ├── market_breadth.py         # 상승비율 / MA20 상회 / 거래대금 상위
+│       ├── regret_scorer.py          # 비대칭 후회 점수
+│       └── runner.py / interview.py / factor_performance.py
 │
 ├── strategies/                       # 전략 구현체 (plug-in)
-│   ├── __init__.py                   # REGISTRY dict
-│   ├── strategy_one_d_v2.py          # Mean Reversion
-│   ├── strategy_two_cross_sectional_momentum.py
-│   └── strategy_three_trend_following.py
+│   ├── __init__.py                   # REGISTRY dict + autodiscover + FALLBACKS
+│   ├── strategy_one_d_v2.py          # Mean Reversion (1D/1W/1h/30m + r1/r2)
+│   ├── strategy_two_cross_sectional_momentum.py  # (1D/1h/30m)
+│   ├── strategy_three_trend_following.py         # (1D/1h/30m)
+│   ├── strategy_four_pullback_ma.py              # (1D/1h/30m)
+│   └── strategy_five_bull_flag.py                # (1D/1h/30m)
 │
 ├── output/                           # 출력 포맷터
 │   ├── formatters.py                 # table/json/csv/markdown/signals_ui
+│   ├── signals_builder.py            # signals.json 빌드 (Pydantic 검증)
+│   ├── snapshot_builder.py           # market_snapshot.json 빌드
+│   ├── models.py                     # 스키마
 │   └── comparison.py                 # 멀티 전략 비교
+│
+├── signal-api/                       # FastAPI 서비스 (:8000)
+│   └── app/
+│       ├── api/signals.py            # /api/signals + /api/signals/{ticker}
+│       └── services/
+│           ├── signal_loader.py      # signals.json 로드
+│           ├── market_loader.py      # market_snapshot.json 로드
+│           └── join.py               # 응답 시 overlay (fundamentals/flow/RSI/links)
+│
+├── signal-web/                       # Next.js UI (:3000)
+│   └── src/
+│       ├── app/                      # 라우트 (/, /signals/[ticker])
+│       └── components/               # CatalogClient, DetailClient, MarketRegimePanel, ...
 │
 ├── backtest_engine/                  # 백테스트 엔진
 │   ├── core.py / detectors.py / strategy.py / engine.py / screener.py
@@ -181,15 +222,21 @@ kospi-swing-scanner/
 │
 ├── tests/                            # 통합 테스트
 │   ├── fixtures/
-│   ├── test_core_*.py
+│   ├── test_core_*.py / test_dates.py
+│   ├── test_market_axes.py / test_market_breadth.py / test_regret_scorer.py
+│   ├── test_signals_builder.py / test_snapshot_builder.py
+│   ├── test_decision_aggregator.py
 │   ├── test_cli.py / test_collect.py
 │   ├── test_ocp.py
 │   └── test_integration.py
+│
+├── weights.yml                       # Phase 2 다축 가중치 (--decide 의존)
 │
 └── docs/
     ├── strategy_d_v2_spec.md
     ├── korean_stock_data_sources_guide.md
     ├── cron_examples.md
+    ├── deploy.md                     # VM 배포 + 로컬 dev 모드
     └── research/
 ```
 
@@ -198,8 +245,10 @@ kospi-swing-scanner/
 | 종류 | 소스 | 비고 |
 |------|------|------|
 | 종목 리스트 + 추정 시총 | 네이버 `sise_market_sum` (크롤링) | KOSPI/KOSDAQ |
+| ETF 유니버스 | 네이버 `etfItemList.nhn` JSON | 거래대금 상위 200 |
 | 일봉/분봉 OHLCV | 네이버 `siseJson` API (수정주가) | timeframe=day 또는 minute |
 | 30m / 1h / 4h | 네이버 1m → 리샘플링 | core/runner.py 내부 처리 |
+| 매크로 지수 | 네이버 `marketindex` 스크래핑 | USD/KRW, WTI, 국고채3Y, VIX |
 
 ---
 
@@ -221,6 +270,24 @@ python cli.py --strategy all --format markdown
 # JSON 저장
 python cli.py --strategy all --format json --output-dir scan_results
 ```
+
+### Phase 2 — 의사결정 모드
+
+```bash
+# 1) 가중치 인터뷰 (최초 1회) → weights.yml
+python cli.py --interview
+
+# 2) 후보 ranking + Decision Top-N 마크다운 생성
+python cli.py --decide --top-n 5
+
+# 3) 특정 종목 Decision Journal 생성 (메모 첨부)
+python cli.py --decide --select 005930,000660 --notes "FOMC 전 관망"
+
+# 동적 가중치 (.cache/dynamic_weights.json) 우선 사용
+python cli.py --decide --dynamic-weights
+```
+
+`weights.yml`은 ranking factor breakdown(`ensemble_score`, `momentum_pct`, `rr_ratio`, `roe`, `per`, `regime_score`)의 가중치를 정의해요. signals.json 의 `ranking.decision` 필드는 이 weights 로드 성공 시에만 채워져요.
 
 ### 필터 조정
 
@@ -291,6 +358,7 @@ python cli.py --strategy all --format signals_ui --output-dir data
 - [Korean stock data sources](./docs/korean_stock_data_sources_guide.md) — 데이터 소스 가이드
 - [Backtest engine](./backtest_engine/README.md) — 엔진 모듈 사용법
 - [Cron 자동화](./docs/cron_examples.md) — schedule job 운영 예시
+- [VM 배포 가이드](./docs/deploy.md) — DigitalOcean Droplet + signal-api/web + nginx + 로컬 dev 모드
 
 ## 면책 조항
 

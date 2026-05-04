@@ -21,11 +21,8 @@ from core.strategy_base import Candidate
 
 from .aggregator import aggregate_candidates
 from .config import WeightConfig
-from .ensemble import (
-    apply_minimax_regret,
-    auto_volatility_scenarios,
-    compute_weighted_ensemble_score,
-)
+from .ensemble import compute_weighted_ensemble_score
+from .regret_scorer import compute_regret_scores
 
 logger = logging.getLogger(__name__)
 
@@ -198,10 +195,15 @@ def run_decide_ranking(
         regime=regime,
     )
     ranked = aggregate_candidates(pool, weight_config)
-    # Minimax Regret (자동 변동성 시나리오) 보조 정렬
+    # 비대칭 후회 점수 — "안 사면 가장 후회 남을 종목" 기준 정렬
     if ranked:
-        regret_fn = auto_volatility_scenarios(ranked)
-        ranked = apply_minimax_regret(ranked, regret_fn)
+        ensemble_map = {
+            rc.candidate.ticker: (rc.candidate.metadata or {}).get(
+                "ensemble_score", 1.0,
+            )
+            for rc in ranked
+        }
+        ranked = compute_regret_scores(ranked, ensemble_scores=ensemble_map)
 
     md = format_ranking_report(ranked, target_date, top_n, weight_config)
     out_path = scan_root / target_date / f"decision_top{top_n}.md"
@@ -251,8 +253,13 @@ def run_decide_journal(
     )
     ranked = aggregate_candidates(pool, weight_config)
     if ranked:
-        regret_fn = auto_volatility_scenarios(ranked)
-        ranked = apply_minimax_regret(ranked, regret_fn)
+        ensemble_map = {
+            rc.candidate.ticker: (rc.candidate.metadata or {}).get(
+                "ensemble_score", 1.0,
+            )
+            for rc in ranked
+        }
+        ranked = compute_regret_scores(ranked, ensemble_scores=ensemble_map)
 
     by_ticker = {r.candidate.ticker: r for r in ranked}
     paths: list[Path] = []

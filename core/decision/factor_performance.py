@@ -159,30 +159,35 @@ def update_factor_records(
                     )
                     continue
 
-                # scan_date를 Timestamp로 정규화 (timezone-aware 변환)
-                scan_ts = pd.Timestamp(scan_date)
-
-                # scan_date 종가 찾기
-                # ohlcv의 index를 정규화하여 비교 (timezone 제거)
+                # scan_date를 Timestamp로 정규화.
+                # 비거래일 scan 결과는 scan_date 이하의 마지막 거래일 종가를 진입가로 사용.
+                scan_ts = pd.Timestamp(scan_date).normalize()
                 ohlcv_normalized_idx = ohlcv.index.normalize()
-                scan_ts_normalized = scan_ts.normalize()
 
-                matching_idxs = (ohlcv_normalized_idx == scan_ts_normalized).nonzero()[0]
-                if len(matching_idxs) == 0:
+                eligible_idxs = (ohlcv_normalized_idx <= scan_ts).nonzero()[0]
+                if len(eligible_idxs) == 0:
                     logger.debug(
-                        f"scan date 종가 없음: {ticker} {scan_date}"
+                        f"scan date 이전 거래일 없음: {ticker} {scan_date}"
                     )
                     continue
 
-                entry_close = ohlcv.iloc[matching_idxs[0]]["close"]
+                entry_idx = int(eligible_idxs[-1])
+                entry_ts = ohlcv_normalized_idx[entry_idx]
+                if entry_ts != scan_ts:
+                    logger.debug(
+                        f"scan date fallback 사용: {ticker} {scan_date} -> "
+                        f"{entry_ts.date()}"
+                    )
+
+                entry_close = ohlcv.iloc[entry_idx]["close"]
 
                 # hold_days번째 거래일 종가 찾기
-                # matching_idxs[0] 이후의 데이터 중 hold_days번째 거래일
-                future_idx = matching_idxs[0] + hold_days
+                # entry_idx 이후의 데이터 중 hold_days번째 거래일
+                future_idx = entry_idx + hold_days
                 if future_idx >= len(ohlcv):
                     logger.debug(
                         f"충분한 거래일 없음: {ticker} "
-                        f"({len(ohlcv) - matching_idxs[0] - 1} < {hold_days})"
+                        f"({len(ohlcv) - entry_idx - 1} < {hold_days})"
                     )
                     continue
 

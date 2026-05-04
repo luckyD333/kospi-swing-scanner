@@ -7,7 +7,7 @@ WeightConfig 의 가중치로 합산해 final_score 를 계산한다.
 설계:
   - direction='lower_better': 작은 값이 좋음 → 1 - rank
   - direction='higher_better': 큰 값이 좋음 → rank
-  - 결측(None): rank 0 (최저)
+  - 결측(None): rank 0.5 (중립 — ETF 등 펀더멘털 N/A 종목을 최하위 취급하지 않음)
   - must_have 탈락 후보는 결과에서 제외
 
 key 우선순위:
@@ -50,7 +50,7 @@ def _percentile_rank(values: list[float | None]) -> list[float]:
     # 결측 인덱스 분리
     valid_indices = [i for i, v in enumerate(values) if v is not None]
     if not valid_indices:
-        return [0.0] * n
+        return [0.5] * n
     # valid 값 정렬해서 rank 부여
     valid_pairs = [(values[i], i) for i in valid_indices]
     # NOTE: 동률 처리 — average rank 대신 stable sort로 분할.
@@ -58,7 +58,7 @@ def _percentile_rank(values: list[float | None]) -> list[float]:
     # 이유: 동률 종목 다수(시장 정체) 시 일부를 배제하는 필터 효과 → 신호 신뢰도 낮은
     # 동률 케이스에서 ranking 분산을 줄여요. (Strategy 2와 동일한 정책으로 일관성 유지)
     sorted_pairs = sorted(valid_pairs, key=lambda x: (x[0], x[1]))
-    ranks = [0.0] * n
+    ranks = [0.5] * n
     m = len(sorted_pairs)
     for rank_idx, (_v, orig_i) in enumerate(sorted_pairs):
         # 1/m..1.0 (작은 값 = 낮은 rank)
@@ -91,7 +91,7 @@ def aggregate_candidates(
         if prio.direction == "lower_better":
             # 작은 값이 좋음 → 1 - rank, 단 결측은 0 유지
             rank = [
-                (1.0 - r) if raw[i] is not None else 0.0
+                (1.0 - r) if raw[i] is not None else 0.5
                 for i, r in enumerate(rank)
             ]
         normalized[prio.key] = rank

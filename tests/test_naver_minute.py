@@ -52,8 +52,9 @@ def test_get_ohlcv_unsupported_timeframe_raises():
         src.get_ohlcv("005930", "20260430", "20260430", timeframe="30m")
 
 
-def test_minute_response_dropna_no_trade_rows():
-    """probe 결과처럼 첫 row 가 [ts, None, None, None, close, vol, None] 일 때 dropna."""
+def test_minute_response_preserves_close_only_rows():
+    """네이버 minute 응답은 OHL=null close=숫자 형태로 옴. close 만 있으면 보존하고
+    OHL 은 close 로 fill (라이브 응답 특성. 이전엔 dropna 로 모두 제거되어 빈 DF 였음)."""
     src = NaverSource()
     body = """[
 ['날짜','시가','고가','저가','종가','거래량','외국인소진율'],
@@ -65,9 +66,32 @@ def test_minute_response_dropna_no_trade_rows():
         return_value=_fake_response(body),
     ):
         df = src.get_ohlcv("005930", "20260430", "20260430", timeframe="1m")
-    assert len(df) == 1   # None 행 제거 후 1 row
+    assert len(df) == 2   # 두 row 모두 보존 (close 있으면 보존)
+    # sort_index 적용되어 시간순
+    assert df.index[0] == pd.Timestamp("2026-04-30 15:55")
+    assert df.index[1] == pd.Timestamp("2026-04-30 16:00")
+    # OHL null → close 로 fill
+    assert df["open"].iloc[0] == 220500.0
+    assert df["high"].iloc[0] == 220500.0
+    assert df["low"].iloc[0] == 220500.0
+    assert df["close"].iloc[0] == 220500.0
+
+
+def test_minute_response_drops_rows_with_null_close():
+    """진짜 거래 없는 분봉(close=null)은 dropna(subset=['close'])로 제거."""
+    src = NaverSource()
+    body = """[
+['날짜','시가','고가','저가','종가','거래량','외국인소진율'],
+['202604301555', null, null, null, null, 0, null],
+['202604301600', 220000, 226000, 218500, 224500, 22870374, 49.25]
+]"""
+    with patch(
+        "core.data_sources.naver.requests.get",
+        return_value=_fake_response(body),
+    ):
+        df = src.get_ohlcv("005930", "20260430", "20260430", timeframe="1m")
+    assert len(df) == 1   # close=null 행 제거
     assert df.index[0] == pd.Timestamp("2026-04-30 16:00")
-    assert df["close"].iloc[0] == 224500.0
 
 
 def test_response_preserves_foreign_rate_column():

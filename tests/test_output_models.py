@@ -31,6 +31,42 @@ def test_signals_payload_model_dump_has_display_alias():
     assert '"signals"' in data
 
 
+def test_signals_payload_freshness_fields_default_empty():
+    """target_date/target_date_display/asof 미지정 시 빈 문자열 default."""
+    payload = SignalsPayload(
+        schema_version="1.0",
+        generated_at="2026-05-04T12:30:00+09:00",
+        generated_at_display="2026-05-04 12:30 KST",
+        market_indices={},
+        filters={"strategies": ["ALL"], "timeframes": ["ALL"], "sort_options": ["score"]},
+        signals=[],
+        stats={"total_signals": 0, "by_strategy": {}, "by_rr_band": {}},
+    )
+    assert payload.target_date == ""
+    assert payload.target_date_display == ""
+    assert payload.asof == ""
+
+
+def test_signals_payload_freshness_fields_persist():
+    """target_date/target_date_display/asof 가 model_dump 에 포함."""
+    payload = SignalsPayload(
+        schema_version="1.0",
+        generated_at="2026-05-04T12:30:00+09:00",
+        generated_at_display="2026-05-04 12:30 KST",
+        target_date="2026-05-04",
+        target_date_display="2026-05-04 (장중)",
+        asof="2026-05-04T12:30:00+09:00",
+        market_indices={},
+        filters={"strategies": ["ALL"], "timeframes": ["ALL"], "sort_options": ["score"]},
+        signals=[],
+        stats={"total_signals": 0, "by_strategy": {}, "by_rr_band": {}},
+    )
+    data = payload.model_dump()
+    assert data["target_date"] == "2026-05-04"
+    assert data["target_date_display"] == "2026-05-04 (장중)"
+    assert data["asof"] == "2026-05-04T12:30:00+09:00"
+
+
 def test_market_snapshot_ticker_lookup():
     snap = MarketSnapshot(
         schema_version="1.0",
