@@ -246,3 +246,33 @@ def test_timeframe_filters_follow_actual_signal_timeframes():
 
     assert payload.filters["timeframes"] == ["ALL", "1D", "1W", "30m"]
     assert "4H" not in payload.filters["timeframes"]
+
+
+def test_strategy_one_1h_fallback_variants_skip_duplicate_ticker_in_raw_signals():
+    """strategy_one_1h_v2/r1/r2 순차 실행 시 동일 ticker는 첫 entry만 유지."""
+    snap = _multi_strategy_snapshot()
+    base = _make_cand_for("001", 90.0)
+    base.strategy = "strategy_one_1h_v2"
+    base.timeframe = "1h"
+    r1_dup = _make_cand_for("001", 85.0)
+    r1_dup.strategy = "strategy_one_1h_v2_r1"
+    r1_dup.timeframe = "1h"
+    r2_unique = _make_cand_for("002", 80.0)
+    r2_unique.strategy = "strategy_one_1h_v2_r2"
+    r2_unique.timeframe = "1h"
+
+    payload = build_signals_payload(
+        snap,
+        {
+            "strategy_one_1h_v2": [base],
+            "strategy_one_1h_v2_r1": [r1_dup],
+            "strategy_one_1h_v2_r2": [r2_unique],
+        },
+        weight_config=None,
+    )
+
+    raw_signals = [s for s in payload.signals if s.strategy.id != "all"]
+    assert [(s.ticker, s.strategy.id) for s in raw_signals] == [
+        ("001", "strategy_one_1h_v2"),
+        ("002", "strategy_one_1h_v2_r2"),
+    ]

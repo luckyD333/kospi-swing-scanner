@@ -58,6 +58,13 @@ _BAND_MAP: dict[str, str] = {
     "over":  "OVER",
 }
 
+# 전략 1 1h fallback 변형은 순차 실행 시 동일 ticker를 중복 노출하지 않음.
+_RAW_SIGNAL_DEDUP_GROUP_BY_STRATEGY_ID: dict[str, str] = {
+    "strategy_one_1h_v2": "strategy_one_1h_v2",
+    "strategy_one_1h_v2_r1": "strategy_one_1h_v2",
+    "strategy_one_1h_v2_r2": "strategy_one_1h_v2",
+}
+
 
 def _infer_timeframe_from_id(strategy_id: str) -> str:
     """strategy_id 토큰으로 timeframe 추정. Candidate.timeframe 이 비어있을 때 fallback."""
@@ -125,6 +132,32 @@ def _timeframe_sort_key(tf: str) -> tuple[int, str]:
     return (order.get(tf, 99), tf)
 
 
+def _dedup_raw_candidates(
+    candidates_by_strategy: dict[str, list],
+) -> dict[str, list]:
+    """raw strategy entry dedup.
+
+    요청된 전략 1 1h base/r1/r2 조합만 대상으로, 먼저 등록된 ticker 를 유지한다.
+    """
+    dedup_seen: dict[str, set[str]] = {}
+    filtered: dict[str, list] = {}
+    for strategy_id, candidates in candidates_by_strategy.items():
+        dedup_group = _RAW_SIGNAL_DEDUP_GROUP_BY_STRATEGY_ID.get(strategy_id)
+        kept: list = []
+        for cand in candidates:
+            if dedup_group is None:
+                kept.append(cand)
+                continue
+            seen = dedup_seen.setdefault(dedup_group, set())
+            if cand.ticker in seen:
+                continue
+            seen.add(cand.ticker)
+            kept.append(cand)
+        if kept:
+            filtered[strategy_id] = kept
+    return filtered
+
+
 def build_signals_payload(
     snapshot: MarketSnapshot,
     candidates_by_strategy: dict[str, list],
@@ -132,6 +165,8 @@ def build_signals_payload(
     weight_config: "WeightConfig | None" = None,
     target_date: str | None = None,
 ) -> SignalsPayload:
+    filtered_candidates_by_strategy = _dedup_raw_candidates(candidates_by_strategy)
+
     # market_indices (display-ready)
     mi_display: dict[str, MarketIndexDisplay] = {}
     label_map = {
@@ -167,7 +202,7 @@ def build_signals_payload(
 
     # 전체 candidates 수집 → score 내림차순 정렬
     all_candidates: list[tuple[str, object]] = []
-    for strategy_id, candidates in candidates_by_strategy.items():
+    for strategy_id, candidates in filtered_candidates_by_strategy.items():
         for c in candidates:
             all_candidates.append((strategy_id, c))
     all_candidates.sort(key=lambda x: x[1].score, reverse=True)
@@ -183,7 +218,7 @@ def build_signals_payload(
             from core.decision.regret_scorer import compute_regret_scores
 
             weighted_scores = compute_weighted_ensemble_score(
-                candidates_by_strategy, weight_config.strategy_weights
+                filtered_candidates_by_strategy, weight_config.strategy_weights
             )
             # ticker별 best-score 후보로 deduplicate
             best_per_ticker: dict[str, object] = {}
