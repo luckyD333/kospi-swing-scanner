@@ -80,7 +80,8 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
 
     target_dt = datetime.strptime(target_date, "%Y%m%d")
     day_start = (target_dt - timedelta(days=cfg.lookback_days + 30)).strftime("%Y%m%d")
-    min_start = (target_dt - timedelta(days=7)).strftime("%Y%m%d")
+    # 분봉(1m) lookback. HMM 학습용 1h regime, 30m/1h RSI(14) 안정성을 위해 30일치.
+    min_start = (target_dt - timedelta(days=30)).strftime("%Y%m%d")
 
     start_ts = time.monotonic()
     logger.info(f"수집 시작: {cfg.market} @ {target_date}")
@@ -144,11 +145,14 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     cache = OhlcvCache(client, disk=disk)
     timestamps = _load_timestamps(cfg.cache_root)
 
+    # 오늘이면 미완료 봉이 갱신되어야 하므로 cooldown 무시 (사용자 의도: 매 주기 갱신)
+    target_is_today = (target_date == datetime.now().strftime("%Y%m%d"))
+
     for tf in cfg.base_tfs:
         start = min_start if tf == "1m" else day_start
         to_collect = combined_tickers
 
-        if cfg.smart_skip:
+        if cfg.smart_skip and not target_is_today:
             last = timestamps.get(tf)
             min_interval = _TF_MIN_INTERVAL.get(tf, timedelta(0))
             if last and (datetime.now() - last) < min_interval:
@@ -192,6 +196,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
 
     # 펀더멘털 (PER/ROE/외인비율/naver_url) 1회 수집 — UI 인덱스용
     fundamentals = _collect_fundamentals(client, cfg.market, target_date, combined_tickers)
+    fundamentals_collected_at = datetime.now().isoformat()
 
     # manifest 저장
     tickers_meta = _build_tickers_metadata(
@@ -210,6 +215,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         "etf_tickers": etf_tickers,
         "base_tfs": cfg.base_tfs,
         "tickers_meta": tickers_meta,
+        "fundamentals_collected_at": fundamentals_collected_at,
         "summary": {
             "total_tickers": len(tickers_meta),
             "duration_sec": duration_sec,
@@ -224,6 +230,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     try:
         from core.decision.market_regime import save_regime_analysis
         save_regime_analysis(Path(cfg.cache_root))
+        _patch_manifest(manifest_path, {"regime_collected_at": datetime.now().isoformat()})
     except Exception as e:
         logger.warning(f"시장 국면 계산 실패 (skip): {e}")
 
@@ -233,11 +240,45 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     try:
         ohlcv_latest = _extract_ohlcv_latest(str(cfg.cache_root), tickers_meta)
         market_indices = _fetch_market_indices(target_date)
+        market_indices_collected_at = datetime.now().isoformat()
+
+        # regime_analysis.json 이 있으면 snapshot 에도 함께 박아 signal-api join 으로 latest 응답
+        regime_payload: dict | None = None
+        regime_path = Path(cfg.cache_root) / "regime_analysis.json"
+        if regime_path.exists():
+            try:
+                regime_data = json.loads(regime_path.read_text())
+                regime_payload = regime_data.get("timeframe_scores")
+            except Exception as e:
+                logger.debug(f"regime_analysis.json 로드 실패 (skip): {e}")
+
+        # breadth/axes 계산 (1D 기준)
+        breadth_payload: dict | None = None
+        axes_payload: dict | None = None
+        try:
+            from core.decision.market_breadth import compute_market_breadth
+            from core.decision.market_axes import compute_trend_score, compute_volatility_regime
+            from core.decision.market_regime import build_market_proxy
+
+            breadth_1d = compute_market_breadth(cfg.cache_root, tf="1D")
+            if breadth_1d:
+                breadth_payload = {"1d": breadth_1d}
+
+            proxy_1d = build_market_proxy(cfg.cache_root)
+            if not proxy_1d.empty:
+                trend_1d = compute_trend_score(proxy_1d["mean_return"])
+                vol_1d = compute_volatility_regime(proxy_1d["rolling_std"])
+                axes_payload = {"1d": {"trend_score": trend_1d, "volatility_regime": vol_1d}}
+        except Exception as e:
+            logger.warning(f"breadth/axes 계산 실패 (skip): {e}")
 
         snapshot = build_market_snapshot(
             universe={"tickers": tickers_meta},
             ohlcv_latest=ohlcv_latest,
             market_indices=market_indices,
+            market_regime=regime_payload,
+            market_breadth=breadth_payload,
+            market_axes=axes_payload,
         )
 
         data_dir = pathlib.Path("data")
@@ -245,6 +286,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         snapshot_path = data_dir / "market_snapshot.json"
         snapshot_path.write_text(snapshot.model_dump_json(indent=2), encoding="utf-8")
         logger.info(f"[collect] market_snapshot.json 저장 → {snapshot_path}")
+        _patch_manifest(manifest_path, {"market_indices_collected_at": market_indices_collected_at})
     except Exception as e:
         logger.warning(f"market_snapshot.json 저장 실패 (skip): {e}")
 
@@ -411,10 +453,26 @@ def _build_tickers_metadata(
 
 
 def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict]:
-    """parquet에서 각 ticker 최근 252행 OHLCV 추출."""
+    """parquet에서 각 ticker 최근 252행 OHLCV + 1m 마지막 분봉 + timeframe 별 RSI(14) 추출."""
     import pandas as pd
+    from core.indicators import calc_rsi
+    from core.cache.resampler import resample_to
+
     result = {}
     cache = pathlib.Path(cache_root) / "1D"
+    minute_cache = pathlib.Path(cache_root) / "1m"
+
+    def _rsi_last(close_series: pd.Series) -> float | None:
+        if close_series is None or len(close_series) < 15:
+            return None
+        try:
+            val = float(calc_rsi(close_series, period=14).iloc[-1])
+            if val != val:  # NaN
+                return None
+            return round(val, 1)
+        except Exception:
+            return None
+
     for ticker in tickers_meta:
         pq = cache / f"{ticker}.parquet"
         if not pq.exists():
@@ -424,13 +482,44 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
             continue
         df = df.tail(252)  # 52주 = 약 252 거래일
         change_pct = df["close"].pct_change().fillna(0).mul(100).tolist()
-        result[ticker] = {
+        entry = {
             "close":      df["close"].tolist(),
             "high":       df["high"].tolist(),
             "low":        df["low"].tolist(),
             "volume":     df["volume"].tolist(),
             "change_pct": change_pct,
         }
+
+        # 1D RSI — strategy 후보 여부와 무관하게 ticker 의 indicator
+        rsi_by_tf: dict[str, float | None] = {"1D": _rsi_last(df["close"])}
+
+        # 1m raw → 30m/1h 리샘플 + 마지막 분봉 close
+        mpq = minute_cache / f"{ticker}.parquet"
+        if mpq.exists():
+            try:
+                mdf_full = pd.read_parquet(mpq)
+                if not mdf_full.empty:
+                    last_idx = mdf_full.index.max()
+                    today = pd.Timestamp.now().date()
+                    if hasattr(last_idx, "hour") and (last_idx.hour or last_idx.minute):
+                        if last_idx.date() == today:
+                            entry["minute_close"] = float(mdf_full.loc[last_idx, "close"])
+                            entry["minute_close_at"] = last_idx.isoformat()
+                        for tf in ("30m", "1h"):
+                            try:
+                                resampled = resample_to(mdf_full, tf)
+                                rsi_by_tf[tf] = _rsi_last(resampled["close"]) if not resampled.empty else None
+                            except Exception:
+                                rsi_by_tf[tf] = None
+            except Exception as e:
+                logger.debug(f"  {ticker}/1m 분봉 처리 실패: {e}")
+
+        # 분봉 raw 가 없거나 리샘플 실패 시 1h/30m 키는 None 으로 명시
+        rsi_by_tf.setdefault("1h", None)
+        rsi_by_tf.setdefault("30m", None)
+        entry["rsi_by_tf"] = rsi_by_tf
+
+        result[ticker] = entry
     return result
 
 

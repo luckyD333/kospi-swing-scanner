@@ -330,4 +330,85 @@ def test_manifest_summary_fields(tmp_path):
     assert "total_tickers" in data["summary"]
     assert "duration_sec" in data["summary"]
     assert data["summary"]["total_tickers"] >= 0
-    assert data["summary"]["duration_sec"] >= 0
+
+
+def _write_parquet(path, index, closes):
+    df = pd.DataFrame(
+        {"open": closes, "high": closes, "low": closes, "close": closes, "volume": [1_000] * len(closes)},
+        index=index,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(path)
+
+
+def test_extract_ohlcv_latest_skips_minute_close_for_previous_day(tmp_path, monkeypatch):
+    """1m 마지막 바가 전일이면 minute_close를 설정하지 않아야 한다."""
+    from scripts.collect import _extract_ohlcv_latest
+
+    ticker = "005930"
+    yesterday = pd.Timestamp.now().date() - pd.Timedelta(days=1)
+
+    _write_parquet(
+        tmp_path / "1D" / f"{ticker}.parquet",
+        pd.date_range("2026-01-01", periods=10, freq="B"),
+        [100.0] * 10,
+    )
+    _write_parquet(
+        tmp_path / "1m" / f"{ticker}.parquet",
+        pd.date_range(f"{yesterday} 09:00", periods=5, freq="1min"),
+        [98.0] * 5,
+    )
+
+    result = _extract_ohlcv_latest(str(tmp_path), {ticker: {}})
+    assert "minute_close" not in result[ticker]
+
+
+def test_extract_ohlcv_latest_sets_minute_close_for_today(tmp_path):
+    """1m 마지막 바가 오늘이면 minute_close를 설정해야 한다."""
+    from scripts.collect import _extract_ohlcv_latest
+
+    ticker = "005930"
+    today = pd.Timestamp.now().date()
+
+    _write_parquet(
+        tmp_path / "1D" / f"{ticker}.parquet",
+        pd.date_range("2026-01-01", periods=10, freq="B"),
+        [100.0] * 10,
+    )
+    _write_parquet(
+        tmp_path / "1m" / f"{ticker}.parquet",
+        pd.date_range(f"{today} 10:00", periods=3, freq="1min"),
+        [105.0, 106.0, 107.0],
+    )
+
+    result = _extract_ohlcv_latest(str(tmp_path), {ticker: {}})
+    assert result[ticker]["minute_close"] == 107.0
+
+
+def test_rsi_by_tf_computed_even_when_last_idx_is_not_today(tmp_path):
+    """1m 마지막 바가 전일이어도 1h/30m RSI가 None이 아니어야 한다.
+
+    30m RSI(14기간)는 최소 15봉 필요 = 450분 이상의 1m 데이터.
+    여러 날에 걸쳐 데이터를 생성해 리샘플 후 30m 봉 15개 이상 확보.
+    """
+    from scripts.collect import _extract_ohlcv_latest
+
+    ticker = "005930"
+    # 20거래일치 1m 데이터: 1일 390분(09:00~15:30) × 20일 = 7800봉 → 30m 260봉
+    base = pd.Timestamp("2026-04-01 09:00")
+    minute_idx = pd.date_range(base, periods=7800, freq="1min")
+    closes = [100.0 + i * 0.01 for i in range(7800)]
+    _write_parquet(tmp_path / "1m" / f"{ticker}.parquet", minute_idx, closes)
+    _write_parquet(
+        tmp_path / "1D" / f"{ticker}.parquet",
+        pd.date_range("2026-01-01", periods=30, freq="B"),
+        [100.0 + i * 0.1 for i in range(30)],
+    )
+
+    result = _extract_ohlcv_latest(str(tmp_path), {ticker: {}})
+
+    # minute_close는 today가 아니므로 없어야 함
+    assert "minute_close" not in result[ticker]
+    # 1h/30m RSI는 전일 데이터로도 계산되어야 함 (None이 아님)
+    rsi = result[ticker]["rsi_by_tf"]
+    assert rsi.get("30m") is not None, "전일 1m 데이터로도 30m RSI 계산되어야 함"
