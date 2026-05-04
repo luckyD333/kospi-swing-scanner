@@ -1,0 +1,16 @@
+# KOSPI Swing Scanner 자동화 스케줄
+# VM에서 적용: crontab -e 로 아래 내용 붙여넣기
+# 주의: VM 시간대가 KST(Asia/Seoul)인지 확인 → timedatectl set-timezone Asia/Seoul
+
+APP_DIR=/opt/kospi-scanner
+VENV_PYTHON=/opt/kospi-scanner/.venv/bin/python
+LOG_DIR=/opt/kospi-scanner/log
+
+# Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
+10 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache >> $LOG_DIR/collect.log 2>&1
+
+# Job B (일봉 신호): 수집 30분 후 (평일 16:40 KST)
+40 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1
+
+# Job B (장중 신호): 장 중 30분 간격 (평일 09:00~15:30 KST)
+*/30 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1

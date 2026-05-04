@@ -1,0 +1,17 @@
+[Unit]
+Description=KOSPI Signal Web (Next.js)
+After=network.target signal-api.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/kospi-scanner/signal-web
+Environment="PORT=3000"
+Environment="NODE_ENV=production"
+Environment="HOSTNAME=127.0.0.1"
+ExecStart=/usr/bin/node /opt/kospi-scanner/signal-web/.next/standalone/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
