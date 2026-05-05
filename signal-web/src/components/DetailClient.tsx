@@ -474,7 +474,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             {/* 컬럼 헤더 */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '160px 56px 1fr 56px',
+              gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
               alignItems: 'center',
               gap: '16px',
               padding: '12px 0',
@@ -493,7 +493,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
                 return (
                   <div key={f.key} style={{
                     display: 'grid',
-                    gridTemplateColumns: '160px 56px 1fr 56px',
+                    gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
                     alignItems: 'center',
                     gap: '16px',
                     padding: '14px 0',
@@ -601,7 +601,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
               {rows.map((r) => (
                 <div key={r.label} style={{
                   display: 'grid',
-                  gridTemplateColumns: '160px 1fr 140px',
+                  gridTemplateColumns: 'minmax(80px, 160px) 1fr minmax(80px, 140px)',
                   alignItems: 'center',
                   gap: '16px',
                   padding: '14px 0',
