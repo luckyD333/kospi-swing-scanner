@@ -8,6 +8,8 @@ import TopNav from './TopNav';
 import FilterBar from './FilterBar';
 import TickerCard from './TickerCard';
 import Footer from './Footer';
+import IdentityLine from './IdentityLine';
+import AboutOverlay from './AboutOverlay';
 
 interface Props {
   cards: CardProps[];
@@ -30,6 +32,8 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
   const [timeframe, setTimeframe] = useState('ALL');
   const [sortBy, setSortBy] = useState('rank');
   const [coinFraction, setCoinFraction] = useState(0.4);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const onCloseAbout = useCallback(() => setAboutOpen(false), []);
 
   useEffect(() => {
     const id = setInterval(() => router.refresh(), 120_000);
@@ -175,8 +179,10 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         })()}
       </div>
 
+      <IdentityLine onOpenAbout={() => setAboutOpen(true)} />
       <div style={{ height: '30px' }} />
       <Footer />
+      <AboutOverlay open={aboutOpen} onClose={onCloseAbout} />
     </div>
   );
 }

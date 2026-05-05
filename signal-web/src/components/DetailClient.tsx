@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CardProps } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
@@ -8,6 +8,8 @@ import { ts } from '@/lib/typography';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
 import Footer from './Footer';
+import IdentityLine from './IdentityLine';
+import AboutOverlay from './AboutOverlay';
 
 interface Props {
   card: CardProps;
@@ -142,6 +144,8 @@ function getScoreCaption(strategyId: string): string {
 
 export default function DetailClient({ card, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
   const router = useRouter();
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const onCloseAbout = useCallback(() => setAboutOpen(false), []);
 
   useEffect(() => {
     const id = setInterval(() => router.refresh(), 120_000);
@@ -161,7 +165,21 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
     naverUrl, generatedAtDisplay, signalDate,
     decisionScore, decisionFactors, decisionMaxRegret,
     rank,
+    limitEntryActive, eodEntry, signalStatus,
   } = card;
+
+  const statusBadge = (() => {
+    switch (signalStatus) {
+      case 'TARGET_REACHED':
+        return { label: '목표 도달', color: '#30d158', bg: 'rgba(48,209,88,0.12)' };
+      case 'STOPPED_OUT':
+        return { label: '손절선 이탈', color: '#ff6b81', bg: 'rgba(255,107,129,0.12)' };
+      case 'STALE':
+        return { label: '만료', color: 'var(--muted)', bg: 'rgba(128,128,128,0.12)' };
+      default:
+        return null;
+    }
+  })();
 
   const pct52w =
     currentPrice != null && high52w != null && low52w != null && high52w > low52w
@@ -202,9 +220,26 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         margin: '0 auto',
         borderBottom: '1px solid var(--hairline)',
       }}>
-        <div style={{ ...LABEL, marginBottom: '32px' }}>
-          {rank != null ? `#${rank} · ` : ''}{strategyLabel} · {strategyCategory} · {timeframe} · {generatedAtDisplay}
-          {signalDate ? ` · 신호 시각 ${signalDate}` : ''}
+        <div style={{ ...LABEL, marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <span>
+            {rank != null ? `#${rank} · ` : ''}{strategyLabel} · {strategyCategory} · {timeframe} · {generatedAtDisplay}
+            {signalDate ? ` · 신호 시각 ${signalDate}` : ''}
+          </span>
+          {statusBadge && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '2px 10px',
+              borderRadius: '4px',
+              background: statusBadge.bg,
+              color: statusBadge.color,
+              fontSize: '12px',
+              fontWeight: 600,
+              letterSpacing: '0',
+            }}>
+              {statusBadge.label}
+            </span>
+          )}
         </div>
 
         {/* 종목명 + 코드 — 동적 clamp size */}
@@ -259,7 +294,14 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         {/* 진입 / 손절 / 목표1 / 목표2 */}
         <div className="params-grid" style={{ borderBottom: '1px solid var(--hairline)' }}>
           {[
-            { label: '진입가', val: entry,   sub: '지정가', color: 'var(--link)' },
+            {
+              label: '진입가',
+              val: entry,
+              sub: limitEntryActive
+                ? `30m 지정가${eodEntry != null ? ` · EOD ${eodEntry.toLocaleString('ko-KR')} 참고` : ''}`
+                : '지정가',
+              color: 'var(--link)',
+            },
             { label: '손절가', val: stop,    sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '', color: C_RISK },
             { label: '목표 1', val: target1, sub: target1 != null && reward1Pct != null ? `+${reward1Pct.toFixed(1)}%` : '', color: C_OPP },
             { label: '목표 2', val: target2, sub: target2 != null && reward2Pct != null ? `+${reward2Pct.toFixed(1)}%` : '', color: C_OPP },
@@ -622,8 +664,10 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         );
       })()}
 
+      <IdentityLine onOpenAbout={() => setAboutOpen(true)} />
       <div style={{ height: '30px' }} />
       <Footer />
+      <AboutOverlay open={aboutOpen} onClose={onCloseAbout} />
     </div>
   );
 }
