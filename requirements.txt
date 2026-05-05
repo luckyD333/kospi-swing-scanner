@@ -15,6 +15,7 @@ hmmlearn>=0.3.0  # 시장 국면 HMM 분석
 pydantic>=2.0
 
 yfinance>=0.2.40
+exchange-calendars>=4.0.0  # XKRX 거래일 캘린더 (core/dates.py trading_days_since)
 
 # Testing
 pytest>=7.4.0
