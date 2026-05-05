@@ -274,21 +274,34 @@ curl http://YOUR_VM_IP/api/signals | head -c 200
 export APP_DIR="/opt/apps/kospi-scanner"
 cd "$APP_DIR"
 git pull
+```
 
-# Python 의존성 변경 시
-.venv/bin/pip install -r requirements.txt
-.venv/bin/pip install -r signal-api/requirements.txt
+이후 변경 종류에 따라 `scripts/restart.sh`로 간편하게 처리해요:
 
-# Next.js 코드/환경변수 변경 시 재빌드
-cd signal-web
-NEXT_PUBLIC_API_URL=http://YOUR_VM_IP/api npm ci
-npm run build
+```bash
+# signal-api만 재시작 (Python 코드 변경)
+bash scripts/restart.sh api
+
+# signal-web 프로세스만 재시작 (소스 변경 없음)
+bash scripts/restart.sh web
+
+# signal-web 재빌드 + 재시작 (Next.js 소스/패키지 변경)
+bash scripts/restart.sh web-build
+
+# api + web 둘 다 재빌드 + 재시작
+bash scripts/restart.sh
+```
+
+`web-build` 와 `both` 옵션은 빌드 후 standalone 정적 파일 복사까지 자동으로 처리해요:
+```bash
 cp -r .next/static .next/standalone/.next/static
 cp -r public .next/standalone/public
-cd ..
+```
 
-# 코드 반영
-sudo systemctl restart signal-api signal-web
+**Python 의존성이 변경된 경우** 스크립트 실행 전에 수동으로 재설치하세요:
+```bash
+.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r signal-api/requirements.txt
 ```
 
 ### 변경 종류별 반영 방법
@@ -325,6 +338,7 @@ tail -f /opt/apps/kospi-scanner/log/live.log        # Job C 실시간 현재가
 |------|------|------|
 | `502 Bad Gateway` | signal-api 또는 signal-web 미실행 | `systemctl restart signal-api signal-web` |
 | `curl /api/signals` → `503 signals_not_generated` | `data/signals.json` 미생성 | `cd /opt/apps/kospi-scanner && .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui` 수동 실행 |
+| `/_next/static/` JS 청크 400 Bad Request | standalone 빌드 후 정적 파일 미복사 — `.next/standalone/.next/static/` 가 비어 있음 | `bash scripts/restart.sh web-build` 실행 (빌드 + 복사 자동 처리) |
 | Next.js 빌드 실패 (메모리 부족) | Droplet RAM 부족 | swap 추가: `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` |
 | cron 미실행 | 시간대 불일치 | `timedatectl set-timezone Asia/Seoul` 후 재설정 |
 | `permission denied` on log/ | 실행 계정이 프로젝트 디렉토리 읽기/쓰기 불가 | `chmod -R o+rX /opt/apps/kospi-scanner` 후 `log/`, `data/`, `.cache/` 권한 재확인 |
