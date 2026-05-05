@@ -145,6 +145,24 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             f" = {len(combined_tickers)}개"
         )
 
+    # signals.json 시그널 종목을 combined_tickers에 강제 포함
+    # (유니버스 상위 N개 밖으로 밀린 종목도 펀더멘털/snapshot에 포함되도록)
+    signals_path = pathlib.Path(cfg.cache_root).parent / "data" / "signals.json"
+    if signals_path.exists():
+        try:
+            signals_data = json.loads(signals_path.read_text(encoding="utf-8"))
+            signal_tickers = [
+                s["ticker"]
+                for s in (signals_data.get("signals") if isinstance(signals_data, dict) else signals_data)
+                if isinstance(s, dict) and s.get("ticker")
+            ]
+            extra = [t for t in signal_tickers if t not in set(combined_tickers)]
+            if extra:
+                combined_tickers = list(dict.fromkeys(combined_tickers + extra))
+                logger.info(f"시그널 종목 {len(extra)}개 추가 (유니버스 외 종목 포함)")
+        except Exception as e:
+            logger.warning(f"signals.json 시그널 종목 추가 실패 (skip): {e}")
+
     disk = OhlcvDiskCache(cfg.cache_root)
     cache = OhlcvCache(client, disk=disk)
     timestamps = _load_timestamps(cfg.cache_root)

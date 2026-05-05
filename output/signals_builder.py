@@ -167,6 +167,15 @@ def build_signals_payload(
 ) -> SignalsPayload:
     filtered_candidates_by_strategy = _dedup_raw_candidates(candidates_by_strategy)
 
+    # 전략당 상위 20개 제한 (score 내림차순)
+    MAX_PER_STRATEGY = 20
+    for sid in list(filtered_candidates_by_strategy.keys()):
+        cands = filtered_candidates_by_strategy[sid]
+        if len(cands) > MAX_PER_STRATEGY:
+            filtered_candidates_by_strategy[sid] = sorted(
+                cands, key=lambda c: c.score, reverse=True
+            )[:MAX_PER_STRATEGY]
+
     # market_indices (display-ready)
     mi_display: dict[str, MarketIndexDisplay] = {}
     label_map = {
