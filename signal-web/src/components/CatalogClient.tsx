@@ -134,6 +134,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
             </div>
           ));
 
+          if (filtered.length < 13) return cardCells;
           return [
             ...cardCells.slice(0, coinIndex),
             coinCell,
