@@ -9,10 +9,19 @@ override 안 함 (사용자 의도: 현재가·trade_plan 일관성).
 """
 from __future__ import annotations
 
+import os
+import sys
 from copy import deepcopy
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
+
+# signal-api/app/services/join.py → 레포 루트는 3단계 위
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+
+from core.dates import is_same_trading_day, trading_days_since
 
 
 # UI catalog 카드용 timeframe 라벨 (signal-web/src/types/signal.ts 와 매칭)
@@ -38,8 +47,6 @@ def compute_signal_status(
 
     stop 인자: 호출자가 limit_stop 우선, 없으면 stop 으로 결정해서 전달.
     """
-    from core.dates import is_same_trading_day, trading_days_since
-
     now = now or datetime.now(tz=_KST)
     today = now.date()
 
