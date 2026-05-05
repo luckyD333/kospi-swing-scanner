@@ -42,6 +42,11 @@ export interface TradePlan {
   rsi_1h?: number | null;
   rsi_30m?: number | null;
   derived: TradePlanDerived | null;
+  // 30m 지지선 기반 권장 지정가 진입
+  limit_entry?: number | null;
+  limit_stop?: number | null;
+  rr_ratio_limit?: number | null;
+  rr_band_limit?: string | null;
 }
 
 export interface DecisionFactor {
@@ -83,6 +88,8 @@ export interface ExternalLinks {
   naver_finance: string | null;
 }
 
+export type SignalStatus = 'VALID' | 'TARGET_REACHED' | 'STOPPED_OUT' | 'STALE';
+
 export interface Signal {
   ticker: string;
   name: string | null;
@@ -95,6 +102,7 @@ export interface Signal {
   flow: Flow | null;
   external_links: ExternalLinks | null;
   signal_date?: string | null;
+  signal_status?: SignalStatus;
 }
 
 export interface MarketIndex {

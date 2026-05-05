@@ -7,211 +7,85 @@ KOSPI 스윙 스캐너의 수집(collect) 및 전략 스캔(strategy scan)을 cr
 ### 왜 수집과 스캔을 분리하나
 
 - **수집(collect)**: 네이버 금융에서 OHLCV 데이터를 가져와 `.cache/{tf}/{ticker}.parquet`에 저장
-  - 네트워크 의존. 장 마감(15:30 KST) 이후 실행 권장
-  - 여러 타임프레임(1D, 1W, 1h, 30m) 동시 수집 가능
+  - 네트워크 의존. 장 마감(15:30 KST) 이후 또는 장중 주기 실행
   - 증분 수집이므로 smart-skip(기본 활성화)으로 재수집 주기 회피
   
 - **스캔(scan)**: 수집된 cache를 읽어 지표 계산 및 시그널 감지
   - 오프라인(cache 기반) 실행 가능. 매우 빠름 (수초 내)
-  - 여러 전략을 병렬 실행 가능
-  - manifest.json 갱신이 필요하므로 시간 분리로 동시 쓰기 회피
+  - `data/signals.json` + `data/market_snapshot.json` 갱신
 
 ### 의존성 흐름
 
 ```
-수집(23:00) → cache 채우기
-       ↓
-스캔(23:30, 23:35, 23:40, ...) → cache 읽고 결과 저장
+[장중]
+  Job C (*/2 9-14): collect_live.py → market_snapshot.json 현재가만 패치 (경량)
+  Job D (1,31 9-15): collect.py (1m 포함) → cli.py → signals.json + market_snapshot.json 전체 재빌드
+
+[장 마감 후]
+  Job A (16:10): collect.py (1D 1W 1h 30m) → cache 채우기
+  Job B (16:40): cli.py --strategy all → signals.json + market_snapshot.json 재빌드
 ```
 
 수집이 먼저 완료되어야 스캔이 최신 데이터를 사용합니다.
 
 ---
 
-## 2. 수집 Job 예시
-
-### 기본 설정
-
-KOSPI/KOSDAQ를 평일 23:00에 수집합니다. 로그는 `logs/collect.log`에 append됩니다.
-
-```bash
-#!/bin/bash
-
-# 프로젝트 루트로 이동 (cron은 홈 디렉토리에서 실행)
-cd /path/to/kospi-swing-scanner
-
-# 환경 변수 설정 (한글 출력, 타임존)
-export LANG=ko_KR.UTF-8
-export LC_ALL=ko_KR.UTF-8
-export TZ=Asia/Seoul
-export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-
-# 로그 디렉토리 생성
-mkdir -p logs
-
-# KOSPI/KOSDAQ 수집 (smart-skip 기본 활성화 — TF별 최소 주기 미달 시 기존 종목 건너뜀)
-.venv/bin/python scripts/collect.py \
-  --market KOSPI \
-  --market KOSDAQ \
-  --cache-root .cache \
-  --timeframes 1D 1W 1h 30m \
-  --lookback-days 90 \
-  --max-universe 500 \
-  >> logs/collect.log 2>&1
-```
-
-### Crontab Entry
+## 2. 운영 Crontab (전체)
 
 ```crontab
-# 환경 변수 (crontab 맨 위에 한 번만)
 SHELL=/bin/bash
 LANG=ko_KR.UTF-8
 LC_ALL=ko_KR.UTF-8
 TZ=Asia/Seoul
 PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
-# 수집 job — 평일 23:00 (KOSPI 장 마감 후 ~7.5시간)
-0 23 * * 1-5 /path/to/kospi-swing-scanner/scripts/collect_job.sh >> /path/to/kospi-swing-scanner/logs/cron.log 2>&1
+# Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
+10 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1W 1h 30m >> /opt/apps/logs/kospi-scanner/collect.log 2>&1
+
+# Job B: 일봉 신호 스캔 (평일 16:40 KST)
+40 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals.log 2>&1
+
+# Job C: 장중 현재가 경량 갱신 (2분 주기, 09:00-14:58 KST)
+*/2 9-14 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect_live.py >> /opt/apps/logs/kospi-scanner/live.log 2>&1
+
+# Job D: 장중 30분 주기 수집 + 신호 재스캔 (09:01-15:31 KST)
+1,31 9-15 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m 1m >> /opt/apps/logs/kospi-scanner/collect_intraday.log 2>&1 && .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals_intraday.log 2>&1
 ```
 
-**주의:**
-- `1-5` = 월~금 (0=일, 6=토)
-- `/path/to/kospi-swing-scanner` 는 절대 경로로 수정
-- `>> logs/cron.log 2>&1` 로 stdout/stderr 모두 기록
+### Job 실행 시간표
 
-### 옵션 설명
+| Job | 스케줄 | 역할 |
+|-----|--------|------|
+| A | 평일 16:10 | 장 마감 후 전체 OHLCV 수집 (1D 1W 1h 30m) |
+| B | 평일 16:40 | 일봉 기준 전략 전체 스캔 → signals.json |
+| C | 평일 09:00-14:58, 2분 주기 | 시그널 종목 현재가만 경량 패치 |
+| D | 평일 09:01-15:31, 30분 주기 | 1m 분봉 포함 전체 수집 + 전략 재스캔 |
 
-| 옵션 | 값 | 설명 |
-|------|-----|------|
-| `--market` | `KOSPI \| KOSDAQ` | 시장 선택 (여러 개 지정 가능) |
-| `--cache-root` | `.cache` | 캐시 저장 경로 |
-| `--timeframes` | `1D 1W 1h 30m` | 수집할 타임프레임 |
-| `--lookback-days` | `90` | 과거 몇 일까지 수집할지 (기본: 90) |
-| `--no-smart-skip` | flag | smart-skip 비활성화 (기본: 활성화 — TF별 최소 주기 미달 시 기존 종목 skip) |
-| `--max-universe` | `500` | 시총 상위 N개만 수집 (빠른 수집용) |
-
-**smart-skip (기본 활성화) 동작:**
-- 1D는 마지막 수집 이후 20시간 이상, 1h는 1시간 이상 경과 후 재수집
-- 10~30분 주기로 수집 job을 돌려야 할 때 유용 (중복 네트워크 호출 회피)
-- 비활성화하려면 `--no-smart-skip` 플래그 사용
+**Job C vs D 역할 분리:**
+- Job C: `collect_live.py` — 네트워크 호출 최소화. 시그널 종목의 현재가·등락률만 갱신
+- Job D: `collect.py` + `cli.py` — 1m 분봉 수집으로 `minute_close` 설정 → `current_price ≠ entry_price` 보장. 30분 주기로 전략 시그널 전체 재계산
 
 ---
 
-## 3. 전략별 스캔 Job 예시
+## 3. 옵션 설명
 
-### 각 전략을 독립 Job으로 실행
+### collect.py
 
-수집 완료 후 여러 전략을 병렬 실행합니다. **manifest.json 동시 쓰기 회피를 위해 각 전략 job을 5분 이상 띄웁니다.**
-
-#### Job 1: Strategy One D v2 (Mean Reversion, 일봉)
-
-```bash
-#!/bin/bash
-cd /path/to/kospi-swing-scanner
-export LANG=ko_KR.UTF-8
-export TZ=Asia/Seoul
-mkdir -p logs/scan
-
-.venv/bin/python cli.py \
-  --strategy strategy_one_d_v2 \
-  --market KOSPI \
-  --cache-root .cache \
-  --output-dir scan_results \
-  --format json \
-  --top 20 \
-  >> logs/scan/strategy_one_d_v2.log 2>&1
-```
-
-#### Job 2: Strategy One 1h v2 (Mean Reversion, 1시간봉)
-
-```bash
-#!/bin/bash
-cd /path/to/kospi-swing-scanner
-export LANG=ko_KR.UTF-8
-export TZ=Asia/Seoul
-mkdir -p logs/scan
-
-.venv/bin/python cli.py \
-  --strategy strategy_one_1h_v2 \
-  --market KOSPI \
-  --cache-root .cache \
-  --output-dir scan_results \
-  --format json \
-  --top 20 \
-  >> logs/scan/strategy_one_1h_v2.log 2>&1
-```
-
-#### Job 3: Strategy Two (Cross-sectional Momentum, Jegadeesh-Titman)
-
-```bash
-#!/bin/bash
-cd /path/to/kospi-swing-scanner
-export LANG=ko_KR.UTF-8
-export TZ=Asia/Seoul
-mkdir -p logs/scan
-
-.venv/bin/python cli.py \
-  --strategy strategy_two_cross_sectional_momentum \
-  --market KOSPI \
-  --cache-root .cache \
-  --output-dir scan_results \
-  --format json \
-  --top 20 \
-  >> logs/scan/strategy_two_cross_sectional_momentum.log 2>&1
-```
-
-#### Job 4: Strategy Three (Trend Following, Donchian 20일)
-
-```bash
-#!/bin/bash
-cd /path/to/kospi-swing-scanner
-export LANG=ko_KR.UTF-8
-export TZ=Asia/Seoul
-mkdir -p logs/scan
-
-.venv/bin/python cli.py \
-  --strategy strategy_three_trend_following \
-  --market KOSPI \
-  --cache-root .cache \
-  --output-dir scan_results \
-  --format json \
-  --top 20 \
-  >> logs/scan/strategy_three_trend_following.log 2>&1
-```
-
-### Crontab Entry (전략 Job 집합)
-
-```crontab
-# 수집 완료 후 5분 간격으로 각 전략 실행
-# (manifest.json 동시 쓰기 회피 + 순차 안정성)
-
-SHELL=/bin/bash
-LANG=ko_KR.UTF-8
-LC_ALL=ko_KR.UTF-8
-TZ=Asia/Seoul
-PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-
-# 수집 job — 평일 23:00
-0 23 * * 1-5 /path/to/kospi-swing-scanner/scripts/collect_job.sh
-
-# 스캔 job — 23:30, 23:35, 23:40, 23:45 (수집 후 30분부터 시작)
-30 23 * * 1-5 /path/to/kospi-swing-scanner/scripts/scan_strategy_one_d_v2.sh
-35 23 * * 1-5 /path/to/kospi-swing-scanner/scripts/scan_strategy_one_1h_v2.sh
-40 23 * * 1-5 /path/to/kospi-swing-scanner/scripts/scan_strategy_two.sh
-45 23 * * 1-5 /path/to/kospi-swing-scanner/scripts/scan_strategy_three.sh
-```
-
-### 스캔 Job 실행 시간표
-
-| 시간 | Job | 설명 |
+| 옵션 | 값 | 설명 |
 |------|-----|------|
-| 23:00 | `collect_job.sh` | 수집 시작 (보통 10~30분 소요) |
-| 23:30 | `scan_strategy_one_d_v2.sh` | Strategy 1 (일봉) |
-| 23:35 | `scan_strategy_one_1h_v2.sh` | Strategy 1 (1시간) |
-| 23:40 | `scan_strategy_two.sh` | Strategy 2 (Momentum) |
-| 23:45 | `scan_strategy_three.sh` | Strategy 3 (Trend Following) |
+| `--market` | `KOSPI` \| `KOSDAQ` | 시장 선택. **단일값만 지원** (argparse `choices` 제한) |
+| `--cache-root` | `.cache` | 캐시 저장 경로 |
+| `--timeframes` | `1D 1W 1h 30m 1m` | 수집할 타임프레임. 장중 수집 시 `1m` 포함 필수 |
+| `--lookback-days` | `90` | 과거 몇 일까지 수집할지 (기본: 90) |
+| `--no-smart-skip` | flag | smart-skip 비활성화 (기본: 활성화) |
+| `--max-universe` | `500` | 시총 상위 N개만 수집 (빠른 수집용) |
 
-**각 스캔은 수초 내 완료되므로 5분 간격이면 충분합니다.**
+**`--market` 주의:** argparse가 단일값만 받으므로 `--market KOSPI --market KOSDAQ`는 마지막 값(KOSDAQ)만 적용됨. 두 시장을 모두 수집하려면 collect.py를 두 번 호출해야 한다.
+
+**smart-skip (기본 활성화) 동작:**
+- 1D는 마지막 수집 이후 20시간 이상, 1h는 1시간 이상 경과 후 재수집
+- 오늘 날짜 데이터는 smart-skip 무시하고 항상 재수집 (미완료 봉 갱신)
+- 비활성화하려면 `--no-smart-skip` 플래그 사용
 
 ---
 
@@ -226,10 +100,9 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 from core.strategy_base import Strategy, Candidate
 
 class StrategyFourXxx(Strategy):
-    name = "strategy_four_xxx"  # CLI에서 노출될 이름
-    
+    name = "strategy_four_xxx"
+
     def scan(self, ohlcv: dict, ...) -> list[Candidate]:
-        # 전략 로직 구현
         pass
 ```
 
@@ -241,52 +114,18 @@ class StrategyFourXxx(Strategy):
 from .strategy_four_xxx import StrategyFourXxx
 
 REGISTRY: dict[str, Callable[[], Strategy]] = {
-    "strategy_one_d_v2": lambda: StrategyOneDv2(timeframe="1D"),
-    "strategy_one_w_v2": lambda: StrategyOneDv2(timeframe="1W"),
-    "strategy_one_1h_v2": lambda: StrategyOneDv2(timeframe="1h"),
-    "strategy_one_30m_v2": lambda: StrategyOneDv2(timeframe="30m"),
-    StrategyTwoCrossSectionalMomentum.name: StrategyTwoCrossSectionalMomentum,
-    StrategyThreeTrendFollowing.name: StrategyThreeTrendFollowing,
+    ...
     "strategy_four_xxx": StrategyFourXxx,  # ← 새로 추가 (한 줄)
 }
 ```
 
 ### Step 3: 단위 테스트 작성
 
-`backtest_engine/tests/` 또는 `tests/`에 테스트 추가. 기존 테스트는 수정하지 않습니다:
-
 ```bash
-pytest backtest_engine/tests/ -v  # 71개+ 통과 확인
+.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q
 ```
 
-### Step 4: Cron Entry 추가
-
-`/path/to/kospi-swing-scanner/scripts/scan_strategy_four_xxx.sh`를 생성:
-
-```bash
-#!/bin/bash
-cd /path/to/kospi-swing-scanner
-export LANG=ko_KR.UTF-8
-export TZ=Asia/Seoul
-mkdir -p logs/scan
-
-.venv/bin/python cli.py \
-  --strategy strategy_four_xxx \
-  --market KOSPI \
-  --cache-root .cache \
-  --output-dir scan_results \
-  --format json \
-  --top 20 \
-  >> logs/scan/strategy_four_xxx.log 2>&1
-```
-
-그리고 crontab에 한 줄 추가 (기존 entry는 수정 금지):
-
-```crontab
-50 23 * * 1-5 /path/to/kospi-swing-scanner/scripts/scan_strategy_four_xxx.sh
-```
-
-**핵심: 기존 전략(1, 2, 3)의 cron entry와 코드는 절대 수정하지 않습니다. 신규 전략만 추가 job으로 등록합니다.**
+`--strategy all` 로 Job B·D가 자동으로 신규 전략을 포함하므로 별도 cron entry 추가는 불필요합니다.
 
 ---
 
@@ -315,40 +154,44 @@ MAILTO=your-email@example.com  # 에러 시 알림 (선택)
 Cron은 home 디렉토리에서 실행되므로 `cd` 필수:
 
 ```bash
-cd /path/to/kospi-swing-scanner  # 절대 경로
+cd /path/to/kospi-swing-scanner
 .venv/bin/python cli.py ...
 ```
 
-상대 경로 `.venv/bin/python`은 작동하지 않습니다.
-
 ### 가상환경 활용
 
-`source .venv/bin/activate` 대신 직접 호출:
+```bash
+# ❌ cron에서 source가 동작하지 않을 수 있음
+source .venv/bin/activate && python cli.py ...
+
+# ✅ 권장
+.venv/bin/python cli.py ...
+```
+
+### 백슬래시(`\`) 줄 연속 이식성
+
+crontab에서 `\` 줄 연속은 cronie(RHEL/CentOS/Fedora)는 지원하지만 Vixie cron(Debian/Ubuntu 전통)은 공식 지원하지 않습니다. 이식성이 필요하면 **한 줄로 작성**하거나 별도 쉘 스크립트로 분리하세요.
 
 ```bash
-# ❌ 작동 안 함 (cron에서 source가 먹지 않을 수 있음)
-source .venv/bin/activate
-python cli.py ...
-
-# ✅ 권장 (명시적)
-.venv/bin/python cli.py ...
+# ✅ 한 줄 — 모든 cron 구현에서 동작
+10 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache >> logs/collect.log 2>&1
 ```
 
 ### 로그 관리
 
-#### 로그 디렉토리 생성
-
 ```bash
-mkdir -p /path/to/kospi-swing-scanner/logs/scan
+# 로그 디렉토리 생성
+mkdir -p /opt/apps/logs/kospi-scanner
+
+# 30일 이상 된 로그 삭제
+find /opt/apps/logs/kospi-scanner -type f -name "*.log" -mtime +30 -delete
 ```
 
-#### Logrotate 설정 (선택)
+Logrotate 설정 (선택):
 
-매월 1일 로그 자동 압축:
-
-```bash
+```
 # /etc/logrotate.d/kospi-swing-scanner
-/path/to/kospi-swing-scanner/logs/*.log {
+/opt/apps/logs/kospi-scanner/*.log {
     monthly
     rotate 12
     compress
@@ -356,30 +199,6 @@ mkdir -p /path/to/kospi-swing-scanner/logs/scan
     notifempty
     create 0640 user group
 }
-```
-
-#### Python 로깅 (대안)
-
-코드에서 `RotatingFileHandler` 사용:
-
-```python
-from logging.handlers import RotatingFileHandler
-handler = RotatingFileHandler("logs/scan.log", maxBytes=10*1024*1024, backupCount=5)
-```
-
-### Manifest.json 동시 쓰기 회피
-
-여러 전략이 동시에 `scan_results/manifest.json`을 쓰면 충돌합니다.
-
-**해결책:**
-1. **시간 분리 권장** (위 예시처럼 5분 간격)
-2. 또는 각 전략마다 별도 `--output-dir` 지정:
-
-```bash
-.venv/bin/python cli.py \
-  --strategy strategy_one_d_v2 \
-  --output-dir scan_results_strategy_1_d \
-  ...
 ```
 
 ---
@@ -392,29 +211,48 @@ handler = RotatingFileHandler("logs/scan.log", maxBytes=10*1024*1024, backupCoun
 
 **확인:**
 ```bash
-# manifest.json에서 수집 시간 확인
 cat .cache/manifest.json | jq '.collected_at'
-
-# 로그 확인
-tail -50 logs/collect.log
+tail -50 /opt/apps/logs/kospi-scanner/collect.log
 ```
 
 **해결:**
 - 네트워크 확인 (네이버 금융 접근 가능한지)
-- `--lookback-days` 줄여서 빠르게 테스트 (`--lookback-days 7`)
-- `--max-universe` 줄여서 수집 범위 축소 (`--max-universe 100`)
+- `--lookback-days 7` 로 범위 축소 후 테스트
+- `--max-universe 100` 으로 수집 종목 수 축소
+
+### 현재가 = 진입가 (current_price == entry_price)
+
+**원인**: 1m 분봉 미수집 시 `minute_close`가 설정되지 않아 `current_price`가 일봉 종가(= `entry_price`)로 fallback됨.
+
+**해결**: Job D가 정상 실행 중인지 확인. `--timeframes`에 `1m` 포함 여부 확인.
+
+```bash
+ls .cache/1m/ | head -5  # 1m parquet 존재 여부
+tail -20 /opt/apps/logs/kospi-scanner/collect_intraday.log
+```
 
 ### 한글 출력 깨짐
 
 **증상**: 로그에 `\xc3\xa4` 같은 이상한 문자
 
-**해결:**
-```crontab
-LANG=ko_KR.UTF-8
-LC_ALL=ko_KR.UTF-8
+**해결**: crontab 맨 위에 `LANG=ko_KR.UTF-8` / `LC_ALL=ko_KR.UTF-8` 추가.
+
+### Cron Job이 실행되지 않음
+
+```bash
+# crontab 확인
+crontab -l
+
+# cron 데몬 로그 (Linux)
+tail -100 /var/log/syslog | grep CRON
+# 또는
+journalctl -u cron --since "1 hour ago"
 ```
 
-crontab 맨 위에 추가.
+**흔한 원인:**
+- cron daemon 미실행 → `sudo systemctl start cron`
+- 절대 경로 오류 → `which python` 으로 확인
+- 스크립트 권한 부재 → `chmod +x scripts/collect.py`
 
 ### 네트워크 타임아웃
 
@@ -423,39 +261,6 @@ crontab 맨 위에 추가.
 **해결:**
 - `--lookback-days 7` (3개월 → 1주로 축소)
 - `--max-universe 100` (전체 → 상위 100개로 축소)
-- 재시도 간격 조정 (cron 재실행 전 30분 대기)
-
-### Cron Job이 실행되지 않음
-
-**확인:**
-```bash
-# crontab 문법 검증
-crontab -l | grep kospi
-
-# cron 데몬 로그 (macOS)
-log stream --predicate 'process == "cron"' --level debug
-
-# cron 데몬 로그 (Linux)
-tail -100 /var/log/syslog | grep CRON
-```
-
-**흔한 원인:**
-- cron daemon 미실행 → `sudo systemctl start cron` (Linux)
-- 절대 경로 오류 → `which python` 으로 확인
-- 스크립트 권한 부재 → `chmod +x scripts/collect_job.sh`
-
-### 로그 용량 증가
-
-**증상**: 로그 파일이 GB 단위로 증가
-
-**해결:**
-- Logrotate 설정 (위 "로그 관리" 섹션)
-- 또는 주기적 수동 삭제:
-
-```bash
-# 30일 이상 된 로그 삭제
-find /path/to/kospi-swing-scanner/logs -type f -name "*.log" -mtime +30 -delete
-```
 
 ---
 
@@ -468,4 +273,4 @@ find /path/to/kospi-swing-scanner/logs -type f -name "*.log" -mtime +30 -delete
 
 ---
 
-**마지막 업데이트**: 2026-05-02
+**마지막 업데이트**: 2026-05-05

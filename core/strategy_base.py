@@ -64,6 +64,8 @@ class Candidate:
     volume_20d_avg: float = 0.0
     conditions_met: dict[str, bool] = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
+    limit_entry: int | None = None   # 30m 지지선 기반 권장 지정가 (None = 권장 없음)
+    limit_stop: int | None = None    # limit_entry 기준 ATR 재계산 손절
 
     def __post_init__(self):
         if not (0.0 <= self.score <= 1000.0):
@@ -73,6 +75,19 @@ class Candidate:
                 f"price order invalid: sl={self.stop_loss} entry={self.entry_price} "
                 f"t1={self.target_1} t2={self.target_2}"
             )
+        if self.limit_entry is not None:
+            if self.limit_stop is None:
+                raise ValueError("limit_stop required when limit_entry is set")
+            if not (0 < self.limit_stop < self.limit_entry < self.target_1):
+                raise ValueError(
+                    f"limit price order invalid: ls={self.limit_stop} "
+                    f"le={self.limit_entry} t1={self.target_1}"
+                )
+            if self.limit_entry >= self.entry_price:
+                raise ValueError(
+                    f"limit_entry must be below entry_price: "
+                    f"le={self.limit_entry} entry={self.entry_price}"
+                )
 
     @property
     def risk_pct(self) -> float:

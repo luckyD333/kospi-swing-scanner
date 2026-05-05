@@ -31,6 +31,8 @@ import pandas as pd
 from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+
 logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
@@ -124,15 +126,17 @@ class StrategyThreeTrendFollowing:
                 #    0.99 배수: 채널 저점이 정확한 지지선이 아닐 수 있으므로 1% safety
                 #    margin 을 추가해 채널 저점을 살짝 하회. 채널이 깊을 때는 자연스럽게
                 #    -2.5% 손절이 더 빡빡하므로 그쪽이 채택됨.
+                entry = round_to_tick(close_now)
                 sl_channel = channel_low * 0.99
-                sl_pct = close_now * (1 - cfg.stop_loss_pct)
-                stop_loss = max(sl_channel, sl_pct)
-                if stop_loss >= close_now:
+                sl_pct = entry * (1 - cfg.stop_loss_pct)
+                stop_loss_raw = max(sl_channel, sl_pct)
+                if stop_loss_raw >= entry:
                     # 안전: SL 이 close 보다 크면 -2.5% 강제
-                    stop_loss = close_now * (1 - cfg.stop_loss_pct)
+                    stop_loss_raw = entry * (1 - cfg.stop_loss_pct)
+                stop_loss = floor_to_tick(stop_loss_raw)
 
-                t1 = close_now * (1 + cfg.target_1_pct)
-                t2 = close_now * (1 + cfg.target_2_pct)
+                t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
+                t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
 
                 cap_won = ctx.market_caps.get(ticker, 0.0)
                 cap_bil = float(cap_won) / 100_000_000
@@ -140,8 +144,8 @@ class StrategyThreeTrendFollowing:
                     if len(df) >= 20 else float(df["volume"].mean())
 
                 # 신규 metadata 키 계산
-                risk_pct = (close_now - stop_loss) / close_now * 100
-                reward_pct_t2 = (t2 - close_now) / close_now * 100
+                risk_pct = (entry - stop_loss) / entry * 100
+                reward_pct_t2 = (t2 - entry) / entry * 100
                 rr_ratio = 0.0 if risk_pct == 0 else reward_pct_t2 / risk_pct
                 if rr_ratio < 2.0:
                     rr_band = "below"
@@ -155,16 +159,21 @@ class StrategyThreeTrendFollowing:
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
+                df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
+                limit_entry, limit_stop = populate_limit_fields(df_30m, entry, stop_loss)
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
                     strategy=self.name,
                     signal_date=df.index[-1],
                     score=score,
-                    entry_price=close_now,
+                    entry_price=entry,
                     stop_loss=stop_loss,
                     target_1=t1,
                     target_2=t2,
+                    limit_entry=limit_entry,
+                    limit_stop=limit_stop,
                     market_cap_bil=cap_bil,
                     volume_20d_avg=avg_vol_20,
                     conditions_met={

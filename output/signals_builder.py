@@ -295,6 +295,11 @@ def build_signals_payload(
         t2_raw = getattr(c, "target_2", None)
         t2    = int(t2_raw) if t2_raw else None
 
+        limit_entry_raw = getattr(c, "limit_entry", None)
+        limit_stop_raw  = getattr(c, "limit_stop", None)
+        limit_entry = int(limit_entry_raw) if limit_entry_raw else None
+        limit_stop  = int(limit_stop_raw)  if limit_stop_raw  else None
+
         rr_ratio = float(meta.get("rr_ratio", 0.0))
         rr_band_raw = str(meta.get("rr_band", "below")).lower()
         rr_band = _BAND_MAP.get(rr_band_raw, "UNDER")
@@ -365,6 +370,7 @@ def build_signals_payload(
             trade_plan=TradePlan(
                 entry=entry, stop=stop, target_1=t1, target_2=t2,
                 rr_ratio=rr_ratio, rr_band=rr_band, atr_14=atr_14, rsi_14=rsi_14,
+                limit_entry=limit_entry, limit_stop=limit_stop,
             ),
             ranking=Ranking(
                 score=round(r_score, 1),

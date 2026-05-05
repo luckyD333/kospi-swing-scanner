@@ -61,8 +61,8 @@ class TradePlanDerived(BaseModel):
 
 
 class TradePlan(BaseModel):
-    entry: int
-    stop: int
+    entry: int                              # EOD 종가 기반 진입가 (백테스트 참조)
+    stop: int                               # 원래 기술적 손절
     target_1: int
     target_2: Optional[int] = None
     rr_ratio: float
@@ -70,6 +70,12 @@ class TradePlan(BaseModel):
     atr_14: Optional[int] = None
     rsi_14: Optional[float] = None
     derived: Optional[TradePlanDerived] = Field(default=None)
+
+    # 30m 지지선 기반 권장 지정가 진입 (UI 주 표시값)
+    limit_entry: Optional[int] = None
+    limit_stop: Optional[int] = None
+    rr_ratio_limit: Optional[float] = None
+    rr_band_limit: Optional[Literal["SWEET", "UNDER", "OVER"]] = None
 
     @model_validator(mode="after")
     def compute_derived(self) -> TradePlan:
@@ -82,6 +88,17 @@ class TradePlan(BaseModel):
             reward_1_pct=round(reward1 / self.entry * 100, 2),
             reward_2_pct=round(reward2 / self.entry * 100, 2) if reward2 else None,
         )
+        # limit_entry/limit_stop 있으면 R/R 자동 계산
+        if self.limit_entry and self.limit_stop:
+            risk_l = self.limit_entry - self.limit_stop
+            reward_l = self.target_1 - self.limit_entry
+            if risk_l > 0:
+                self.rr_ratio_limit = round(reward_l / risk_l, 2)
+                self.rr_band_limit = (
+                    "UNDER" if self.rr_ratio_limit < 2.0
+                    else "SWEET" if self.rr_ratio_limit < 2.5
+                    else "OVER"
+                )
         return self
 
 
@@ -139,6 +156,9 @@ class StrategyContext(BaseModel):
     description: Optional[str] = None
 
 
+SignalStatus = Literal["VALID", "TARGET_REACHED", "STOPPED_OUT", "STALE"]
+
+
 class Signal(BaseModel):
     ticker: str
     name: str
@@ -151,6 +171,7 @@ class Signal(BaseModel):
     flow: Flow
     external_links: dict[str, str] = {}
     signal_date: Optional[str] = None  # 마지막 bar timestamp (ISO 8601)
+    signal_status: SignalStatus = "VALID"  # API 응답 시점 동적 계산
 
 
 class SignalsPayload(BaseModel):

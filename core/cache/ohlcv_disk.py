@@ -69,7 +69,6 @@ class OhlcvDiskCache:
 
         Returns: (pruned_files, pruned_rows) 통계.
         """
-        import datetime
         cutoff = pd.Timestamp.now(tz=None) - pd.Timedelta(days=max_days)
         pruned_files, pruned_rows = 0, 0
         for pq in self.root.rglob("*.parquet"):

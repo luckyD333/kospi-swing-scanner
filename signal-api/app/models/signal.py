@@ -26,6 +26,11 @@ class TradePlan(BaseModel):
     rr_band: str | None = None
     atr_14: float | None = None
     derived: TradePlanDerived | None = None
+    # 30m 지지선 기반 권장 지정가 진입
+    limit_entry: float | None = None
+    limit_stop: float | None = None
+    rr_ratio_limit: float | None = None
+    rr_band_limit: str | None = None
 
 
 class Ranking(BaseModel):
@@ -72,6 +77,8 @@ class Signal(BaseModel):
     fundamentals: Fundamentals | None = None
     flow: Flow | None = None
     external_links: ExternalLinks | None = None
+    signal_date: str | None = None
+    signal_status: str = "VALID"  # VALID | TARGET_REACHED | STOPPED_OUT | STALE
 
 
 class SignalMarketEntry(BaseModel):

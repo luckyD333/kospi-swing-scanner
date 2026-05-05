@@ -1,4 +1,4 @@
-import type { Signal, DecisionFactor } from '@/types/signal';
+import type { Signal, DecisionFactor, SignalStatus } from '@/types/signal';
 import { formatStrategyLabel } from '@/lib/strategy';
 
 export interface CardProps {
@@ -8,8 +8,8 @@ export interface CardProps {
   priceDisplay: string;
   changeDisplay: string;
   direction: 'up' | 'down' | 'flat';
-  entry: number;
-  stop: number;
+  entry: number;                 // UI 주 진입가 (limit_entry 있으면 limit_entry, 없으면 EOD 종가)
+  stop: number;                  // UI 주 손절가 (limit_stop 또는 원래 stop)
   target1: number | null;
   target2: number | null;
   score: number | null;
@@ -45,6 +45,10 @@ export interface CardProps {
   decisionMaxRegret: number | null;
   rank: number | null;
   allStrategyTags?: Array<{ label: string; timeframe: string }>;
+  // 30m limit_entry 활성 여부와 EOD 참고값
+  limitEntryActive: boolean;     // limit_entry/limit_stop 적용 여부
+  eodEntry: number | null;       // 원래 EOD 종가 진입가 (limit 활성 시 보조 표시)
+  signalStatus: SignalStatus;    // VALID | TARGET_REACHED | STOPPED_OUT | STALE
 }
 
 export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardProps {
@@ -70,6 +74,35 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
       ? 'warn'
       : 'ok';
 
+  // limit_entry 활성 여부에 따라 표시값 분기
+  const limitEntryActive =
+    tp.limit_entry != null && tp.limit_stop != null;
+  const displayEntry = limitEntryActive ? tp.limit_entry! : tp.entry;
+  const displayStop = limitEntryActive ? tp.limit_stop! : tp.stop;
+  const displayRrRatio = limitEntryActive
+    ? (tp.rr_ratio_limit ?? null)
+    : (tp.rr_ratio ?? null);
+  const displayRrBand = limitEntryActive
+    ? (tp.rr_band_limit ?? null)
+    : (tp.rr_band ?? null);
+
+  // limit 활성 시 risk/reward 도 limit 기준 재계산
+  const displayRiskPerShare = limitEntryActive
+    ? displayEntry - displayStop
+    : (der?.risk_per_share ?? null);
+  const displayRiskPct =
+    limitEntryActive && displayEntry > 0
+      ? Math.round(((displayEntry - displayStop) / displayEntry) * 10000) / 100
+      : (der?.risk_pct ?? null);
+  const displayReward1Pct =
+    limitEntryActive && displayEntry > 0 && tp.target_1 != null
+      ? Math.round(((tp.target_1 - displayEntry) / displayEntry) * 10000) / 100
+      : (der?.reward_1_pct ?? null);
+  const displayReward2Pct =
+    limitEntryActive && displayEntry > 0 && tp.target_2 != null
+      ? Math.round(((tp.target_2 - displayEntry) / displayEntry) * 10000) / 100
+      : (der?.reward_2_pct ?? null);
+
   return {
     ticker: signal.ticker,
     name: signal.name ?? signal.ticker,
@@ -77,8 +110,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     priceDisplay,
     changeDisplay,
     direction,
-    entry: tp.entry,
-    stop: tp.stop,
+    entry: displayEntry,
+    stop: displayStop,
     target1: tp.target_1,
     target2: tp.target_2,
     score: signal.ranking?.score ?? null,
@@ -90,12 +123,12 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
       d?.volume ??
       (lq?.volume != null ? lq.volume.toLocaleString('ko-KR') : '—'),
     marketCapDisplay: d?.market_cap ?? null,
-    riskPerShare: der?.risk_per_share ?? null,
-    riskPct: der?.risk_pct ?? null,
-    reward1Pct: der?.reward_1_pct ?? null,
-    reward2Pct: der?.reward_2_pct ?? null,
-    rrRatio: tp.rr_ratio ?? null,
-    rrBand: tp.rr_band ?? null,
+    riskPerShare: displayRiskPerShare,
+    riskPct: displayRiskPct,
+    reward1Pct: displayReward1Pct,
+    reward2Pct: displayReward2Pct,
+    rrRatio: displayRrRatio,
+    rrBand: displayRrBand,
     atr14: tp.atr_14 ?? null,
     changePct: lq?.change_pct ?? null,
     currentPrice: lq?.current_price ?? null,
@@ -115,5 +148,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     decisionFactors: signal.ranking?.decision?.factors ?? null,
     decisionMaxRegret: signal.ranking?.decision?.max_regret ?? null,
     rank: signal.ranking?.rank ?? null,
+    limitEntryActive,
+    eodEntry: limitEntryActive ? tp.entry : null,
+    signalStatus: signal.signal_status ?? 'VALID',
   };
 }

@@ -12,7 +12,6 @@ TradeSignal → Candidate 로 변환.
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
 
 from backtest_engine.core import calc_atr
@@ -26,17 +25,9 @@ from backtest_engine.strategy import StrategyD, StrategyDConfig
 from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+
 logger = logging.getLogger(__name__)
-
-
-def _round_to_100(x: float) -> float:
-    """100원 단위 반올림 (50원 이상 올림, 미만 내림)."""
-    return math.floor(x / 100 + 0.5) * 100
-
-
-def _floor_to_100(x: float) -> float:
-    """100원 단위 반내림 (버림)."""
-    return math.floor(x / 100) * 100
 
 
 @dataclass(frozen=True)
@@ -154,8 +145,8 @@ class StrategyOneDv2:
                 cap_bil = float(cap_won) / 100_000_000
 
                 raw_entry = signal.entry_price
-                entry_price = _round_to_100(raw_entry)
-                stop_loss = _floor_to_100(signal.stop_loss)
+                entry_price = round_to_tick(raw_entry)
+                stop_loss = floor_to_tick(signal.stop_loss)
                 # 반올림된 진입가 기준으로 목표가 재계산
                 engine_cfg = self._engine.config
                 target_1 = entry_price * (1 + engine_cfg.target_1_pct)
@@ -187,6 +178,11 @@ class StrategyOneDv2:
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
+                df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
+                limit_entry, limit_stop = populate_limit_fields(
+                    df_30m, entry_price, stop_loss
+                )
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -209,6 +205,8 @@ class StrategyOneDv2:
                         "atr_14": atr_14,
                         "rsi_14": rsi_14_val,
                     },
+                    limit_entry=limit_entry,
+                    limit_stop=limit_stop,
                 ))
             except Exception as e:
                 failed += 1

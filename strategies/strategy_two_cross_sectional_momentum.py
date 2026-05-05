@@ -29,6 +29,8 @@ from backtest_engine.core import calc_atr
 from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+
 logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
@@ -129,9 +131,10 @@ class StrategyTwoCrossSectionalMomentum:
                 continue
 
             close_now = float(df["close"].iloc[-1])
-            sl = close_now * (1 - cfg.stop_loss_pct)
-            t1 = close_now * (1 + cfg.target_1_pct)
-            t2 = close_now * (1 + cfg.target_2_pct)
+            entry = round_to_tick(close_now)
+            sl = floor_to_tick(entry * (1 - cfg.stop_loss_pct))
+            t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
+            t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
 
             cap_won = ctx.market_caps.get(ticker, 0.0)
             cap_bil = float(cap_won) / 100_000_000
@@ -139,8 +142,8 @@ class StrategyTwoCrossSectionalMomentum:
                 if len(df) >= cfg.volume_filter_window else float(df["volume"].mean())
 
             # 신규 metadata 키 계산
-            risk_pct = (close_now - sl) / close_now * 100
-            reward_pct_t2 = (t2 - close_now) / close_now * 100
+            risk_pct = (entry - sl) / entry * 100
+            reward_pct_t2 = (t2 - entry) / entry * 100
             rr_ratio = 0.0 if risk_pct == 0 else reward_pct_t2 / risk_pct
             if rr_ratio < 2.0:
                 rr_band = "below"
@@ -159,16 +162,21 @@ class StrategyTwoCrossSectionalMomentum:
 
             rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
+            df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
+            limit_entry, limit_stop = populate_limit_fields(df_30m, entry, sl)
+
             candidates.append(Candidate(
                 ticker=ticker,
                 name=ctx.names.get(ticker, ticker),
                 strategy=self.name,
                 signal_date=df.index[-1],
                 score=float(rank) * 1000,
-                entry_price=close_now,
+                entry_price=entry,
                 stop_loss=sl,
                 target_1=t1,
                 target_2=t2,
+                limit_entry=limit_entry,
+                limit_stop=limit_stop,
                 market_cap_bil=cap_bil,
                 volume_20d_avg=avg_vol_20,
                 conditions_met={

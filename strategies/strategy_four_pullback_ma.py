@@ -17,6 +17,8 @@ import pandas as pd
 from core.indicators import calc_atr, latest_rsi_or_none, moving_average
 from core.strategy_base import Candidate, ScanContext
 
+from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+
 logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
@@ -101,10 +103,10 @@ class StrategyFourPullbackMa:
                 if vol_now < avg_volume * cfg.min_vol_ratio:
                     continue
 
-                entry = close_now
-                stop_loss = entry * (1 - cfg.stop_loss_pct)
-                t1 = entry * (1 + cfg.target_1_pct)
-                t2 = entry * (1 + cfg.target_2_pct)
+                entry = round_to_tick(close_now)
+                stop_loss = floor_to_tick(entry * (1 - cfg.stop_loss_pct))
+                t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
+                t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
 
                 above_ma20_pct = close_now / ma20_now - 1
                 # 5000 배수: +0.2% 위 → score ≈ 10, +10% 위 → score = 500 (추세 강도 비례)
@@ -128,6 +130,9 @@ class StrategyFourPullbackMa:
 
                 cap_bil = float(ctx.market_caps.get(ticker, 0.0)) / 100_000_000
 
+                df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
+                limit_entry, limit_stop = populate_limit_fields(df_30m, entry, stop_loss)
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -138,6 +143,8 @@ class StrategyFourPullbackMa:
                     stop_loss=stop_loss,
                     target_1=t1,
                     target_2=t2,
+                    limit_entry=limit_entry,
+                    limit_stop=limit_stop,
                     market_cap_bil=cap_bil,
                     volume_20d_avg=avg_volume,
                     conditions_met={

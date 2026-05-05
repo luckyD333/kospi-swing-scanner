@@ -18,6 +18,8 @@ import pandas as pd
 from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+
 logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
@@ -124,13 +126,14 @@ class StrategyFiveBullFlag:
 
                 # 손절: flag 저점 기준, 단 최대 -5%로 캡 (너무 넓은 손절 방지)
                 #       최소 -0.5% 보장 (flag 저점이 진입가 근처일 때 대비)
-                entry = close_now
-                stop_loss = max(flag_low, entry * (1 - cfg.stop_loss_pct * 2))
-                stop_loss = min(stop_loss, entry * (1 - 0.005))
+                entry = round_to_tick(close_now)
+                stop_loss_raw = max(flag_low, entry * (1 - cfg.stop_loss_pct * 2))
+                stop_loss_raw = min(stop_loss_raw, entry * (1 - 0.005))
+                stop_loss = floor_to_tick(stop_loss_raw)
 
                 pole_height = pole_end_close - pole_start_close
-                t1 = max(entry * 1.03, entry + pole_height * 0.5)
-                t2 = max(t1, entry + pole_height * 1.0)
+                t1 = round_to_tick(max(entry * 1.03, entry + pole_height * 0.5))
+                t2 = round_to_tick(max(t1, entry + pole_height * 1.0))
 
                 breakout_strength = (close_now - flag_high) / atr_val
                 vol_ratio = vol_now / avg_volume
@@ -150,6 +153,9 @@ class StrategyFiveBullFlag:
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
+                df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
+                limit_entry, limit_stop = populate_limit_fields(df_30m, entry, stop_loss)
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -160,6 +166,8 @@ class StrategyFiveBullFlag:
                     stop_loss=stop_loss,
                     target_1=t1,
                     target_2=t2,
+                    limit_entry=limit_entry,
+                    limit_stop=limit_stop,
                     market_cap_bil=cap_bil,
                     volume_20d_avg=avg_volume,
                     conditions_met={

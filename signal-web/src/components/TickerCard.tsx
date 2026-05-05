@@ -41,7 +41,22 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
     entry, stop, target1, per,
-    rsi, strategyLabel, timeframe, rank, allStrategyTags } = card;
+    rsi, strategyLabel, timeframe, rank, allStrategyTags,
+    limitEntryActive, signalStatus } = card;
+
+  const statusBadge = (() => {
+    switch (signalStatus) {
+      case 'TARGET_REACHED':
+        return { label: '목표', color: '#30d158', bg: 'rgba(48,209,88,0.12)' };
+      case 'STOPPED_OUT':
+        return { label: '손절', color: '#ff6b81', bg: 'rgba(255,107,129,0.12)' };
+      case 'STALE':
+        return { label: '만료', color: 'var(--muted)', bg: 'rgba(128,128,128,0.12)' };
+      default:
+        return null;
+    }
+  })();
+  const cardOpacity = signalStatus === 'VALID' ? 1 : 0.55;
 
   // 한국 주식 관례: 상승=빨강 / 하락=파랑 / 보합=화이트
   const dirGlyph = direction === 'up' ? '▲' : direction === 'down' ? '▼' : '─';
@@ -76,14 +91,51 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         background: 'var(--canvas)',
         padding: '52px 32px',
         cursor: 'pointer',
-        opacity: visible ? 1 : 0,
+        opacity: visible ? cardOpacity : 0,
         transform: visible ? 'translateY(0)' : 'translateY(16px)',
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
         height: '100%',
+        position: 'relative',
       }}
     >
+      {/* 신호 상태 배지 (VALID 외) */}
+      {statusBadge && (
+        <span style={{
+          position: 'absolute',
+          top: '16px',
+          right: '16px',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          background: statusBadge.bg,
+          color: statusBadge.color,
+          fontSize: '10px',
+          fontWeight: 600,
+          letterSpacing: '0',
+        }}>
+          {statusBadge.label}
+        </span>
+      )}
+
+      {/* limit_entry 활성 표시 (좌상단) */}
+      {limitEntryActive && (
+        <span style={{
+          position: 'absolute',
+          top: '16px',
+          left: '16px',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          background: 'rgba(0,113,227,0.10)',
+          color: 'var(--link)',
+          fontSize: '10px',
+          fontWeight: 600,
+          letterSpacing: '0',
+        }}>
+          30m 지정가
+        </span>
+      )}
+
       {/* 종목명 — 시선 앵커 1: 100% ink */}
       <div style={{
         fontFamily: 'var(--f-display-stack)',
