@@ -44,6 +44,7 @@ export interface CardProps {
   decisionFactors: DecisionFactor[] | null;
   decisionMaxRegret: number | null;
   rank: number | null;
+  allStrategyTags?: Array<{ label: string; timeframe: string }>;
 }
 
 export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardProps {

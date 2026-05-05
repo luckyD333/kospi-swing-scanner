@@ -7,7 +7,7 @@ import type { CardProps } from '@/lib/adapt';
 import TopNav from './TopNav';
 import FilterBar from './FilterBar';
 import TickerCard from './TickerCard';
-import DisclaimerBar from './DisclaimerBar';
+import Footer from './Footer';
 
 interface Props {
   cards: CardProps[];
@@ -37,19 +37,8 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
     return () => clearInterval(id);
   }, []);
 
-  // 'ALL' 탭은 서버 dedup 결과 (strategy.id === 'all') 만 노출.
-  // 'all' entry 가 없는 환경 (legacy) 에서는 모든 카드 표시 fallback.
-  const hasAllEntry = useMemo(() => cards.some(c => c.strategyId === 'all'), [cards]);
-  const filtered = useMemo(() => cards
-    .filter(c => {
-      if (strategy === 'ALL') {
-        return hasAllEntry ? c.strategyId === 'all' : true;
-      }
-      // 다른 strategy 탭은 raw 전략 entry 만 (ALL 통합 entry 제외)
-      return c.strategyId !== 'all' && c.strategyLabel === strategy;
-    })
-    .filter(c => timeframe === 'ALL' || c.timeframe === timeframe)
-    .sort((a, b) => {
+  const filtered = useMemo(() => {
+    const sortFn = (a: CardProps, b: CardProps) => {
       if (sortBy === 'rank') {
         const ar = a.rank ?? Infinity;
         const br = b.rank ?? Infinity;
@@ -64,7 +53,45 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       }
       if (sortBy === 'price') return a.entry - b.entry;
       return 0;
-    }), [cards, strategy, timeframe, sortBy, hasAllEntry]);
+    };
+
+    if (strategy === 'ALL') {
+      // ticker별 그룹화 — 대표 카드(최고 rank)에 모든 전략+TF 태그 병합
+      const rawCards = cards.filter(c => c.strategyId !== 'all');
+      const grouped = new Map<string, CardProps[]>();
+      for (const c of rawCards) {
+        const arr = grouped.get(c.ticker) ?? [];
+        arr.push(c);
+        grouped.set(c.ticker, arr);
+      }
+      return Array.from(grouped.values())
+        .filter(group => timeframe === 'ALL' || group.some(c => c.timeframe === timeframe))
+        .map(group => {
+          const rep = group.reduce((best, c) => {
+            const br = best.rank ?? Infinity;
+            const cr = c.rank ?? Infinity;
+            if (cr < br) return c;
+            if (cr === br) return (c.score ?? -Infinity) > (best.score ?? -Infinity) ? c : best;
+            return best;
+          });
+          const tagSet = new Set<string>();
+          const allStrategyTags: Array<{ label: string; timeframe: string }> = [];
+          for (const c of group) {
+            const key = `${c.strategyLabel}|${c.timeframe}`;
+            if (!tagSet.has(key)) {
+              tagSet.add(key);
+              allStrategyTags.push({ label: c.strategyLabel, timeframe: c.timeframe });
+            }
+          }
+          return { ...rep, allStrategyTags };
+        })
+        .sort(sortFn);
+    }
+    return cards
+      .filter(c => c.strategyId !== 'all' && c.strategyLabel === strategy)
+      .filter(c => timeframe === 'ALL' || c.timeframe === timeframe)
+      .sort(sortFn);
+  }, [cards, strategy, timeframe, sortBy]);
 
   const navigate = useCallback(
     (ticker: string) => router.push(`/signals/${ticker}`),
@@ -149,7 +176,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       </div>
 
       <div style={{ height: '30px' }} />
-      <DisclaimerBar />
+      <Footer />
     </div>
   );
 }

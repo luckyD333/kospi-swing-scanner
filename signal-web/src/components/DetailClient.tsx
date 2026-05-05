@@ -8,7 +8,6 @@ import { ts } from '@/lib/typography';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
 import Footer from './Footer';
-import DisclaimerBar from './DisclaimerBar';
 
 interface Props {
   card: CardProps;
@@ -31,7 +30,7 @@ function NaverLink({ href }: { href: string }) {
       onMouseLeave={() => setHov(false)}
       style={{
         ...ts('button'),
-        border: '1px solid var(--ink)',
+        border: '1px solid var(--accent)',
         borderRadius: '9999px',
         padding: '14px 32px',
         height: '44px',
@@ -39,7 +38,8 @@ function NaverLink({ href }: { href: string }) {
         textDecoration: 'none',
         display: 'inline-flex',
         alignItems: 'center',
-        background: hov ? 'rgba(255,255,255,0.07)' : 'transparent',
+        color: 'var(--accent)',
+        background: hov ? 'rgba(41,151,255,0.08)' : 'transparent',
         transition: 'background 150ms ease-out',
       }}
     >
@@ -70,60 +70,63 @@ interface RankRationaleRow {
   tone: string;
 }
 
+const C_OPP  = '#30d158';  // 매수 기회 (그린)
+const C_RISK = '#ff6b81';  // 위험/경고 (핑크)
+
 function gradeRR(rr: number | null, band: string | null): { mark: RankRationaleRow['mark']; note: string; tone: string } {
   if (rr == null) return { mark: '', note: '', tone: 'var(--muted-soft)' };
-  if (band === 'SWEET') return { mark: '✓', note: '우수', tone: 'var(--gain)' };
+  if (band === 'SWEET') return { mark: '✓', note: '우수', tone: C_OPP };
   if (band === 'OVER') return { mark: '·', note: '여유 보상', tone: 'var(--muted)' };
-  return { mark: '⚠', note: '낮음', tone: 'var(--loss)' };
+  return { mark: '⚠', note: '낮음', tone: C_RISK };
 }
 
 function gradeRiskPct(p: number | null) {
   if (p == null) return { mark: '' as const, note: '', tone: 'var(--muted-soft)' };
-  if (p <= 3) return { mark: '✓' as const, note: '안전', tone: 'var(--gain)' };
-  if (p > 5) return { mark: '⚠' as const, note: '큼', tone: 'var(--loss)' };
+  if (p <= 3) return { mark: '✓' as const, note: '안전', tone: C_OPP };
+  if (p > 5) return { mark: '⚠' as const, note: '큼', tone: C_RISK };
   return { mark: '·' as const, note: '보통', tone: 'var(--muted)' };
 }
 
 function gradeReward(p: number | null) {
   if (p == null) return { mark: '' as const, note: '', tone: 'var(--muted-soft)' };
-  if (p >= 5) return { mark: '✓' as const, note: '충분', tone: 'var(--gain)' };
-  if (p < 3) return { mark: '⚠' as const, note: '얕음', tone: 'var(--loss)' };
+  if (p >= 5) return { mark: '✓' as const, note: '충분', tone: C_OPP };
+  if (p < 3) return { mark: '⚠' as const, note: '얕음', tone: C_RISK };
   return { mark: '·' as const, note: '보통', tone: 'var(--muted)' };
 }
 
 function gradeChange(p: number | null) {
   if (p == null) return { mark: '' as const, note: '', tone: 'var(--muted-soft)' };
-  if (p >= 3) return { mark: '✓' as const, note: '강한 모멘텀', tone: 'var(--gain)' };
-  if (p <= -1) return { mark: '⚠' as const, note: '약세', tone: 'var(--loss)' };
+  if (p >= 3) return { mark: '✓' as const, note: '강한 모멘텀', tone: C_OPP };
+  if (p <= -1) return { mark: '⚠' as const, note: '약세', tone: C_RISK };
   return { mark: '·' as const, note: '평이', tone: 'var(--muted)' };
 }
 
 function gradeRsi(r: number | null) {
   if (r == null) return { mark: '' as const, note: '', tone: 'var(--muted-soft)' };
-  if (r > 70) return { mark: '⚠' as const, note: '과매수', tone: 'var(--loss)' };
-  if (r < 30) return { mark: '⚠' as const, note: '과매도', tone: 'var(--loss)' };
+  if (r > 70) return { mark: '⚠' as const, note: '과매수', tone: C_RISK };
+  if (r < 30) return { mark: '✓' as const, note: '과매도', tone: C_OPP };
   return { mark: '·' as const, note: '중립', tone: 'var(--muted)' };
 }
 
 function grade52w(pct: number | null) {
   if (pct == null) return { mark: '' as const, note: '', tone: 'var(--muted-soft)' };
-  if (pct > 85) return { mark: '⚠' as const, note: '고점 근처', tone: 'var(--loss)' };
-  if (pct < 20) return { mark: '⚠' as const, note: '저점 근처', tone: 'var(--loss)' };
-  if (pct >= 30 && pct <= 70) return { mark: '✓' as const, note: '중간대', tone: 'var(--gain)' };
+  if (pct > 85) return { mark: '⚠' as const, note: '고점 근처', tone: C_RISK };
+  if (pct < 20) return { mark: '⚠' as const, note: '저점 근처', tone: C_RISK };
+  if (pct >= 30 && pct <= 70) return { mark: '✓' as const, note: '중간대', tone: C_OPP };
   return { mark: '·' as const, note: '', tone: 'var(--muted)' };
 }
 
 function gradePer(per: number | null) {
   if (per == null) return { mark: '' as const, note: '', tone: 'var(--muted-soft)' };
-  if (per < 0) return { mark: '⚠' as const, note: '적자', tone: 'var(--loss)' };
-  if (per > 50) return { mark: '⚠' as const, note: '고평가', tone: 'var(--loss)' };
-  if (per >= 5 && per <= 25) return { mark: '✓' as const, note: '적정', tone: 'var(--gain)' };
+  if (per < 0) return { mark: '⚠' as const, note: '적자', tone: C_RISK };
+  if (per > 50) return { mark: '⚠' as const, note: '고평가', tone: C_RISK };
+  if (per >= 5 && per <= 25) return { mark: '✓' as const, note: '적정', tone: C_OPP };
   return { mark: '·' as const, note: '', tone: 'var(--muted)' };
 }
 
 function gradeForeign(p: number | null) {
   if (p == null) return { mark: '' as const, note: '', tone: 'var(--muted-soft)' };
-  if (p >= 10) return { mark: '✓' as const, note: '높음', tone: 'var(--gain)' };
+  if (p >= 10) return { mark: '✓' as const, note: '높음', tone: C_OPP };
   if (p < 2) return { mark: '·' as const, note: '낮음', tone: 'var(--muted)' };
   return { mark: '·' as const, note: '', tone: 'var(--muted)' };
 }
@@ -159,6 +162,11 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
     decisionScore, decisionFactors, decisionMaxRegret,
     rank,
   } = card;
+
+  const pct52w =
+    currentPrice != null && high52w != null && low52w != null && high52w > low52w
+      ? ((currentPrice - low52w) / (high52w - low52w)) * 100
+      : null;
 
   return (
     <div style={{ background: 'var(--canvas)', minHeight: '100vh' }}>
@@ -204,8 +212,8 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
           <div style={{
             fontFamily: 'var(--f-display-stack)',
             fontSize: 'clamp(40px, 7vw, 72px)',
-            fontWeight: 400, lineHeight: 1.0,
-            letterSpacing: '2px', textTransform: 'uppercase',
+            fontWeight: 600, lineHeight: 1.0,
+            letterSpacing: '-0.02em',
             color: 'var(--ink)',
           }}>
             {name}
@@ -255,9 +263,9 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         }}>
           {[
             { label: '진입가', val: entry,   sub: '지정가', color: 'var(--link)' },
-            { label: '손절가', val: stop,    sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '', color: 'var(--loss)' },
-            { label: '목표 1', val: target1, sub: target1 != null && reward1Pct != null ? `+${reward1Pct.toFixed(1)}%` : '', color: 'var(--gain)' },
-            { label: '목표 2', val: target2, sub: target2 != null && reward2Pct != null ? `+${reward2Pct.toFixed(1)}%` : '', color: 'var(--gain)' },
+            { label: '손절가', val: stop,    sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '', color: C_RISK },
+            { label: '목표 1', val: target1, sub: target1 != null && reward1Pct != null ? `+${reward1Pct.toFixed(1)}%` : '', color: C_OPP },
+            { label: '목표 2', val: target2, sub: target2 != null && reward2Pct != null ? `+${reward2Pct.toFixed(1)}%` : '', color: C_OPP },
           ].map(({ label, val, sub, color }, i) => (
             <div key={label} style={{
               padding: '24px 0',
@@ -301,8 +309,8 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         }}>
           {[
             { label: 'PER',     value: per != null && per > 0 ? `${per}x` : '—', sub: '주가수익비율' },
-            { label: '52주 고가', value: fmt(high52w),      sub: '' },
-            { label: '52주 저가', value: fmt(low52w),       sub: '' },
+            { label: '52주 고가', value: fmt(high52w), sub: '' },
+            { label: '52주 저가', value: fmt(low52w),  sub: '' },
           ].map(({ label, value, sub }, i) => (
             <div key={label} style={{
               padding: '20px 0',
@@ -348,7 +356,13 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
               <div style={{ ...LABEL, marginBottom: '10px' }}>
                 {label}
               </div>
-              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)' }}>
+              <div style={{
+                fontFamily: 'var(--f-mono-stack)', fontSize: '20px',
+                color: value == null ? 'var(--ink)'
+                  : value < 30 ? C_OPP
+                  : value > 70 ? C_RISK
+                  : 'var(--ink)',
+              }}>
                 {value != null ? value.toFixed(1) : '—'}
               </div>
               {value != null && (
@@ -453,8 +467,8 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             </div>
 
             {/* FACTOR BREAKDOWN 부제 */}
-            <div style={{ ...ts('caption-sm', 'var(--muted)'), letterSpacing: '2px', textTransform: 'uppercase', paddingTop: '32px', paddingBottom: '12px' }}>
-              FACTOR BREAKDOWN
+            <div style={{ ...ts('caption-sm', 'var(--muted)'), paddingTop: '32px', paddingBottom: '12px' }}>
+              Factor Breakdown
             </div>
 
             {/* 컬럼 헤더 */}
@@ -493,7 +507,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
                       <div style={{
                         width: `${Math.max(fillPct, fillPct > 0 ? 1 : 0).toFixed(1)}%`,
                         height: '100%',
-                        background: 'var(--ink)',
+                        background: 'var(--accent)',
                         borderRadius: '2px',
                       }} />
                     </div>
@@ -515,10 +529,6 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
       {/* 랭킹 산출 근거 */}
       {(() => {
         const scoreCaption = getScoreCaption(strategyId);
-        const pct52w =
-          currentPrice != null && high52w != null && low52w != null && high52w > low52w
-            ? ((currentPrice - low52w) / (high52w - low52w)) * 100
-            : null;
 
         const rows: RankRationaleRow[] = [
           {
@@ -615,9 +625,8 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         );
       })()}
 
-      <div style={{ height: '80px' }} />
+      <div style={{ height: '30px' }} />
       <Footer />
-      <DisclaimerBar />
     </div>
   );
 }

@@ -13,6 +13,13 @@ interface Props {
 const fmtNum = (v: number | null): string =>
   v == null ? '—' : v.toLocaleString('ko-KR');
 
+function rsiTone(v: number | null): string {
+  if (v == null) return 'var(--body)';
+  if (v < 30) return '#30d158';   // 그린: 과매도 매수 기회
+  if (v > 70) return '#ff6b81';   // 핑크: 과매수 위험
+  return 'var(--body)';
+}
+
 export default React.memo(function TickerCard({ card, onNavigate, index }: Props) {
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,7 +41,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
     entry, stop, target1, per,
-    rsi, strategyLabel, timeframe, rank } = card;
+    rsi, strategyLabel, timeframe, rank, allStrategyTags } = card;
 
   // 한국 주식 관례: 상승=빨강 / 하락=파랑 / 보합=화이트
   const dirGlyph = direction === 'up' ? '▲' : direction === 'down' ? '▼' : '─';
@@ -81,9 +88,9 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
       <div style={{
         fontFamily: 'var(--f-display-stack)',
         fontSize: nameFontSize,
-        fontWeight: 400,
+        fontWeight: 600,
         lineHeight: 1.1,
-        letterSpacing: '1px',
+        letterSpacing: '-0.01em',
         color: 'var(--ink)',
         wordBreak: 'keep-all',
       }}>
@@ -129,7 +136,11 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
           paddingBottom: '14px',
           borderTop: '1px solid var(--hairline)',
         }}>
-          {([['진입', entry], ['손절', stop], ['목표', target1]] as [string, number | null][]).map(([label, val], i) => (
+          {([
+            ['진입', entry,   'var(--link)'],
+            ['손절', stop,    '#ff6b81'],
+            ['목표', target1, '#30d158'],
+          ] as [string, number | null, string][]).map(([label, val, color], i) => (
             <div key={label} style={{
               flex: 1,
               paddingRight: i < 2 ? '12px' : '0',
@@ -139,7 +150,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
               <div style={labelStyle}>
                 {label}
               </div>
-              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '15px', color: 'var(--body-strong)' }}>
+              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '15px', color }}>
                 {fmtNum(val)}
               </div>
             </div>
@@ -159,7 +170,10 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
                 <div style={labelStyle}>
                   {label}
                 </div>
-                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '14px', color: 'var(--body)', letterSpacing: 0 }}>
+                <div style={{
+                  fontFamily: 'var(--f-mono-stack)', fontSize: '14px', letterSpacing: 0,
+                  color: label === 'RSI' ? rsiTone(rsi) : 'var(--body)',
+                }}>
                   {value}
                 </div>
               </div>
@@ -169,11 +183,17 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
 
         {/* 전략 태그 */}
         <div style={{ display: 'flex', gap: '6px', paddingTop: '4px', paddingBottom: '4px', flexWrap: 'wrap' }}>
-          {[strategyLabel, timeframe].map(tag => (
+          {(() => {
+            if (allStrategyTags && allStrategyTags.length > 1) {
+              const labels = [...new Set(allStrategyTags.map(t => t.label))];
+              const tfs = [...new Set(allStrategyTags.map(t => t.timeframe))];
+              return [...labels, ...tfs];
+            }
+            return [strategyLabel, timeframe];
+          })().map(tag => (
             <span key={tag} style={{
-              ...ts('caption-sm', 'var(--muted)'),
-              letterSpacing: '1.5px',
-              border: '1px solid var(--hairline)',
+              ...ts('caption-sm', '#4c98b9'),
+              border: '1px solid #4c98b9',
               padding: '4px 10px',
             }}>
               {tag}

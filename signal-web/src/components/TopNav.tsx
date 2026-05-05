@@ -135,7 +135,7 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
             display: 'flex', alignItems: 'center',
           }}
         >
-          SIGNAL
+          SIG-BORA
         </button>
 
         {/* 시장 현황 — 데스크탑에서만 인라인 노출 */}
@@ -143,35 +143,16 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
           <MarketItems />
         </div>
 
-        {/* 기준일 + 업데이트 시각 */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: '2px',
+        {/* 업데이트 시각 */}
+        <span style={{
+          ...ts('caption-sm', '#ff9f0a'),
           flexShrink: 0,
+          whiteSpace: 'nowrap',
+          paddingLeft: '12px',
+          borderLeft: '1px solid var(--hairline)',
         }}>
-          {targetDateDisplay ? (
-            <span style={{
-              fontFamily: 'var(--f-mono-stack)',
-              fontSize: '10px',
-              color: 'var(--body-strong)',
-              letterSpacing: '0.5px',
-              whiteSpace: 'nowrap',
-            }}>
-              기준 {targetDateDisplay}
-            </span>
-          ) : null}
-          <span style={{
-            fontFamily: 'var(--f-mono-stack)',
-            fontSize: '9px',
-            color: 'var(--muted-soft)',
-            letterSpacing: '1px',
-            whiteSpace: 'nowrap',
-          }}>
-            갱신 {generatedAtDisplay}
-          </span>
-        </div>
+          갱신 {generatedAtDisplay}
+        </span>
       </div>
 
       {/* 모바일 서브열 — 639px 이하에서만 노출 */}

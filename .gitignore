@@ -49,3 +49,4 @@ signal-web/node_modules/
 .ipynb_checkpoints/
 *.ipynb
 /.claude/
+.gstack/
