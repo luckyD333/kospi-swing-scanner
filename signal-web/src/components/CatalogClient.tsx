@@ -8,7 +8,6 @@ import TopNav from './TopNav';
 import FilterBar from './FilterBar';
 import TickerCard from './TickerCard';
 import Footer from './Footer';
-import IdentityLine from './IdentityLine';
 import AboutOverlay from './AboutOverlay';
 
 interface Props {
@@ -113,6 +112,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         marketAxes={marketAxes}
         fearGreed={fearGreed}
         onHome={() => router.push('/')}
+        onOpenAbout={() => setAboutOpen(true)}
       />
 
       <FilterBar
@@ -179,7 +179,6 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         })()}
       </div>
 
-      <IdentityLine onOpenAbout={() => setAboutOpen(true)} />
       <div style={{ height: '30px' }} />
       <Footer />
       <AboutOverlay open={aboutOpen} onClose={onCloseAbout} />

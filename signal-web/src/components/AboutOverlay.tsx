@@ -12,17 +12,17 @@ const STEPS = [
   {
     num: '01',
     title: '목록 확인',
-    desc: '전날 종가 기준으로 생성된 후보 목록입니다. 장 시작 전 미리 확인하세요.',
+    desc: '전날 종가로 뽑아둔 후보 목록입니다. 장 열리기 전에 확인하세요.',
   },
   {
     num: '02',
     title: '매수 시점',
-    desc: '진입가 근처에서 당일 시초가~오전 중 매수. 진입가보다 많이 오른 상태라면 패스합니다.',
+    desc: '진입가 근처에서 시초가~오전 중 매수합니다. 이미 많이 오른 상태라면 넘기세요.',
   },
   {
     num: '03',
     title: '매도 시점',
-    desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. 1~3일 이내 짧게 보유합니다.',
+    desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. 1~3일 안에 정리합니다.',
   },
 ] as const;
 
@@ -113,7 +113,7 @@ export default function AboutOverlay({ open, onClose }: Props) {
           marginBottom: '80px',
         }}>
           <span style={{ ...ts('wordmark', 'var(--muted)'), letterSpacing: '0.12em' }}>
-            SIGNAL — ABOUT
+            SIG-BORA — ABOUT
           </span>
           <button
             onClick={onClose}
@@ -136,24 +136,15 @@ export default function AboutOverlay({ open, onClose }: Props) {
 
         {/* HERO */}
         <div style={{ marginBottom: '80px' }}>
-          <h1 style={{
-            font: '600 clamp(40px, 6vw, 80px)/1.0 var(--f-display-stack)',
-            letterSpacing: '-0.02em',
-            color: 'var(--ink)',
-            margin: '0 0 24px',
-          }}>
-            내일 살 종목을,{' '}
-            <span style={{ color: 'var(--warning)' }}>오늘 밤 골라둡니다.</span>
-          </h1>
           <p style={{
             ...ts('body-md', 'var(--body)'),
             maxWidth: '640px',
             margin: 0,
             lineHeight: 1.7,
           }}>
-            매일 장 마감 후 전날 종가 기준으로 KOSPI/KOSDAQ 전 종목을 스크리닝합니다.
-            추세·변동성·손익비(RR)를 종합한 점수 순으로 후보를 추려두면,
-            다음 날 장 시작 전에 미리 확인하고 매수 여부를 판단할 수 있습니다.
+            매일 장 마감 후 KOSPI/KOSDAQ 전 종목을 스크리닝합니다.
+            추세·변동성·손익비(RR)를 종합해 점수를 매긴 뒤 후보를 추려둡니다.
+            다음 날 장 열리기 전에 꺼내보고, 살지 말지는 직접 판단하세요.
             매수 추천이 아닌 관찰 명세서입니다.
           </p>
         </div>

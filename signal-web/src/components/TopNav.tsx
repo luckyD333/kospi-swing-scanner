@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
 import FearGreedGauge from './FearGreedGauge';
@@ -13,6 +14,49 @@ interface Props {
   marketAxes?: Record<string, AxesScore> | null;
   fearGreed?: FearGreedSnapshot | null;
   onHome?: () => void;
+  onOpenAbout?: () => void;
+}
+
+function AboutBtn({ onOpen }: { onOpen: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onOpen}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        ...ts('caption-sm', hov ? 'var(--body)' : 'var(--muted)'),
+        background: 'none',
+        border: 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '0 0 0 20px',
+        marginLeft: '20px',
+        borderLeft: '1px solid var(--hairline)',
+        height: '100%',
+        transition: 'color 150ms',
+        flexShrink: 0,
+      }}
+      aria-label="서비스 안내 열기"
+    >
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '16px',
+        height: '16px',
+        border: `1px solid ${hov ? 'var(--body)' : 'var(--muted)'}`,
+        borderRadius: '50%',
+        fontSize: '10px',
+        lineHeight: 1,
+        transition: 'border-color 150ms',
+        flexShrink: 0,
+      }}>?</span>
+      <span style={{ letterSpacing: '0.08em' }}>ABOUT / 가이드</span>
+    </button>
+  );
 }
 
 const REGIME_ORDER = ['1d', '1h'] as const;
@@ -22,7 +66,7 @@ const regimeColor = (regime: string): string =>
   : regime === 'BEAR' ? 'var(--loss)'
   : 'var(--flat)';
 
-export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, onHome }: Props) {
+export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, onHome, onOpenAbout }: Props) {
   const entries = Object.entries(marketIndices);
   const sortedRegimes = marketRegime
     ? REGIME_ORDER.filter((tf) => marketRegime[tf]).map((tf) => [tf, marketRegime[tf]] as const)
@@ -153,6 +197,9 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
         }}>
           갱신 {generatedAtDisplay}
         </span>
+
+        {/* ABOUT / 가이드 버튼 */}
+        {onOpenAbout && <AboutBtn onOpen={onOpenAbout} />}
       </div>
 
       {/* 모바일 서브열 — 639px 이하에서만 노출 */}

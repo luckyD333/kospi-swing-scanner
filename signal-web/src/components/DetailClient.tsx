@@ -8,7 +8,6 @@ import { ts } from '@/lib/typography';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
 import Footer from './Footer';
-import IdentityLine from './IdentityLine';
 import AboutOverlay from './AboutOverlay';
 
 interface Props {
@@ -197,6 +196,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         marketAxes={marketAxes}
         fearGreed={fearGreed}
         onHome={() => router.push('/')}
+        onOpenAbout={() => setAboutOpen(true)}
       />
 
       {/* 뒤로가기 */}
@@ -664,7 +664,6 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         );
       })()}
 
-      <IdentityLine onOpenAbout={() => setAboutOpen(true)} />
       <div style={{ height: '30px' }} />
       <Footer />
       <AboutOverlay open={aboutOpen} onClose={onCloseAbout} />
