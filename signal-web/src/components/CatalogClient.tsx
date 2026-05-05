@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import type { CardProps } from '@/lib/adapt';
@@ -22,14 +23,48 @@ interface Props {
   fearGreed?: FearGreedSnapshot | null;
 }
 
+const CATEGORIES = [
+  'Blackpink', 'Twice', 'Red Velvet (group)', 'Aespa',
+  'Le Sserafim', 'Itzy', 'Mamamoo', '(G)I-dle',
+];
+
+async function fetchCategoryUrls(category: string): Promise<string[]> {
+  const url = 'https://commons.wikimedia.org/w/api.php?' + new URLSearchParams({
+    action: 'query', format: 'json',
+    generator: 'categorymembers',
+    gcmtitle: `Category:${category}`,
+    gcmtype: 'file', gcmlimit: '50',
+    prop: 'imageinfo', iiprop: 'url',
+    origin: '*',
+  });
+  try {
+    const res = await fetch(url);
+    const data = await res.json() as { query?: { pages?: Record<string, { imageinfo?: { url: string }[] }> } };
+    if (!data?.query?.pages) return [];
+    return Object.values(data.query.pages)
+      .filter(p => p.imageinfo?.[0])
+      .map(p => p.imageinfo![0].url);
+  } catch { return []; }
+}
+
+async function loadRandomWikiImageUrl(): Promise<string | null> {
+  const all = (await Promise.all(CATEGORIES.map(fetchCategoryUrls))).flat();
+  if (all.length === 0) return null;
+  return all[Math.floor(Math.random() * all.length)];
+}
+
 export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
   const router = useRouter();
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
   const [sortBy, setSortBy] = useState('rank');
+  const [wikiImageUrl, setWikiImageUrl] = useState<string | null>(null);
+  const [coinFraction, setCoinFraction] = useState(0.4);
 
   useEffect(() => {
     const id = setInterval(() => router.refresh(), 120_000);
+    setCoinFraction(Math.random());
+    loadRandomWikiImageUrl().then(setWikiImageUrl);
     return () => clearInterval(id);
   }, []);
 
@@ -95,19 +130,52 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         borderTop: '1px solid var(--hairline)',
         borderLeft: '1px solid var(--hairline)',
       }}>
-        {filtered.map((card, i) => (
-          <div key={`${card.ticker}-${card.strategyId}`} style={{
-            background: 'var(--canvas)',
-            borderRight: '1px solid var(--hairline)',
-            borderBottom: '1px solid var(--hairline)',
-          }}>
-            <TickerCard
-              card={card}
-              onClick={() => router.push(`/signals/${card.ticker}`)}
-              index={i}
-            />
-          </div>
-        ))}
+        {(() => {
+          const coinIndex = wikiImageUrl != null
+            ? Math.floor(coinFraction * (filtered.length + 1))
+            : -1;
+
+          const coinCell = (
+            <div key="__coin__" style={{
+              background: 'var(--canvas)',
+              borderRight: '1px solid var(--hairline)',
+              borderBottom: '1px solid var(--hairline)',
+              position: 'relative',
+              minHeight: '320px',
+              overflow: 'hidden',
+            }}>
+              {wikiImageUrl && (
+                <Image
+                  src={wikiImageUrl}
+                  alt=""
+                  fill
+                  style={{ objectFit: 'cover', opacity: 0.85 }}
+                />
+              )}
+            </div>
+          );
+
+          const cardCells = filtered.map((card, i) => (
+            <div key={`${card.ticker}-${card.strategyId}`} style={{
+              background: 'var(--canvas)',
+              borderRight: '1px solid var(--hairline)',
+              borderBottom: '1px solid var(--hairline)',
+            }}>
+              <TickerCard
+                card={card}
+                onClick={() => router.push(`/signals/${card.ticker}`)}
+                index={i}
+              />
+            </div>
+          ));
+
+          if (coinIndex < 0 || !wikiImageUrl) return cardCells;
+          return [
+            ...cardCells.slice(0, coinIndex),
+            coinCell,
+            ...cardCells.slice(coinIndex),
+          ];
+        })()}
       </div>
 
       <div style={{ height: '30px' }} />
