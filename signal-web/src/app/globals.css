@@ -77,12 +77,13 @@ body {
   outline: 1px solid var(--hairline-strong);
 }
 
-/* TopNav 모바일 서브열 */
+/* TopNav 서브열 — 컨테이너 폭 기준 (viewport 크기 무관) */
+.topnav { container-type: inline-size; }
 .topnav-main-row { padding: 0 40px; }
 .topnav-market-inline { display: flex; flex: 1; align-items: center; overflow: hidden; height: 100%; }
 .topnav-market-sub { display: none; }
 
-@media (max-width: 639px) {
+@container (max-width: 639px) {
   .topnav-main-row { padding: 0 16px; }
   .topnav-market-inline { display: none; }
   .topnav-market-sub {

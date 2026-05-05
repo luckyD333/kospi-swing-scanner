@@ -104,7 +104,7 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
   }
 
   return (
-    <nav style={{
+    <nav className="topnav" style={{
       position: 'sticky', top: 0, zIndex: 100,
       background: 'rgba(0,0,0,0.95)',
       backdropFilter: 'blur(8px)',
