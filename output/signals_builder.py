@@ -167,14 +167,41 @@ def build_signals_payload(
 ) -> SignalsPayload:
     filtered_candidates_by_strategy = _dedup_raw_candidates(candidates_by_strategy)
 
-    # 전략당 상위 20개 제한 (score 내림차순)
+    # 전략 레이블 기준 상위 20개 제한
+    # TF별 최소 5개 보장 + 나머지 슬롯은 전체 score 상위로 채움
     MAX_PER_STRATEGY = 20
-    for sid in list(filtered_candidates_by_strategy.keys()):
-        cands = filtered_candidates_by_strategy[sid]
-        if len(cands) > MAX_PER_STRATEGY:
-            filtered_candidates_by_strategy[sid] = sorted(
-                cands, key=lambda c: c.score, reverse=True
-            )[:MAX_PER_STRATEGY]
+    MIN_PER_TF = 5
+
+    label_to_pairs: dict[str, list[tuple[str, object]]] = {}
+    for sid, cands in filtered_candidates_by_strategy.items():
+        label = _STRATEGY_LABELS.get(sid, (sid.upper(), ""))[0]
+        label_to_pairs.setdefault(label, []).extend((sid, c) for c in cands)
+
+    new_filtered: dict[str, list] = {}
+    for pairs in label_to_pairs.values():
+        # TF별 그룹화
+        tf_groups: dict[str, list[tuple[str, object]]] = {}
+        for sid, c in pairs:
+            tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(sid)
+            tf_groups.setdefault(tf, []).append((sid, c))
+
+        # TF별 최소 보장 선점
+        guaranteed: list[tuple[str, object]] = []
+        pool: list[tuple[str, object]] = []
+        for tf_pairs in tf_groups.values():
+            tf_pairs.sort(key=lambda x: x[1].score, reverse=True)
+            guaranteed.extend(tf_pairs[:MIN_PER_TF])
+            pool.extend(tf_pairs[MIN_PER_TF:])
+
+        # 남은 슬롯은 pool에서 score 상위로
+        remaining = MAX_PER_STRATEGY - len(guaranteed)
+        if remaining > 0 and pool:
+            pool.sort(key=lambda x: x[1].score, reverse=True)
+            guaranteed.extend(pool[:remaining])
+
+        for sid, c in guaranteed:
+            new_filtered.setdefault(sid, []).append(c)
+    filtered_candidates_by_strategy = new_filtered
 
     # market_indices (display-ready)
     mi_display: dict[str, MarketIndexDisplay] = {}
