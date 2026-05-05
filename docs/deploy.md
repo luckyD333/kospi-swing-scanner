@@ -183,7 +183,99 @@ sudo systemctl reload nginx
 
 ---
 
-## 5. cron 스케줄 등록
+## 5. 도메인 연결 및 HTTPS 설정 (Let's Encrypt)
+
+### 5-0. DNS A 레코드 등록
+
+도메인 레지스트라 관리 콘솔에서 A 레코드 2개를 추가하세요:
+
+```
+sigbora.com      A  →  YOUR_VM_IP
+www.sigbora.com  A  →  YOUR_VM_IP
+```
+
+TTL은 300~600초로 설정. 전파 확인:
+
+```bash
+dig sigbora.com +short  # VM IP 반환 확인
+```
+
+### 5-1. Certbot 설치 및 인증서 발급
+
+```bash
+sudo apt-get install -y certbot python3-certbot-nginx
+
+# 인증서 발급 (nginx 설정 자동 수정 없이 certonly 사용)
+sudo certbot certonly --nginx -d sigbora.com -d www.sigbora.com \
+  --email your@email.com --agree-tos --no-eff-email
+
+# 발급 경로 확인
+# /etc/letsencrypt/live/sigbora.com/fullchain.pem
+# /etc/letsencrypt/live/sigbora.com/privkey.pem
+
+# 자동 갱신 타이머 확인 (설치 시 자동 등록)
+sudo systemctl status certbot.timer
+
+# 갱신 테스트
+sudo certbot renew --dry-run
+```
+
+### 5-2. nginx 설정 반영
+
+`deploy/nginx-kospi-scanner.conf`는 이미 HTTPS 설정을 포함하고 있어요 (HTTP→HTTPS 리다이렉트 + SSL).
+
+```bash
+export APP_DIR="/opt/apps/kospi-scanner"
+
+# git pull 후 nginx 설정 교체
+sudo cp "$APP_DIR/deploy/nginx-kospi-scanner.conf" \
+        /etc/nginx/sites-available/kospi-scanner
+
+sudo nginx -t                  # 문법 검사
+sudo systemctl reload nginx
+```
+
+### 5-3. signal-api CORS 갱신
+
+`deploy/signal-api.service`의 `SIGNAL_API_CORS_ORIGINS`가 `https://sigbora.com`으로 이미 설정되어 있어요. VM에 반영:
+
+```bash
+export APP_DIR="/opt/apps/kospi-scanner"
+sudo cp "$APP_DIR/deploy/signal-api.service" /etc/systemd/system/signal-api.service
+sudo systemctl daemon-reload
+sudo systemctl restart signal-api
+```
+
+### 5-4. signal-web 재빌드
+
+`NEXT_PUBLIC_API_URL`은 빌드 타임에 번들링되므로 도메인으로 재빌드 필요:
+
+```bash
+export APP_DIR="/opt/apps/kospi-scanner"
+cd "$APP_DIR/signal-web"
+NEXT_PUBLIC_API_URL=https://sigbora.com npm run build
+cp -r .next/static .next/standalone/.next/static
+cp -r public .next/standalone/public
+sudo systemctl restart signal-web
+```
+
+또는 `restart.sh` 활용:
+
+```bash
+NEXT_PUBLIC_API_URL=https://sigbora.com bash scripts/restart.sh web-build
+```
+
+### 5-5. 동작 확인
+
+```bash
+curl -I http://sigbora.com            # 301 → https://sigbora.com
+curl -I https://sigbora.com           # 200 OK
+curl https://sigbora.com/api/signals | head -c 100
+```
+
+---
+
+## 6. cron 스케줄 등록
 
 ```bash
 # VM 시간대가 KST인지 재확인
@@ -213,7 +305,7 @@ LOG_DIR=/opt/apps/kospi-scanner/log
 */2 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1
 ```
 
-### 5-1. 장중 30m 페어링 스크립트 (권장)
+### 6-1. 장중 30m 페어링 스크립트 (권장)
 
 `crontab.example` 의 장중 entry는 cli.py 만 실행해서 raw 1m 캐시가 stale 일 때 시그널이 한 박자 늦어요. **collect → cli 를 한 스크립트로 묶고**, bar close 시각에서 1분 지연으로 호출하면 네이버 데이터 반영 지연(보통 30~60초)을 흡수할 수 있어요.
 
@@ -243,17 +335,17 @@ cd /opt/apps/kospi-scanner
 
 ---
 
-## 6. 동작 확인 체크리스트
+## 7. 동작 확인 체크리스트
 
 ```bash
 # signal-api 응답 확인
 curl http://localhost:8000/api/signals | head -c 200
 
 # nginx를 통한 전체 경로 확인
-curl http://YOUR_VM_IP/api/signals | head -c 200
+curl https://sigbora.com/api/signals | head -c 200
 
 # 브라우저에서 확인
-# http://YOUR_VM_IP/  →  신호 카드 목록 표시
+# https://sigbora.com/  →  신호 카드 목록 표시
 ```
 
 | 항목 | 명령어 | 기대 결과 |
@@ -262,11 +354,11 @@ curl http://YOUR_VM_IP/api/signals | head -c 200
 | signal-web | `sudo systemctl status signal-web` | `active (running)` |
 | nginx | `sudo systemctl status nginx` | `active (running)` |
 | API 응답 | `curl http://localhost:8000/api/signals` | JSON 응답 (`signals`, `generated_at` 등 포함) |
-| UI 접속 | 브라우저 `http://YOUR_VM_IP/` | 신호 카드 목록 |
+| UI 접속 | 브라우저 `https://sigbora.com/` | 신호 카드 목록 |
 
 ---
 
-## 7. 코드 업데이트 (재배포)
+## 8. 코드 업데이트 (재배포)
 
 로컬에서 `git push` 후 VM에서:
 
@@ -317,7 +409,7 @@ cp -r public .next/standalone/public
 
 ---
 
-## 8. 트러블슈팅
+## 9. 트러블슈팅
 
 ### 로그 확인
 
@@ -346,7 +438,7 @@ tail -f /opt/apps/kospi-scanner/log/live.log        # Job C 실시간 현재가
 
 ---
 
-## 9. 로컬 개발 모드
+## 10. 로컬 개발 모드
 
 VM 배포 없이 로컬에서 web + api를 동시에 띄워 테스트할 때 흐름이에요. 운영과 동일한 SSOT 모델을 따라요 (data/signals.json → signal-api → signal-web fetch).
 
