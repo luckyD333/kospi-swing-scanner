@@ -24,9 +24,9 @@
   --radius-lg:   18px;
   --radius-pill: 9999px;
 
-  /* Font 스택 — SF Pro (시스템 폰트), 한글은 Pretendard(--f-display-ko) fallback.
-     --f-display-ko 는 layout.tsx localFont 로 주입. Mono는 JetBrains Mono 유지. */
-  --f-display-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, var(--f-display-ko), sans-serif;
+  /* Font 스택 — Apple 기기: SF Pro (system-ui), 그 외: Inter(--f-inter) fallback.
+     --f-inter, --f-display-ko, --f-mono 는 layout.tsx에서 주입. */
+  --f-display-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, var(--f-inter), var(--f-display-ko), sans-serif;
   --f-body-stack:    var(--f-display-stack);
   --f-mono-stack:    var(--f-mono), ui-monospace, "SF Mono", "Cascadia Mono", monospace;
 
@@ -81,6 +81,32 @@ body {
 }
 .ticker-card:hover {
   outline: 1px solid var(--hairline-strong);
+}
+
+/* 포커스 링 — 키보드 탐색 시 accent 색상 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 매매파라미터 그리드 — 데스크탑 4열, 모바일 2×2 */
+.params-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+@media (max-width: 639px) {
+  .params-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .params-grid > div:nth-child(odd) {
+    border-right: 1px solid var(--hairline);
+  }
+  .params-grid > div:nth-child(1),
+  .params-grid > div:nth-child(2) {
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: 20px;
+  }
 }
 
 /* TopNav 서브열 — 컨테이너 폭 기준 (viewport 크기 무관) */

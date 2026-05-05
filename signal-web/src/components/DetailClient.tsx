@@ -257,10 +257,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         </div>
 
         {/* 진입 / 손절 / 목표1 / 목표2 */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0',
-          borderBottom: '1px solid var(--hairline)',
-        }}>
+        <div className="params-grid" style={{ borderBottom: '1px solid var(--hairline)' }}>
           {[
             { label: '진입가', val: entry,   sub: '지정가', color: 'var(--link)' },
             { label: '손절가', val: stop,    sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '', color: C_RISK },
@@ -393,7 +390,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
               <div style={{ ...LABEL, marginBottom: '10px' }}>
                 {label}
               </div>
-              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)' }}>
+              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
                 {value}
               </div>
               {sub && (
