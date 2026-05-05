@@ -29,6 +29,80 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
     : [];
   const hasFearGreed = fearGreed != null;
   const hasRegime = hasFearGreed || sortedRegimes.length > 0;
+
+  // 시장 지표 아이템 — borderless=true 이면 구분선·패딩 없이 gap만 사용 (서브열용)
+  function MarketItems({ borderless }: { borderless?: boolean }) {
+    const itemStyle = (showBorder: boolean): React.CSSProperties => borderless ? {} : {
+      paddingRight: '20px',
+      marginRight: '20px',
+      borderRight: showBorder ? '1px solid var(--hairline)' : 'none',
+    };
+
+    return (
+      <>
+        {entries.map(([key, item], i) => {
+          const isLastIndex = i === entries.length - 1;
+          const showBorder = !isLastIndex || hasRegime;
+          return (
+            <div key={key} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexShrink: 0,
+              ...itemStyle(showBorder),
+            }}>
+              <span style={ts('caption-sm', 'var(--muted)')}>
+                {item.label}
+              </span>
+              <span style={{
+                ...ts('caption', 'var(--body-strong)'),
+                letterSpacing: '0.5px',
+              }}>
+                {item.value_display}
+              </span>
+              <span style={ts(
+                'caption-sm',
+                item.direction === 'up' ? 'var(--gain)' : item.direction === 'down' ? 'var(--loss)' : 'var(--flat)',
+              )}>
+                {item.change_display}
+              </span>
+            </div>
+          );
+        })}
+
+        {hasFearGreed ? (
+          <FearGreedGauge data={fearGreed!} />
+        ) : (
+          sortedRegimes.map(([tf, r], i) => {
+            const isLast = i === sortedRegimes.length - 1;
+            return (
+              <div key={tf} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexShrink: 0,
+                ...itemStyle(!isLast),
+              }}>
+                <span style={ts('caption-sm', 'var(--muted)')}>
+                  {tf.toUpperCase()}
+                </span>
+                <span style={{
+                  ...ts('caption', regimeColor(r.regime)),
+                  letterSpacing: '0.5px',
+                }}>
+                  {r.regime}
+                </span>
+                <span style={ts('caption-sm', 'var(--muted-soft)')}>
+                  {r.score}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </>
+    );
+  }
+
   return (
     <nav style={{
       position: 'sticky', top: 0, zIndex: 100,
@@ -36,14 +110,16 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
       backdropFilter: 'blur(8px)',
       borderBottom: '1px solid var(--hairline)',
     }}>
-      {/* 워드마크 + 시장현황 + generated_at — 단일 44px 로우 */}
-      <div style={{
-        height: '44px',
-        display: 'flex', alignItems: 'center',
-        padding: '0 40px',
-        gap: '0',
-        overflow: 'hidden',
-      }}>
+      {/* 워드마크 + 시장현황(데스크탑) + generated_at — 44px 행 */}
+      <div
+        className="topnav-main-row"
+        style={{
+          height: '44px',
+          display: 'flex', alignItems: 'center',
+          gap: '0',
+          overflow: 'hidden',
+        }}
+      >
         {/* SIGNAL 워드마크 */}
         <button
           onClick={onHome}
@@ -62,80 +138,9 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
           SIGNAL
         </button>
 
-        {/* 시장 현황 + 마켓 레짐 — 단일 인라인 컨테이너, 구분선만 */}
-        <div style={{
-          display: 'flex',
-          flex: 1,
-          alignItems: 'center',
-          gap: '0',
-          overflow: 'hidden',
-          height: '100%',
-        }}>
-          {entries.map(([key, item], i) => {
-            const isLastIndex = i === entries.length - 1;
-            const showBorder = !isLastIndex || hasRegime;
-            return (
-              <div key={key} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                paddingRight: '20px',
-                marginRight: '20px',
-                borderRight: showBorder ? '1px solid var(--hairline)' : 'none',
-                flexShrink: 0,
-              }}>
-                <span style={ts('caption-sm', 'var(--muted)')}>
-                  {item.label}
-                </span>
-                <span style={{
-                  ...ts('caption', 'var(--body-strong)'),
-                  letterSpacing: '0.5px',
-                }}>
-                  {item.value_display}
-                </span>
-                <span style={ts(
-                  'caption-sm',
-                  item.direction === 'up' ? 'var(--gain)' : item.direction === 'down' ? 'var(--loss)' : 'var(--flat)',
-                )}>
-                  {item.change_display}
-                </span>
-              </div>
-            );
-          })}
-
-          {/* Fear & Greed 게이지 — 1D/1H regime chip 자리에 단일 컴포지트 표시.
-              fearGreed 부재 시 (initial deploy 등) 기존 1D/1H regime chip 으로 graceful fallback. */}
-          {hasFearGreed ? (
-            <FearGreedGauge data={fearGreed!} />
-          ) : (
-            sortedRegimes.map(([tf, r], i) => {
-              const isLast = i === sortedRegimes.length - 1;
-              return (
-                <div key={tf} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  paddingRight: '20px',
-                  marginRight: '20px',
-                  borderRight: !isLast ? '1px solid var(--hairline)' : 'none',
-                  flexShrink: 0,
-                }}>
-                  <span style={ts('caption-sm', 'var(--muted)')}>
-                    {tf.toUpperCase()}
-                  </span>
-                  <span style={{
-                    ...ts('caption', regimeColor(r.regime)),
-                    letterSpacing: '0.5px',
-                  }}>
-                    {r.regime}
-                  </span>
-                  <span style={ts('caption-sm', 'var(--muted-soft)')}>
-                    {r.score}
-                  </span>
-                </div>
-              );
-            })
-          )}
+        {/* 시장 현황 — 데스크탑에서만 인라인 노출 */}
+        <div className="topnav-market-inline">
+          <MarketItems />
         </div>
 
         {/* 기준일 + 업데이트 시각 */}
@@ -167,6 +172,11 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
             갱신 {generatedAtDisplay}
           </span>
         </div>
+      </div>
+
+      {/* 모바일 서브열 — 639px 이하에서만 노출 */}
+      <div className="topnav-market-sub">
+        <MarketItems borderless />
       </div>
     </nav>
   );

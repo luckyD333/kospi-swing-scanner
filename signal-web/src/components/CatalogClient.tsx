@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import type { CardProps } from '@/lib/adapt';
@@ -39,8 +39,8 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
 
   // 'ALL' 탭은 서버 dedup 결과 (strategy.id === 'all') 만 노출.
   // 'all' entry 가 없는 환경 (legacy) 에서는 모든 카드 표시 fallback.
-  const hasAllEntry = cards.some(c => c.strategyId === 'all');
-  const filtered = cards
+  const hasAllEntry = useMemo(() => cards.some(c => c.strategyId === 'all'), [cards]);
+  const filtered = useMemo(() => cards
     .filter(c => {
       if (strategy === 'ALL') {
         return hasAllEntry ? c.strategyId === 'all' : true;
@@ -64,7 +64,12 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       }
       if (sortBy === 'price') return a.entry - b.entry;
       return 0;
-    });
+    }), [cards, strategy, timeframe, sortBy, hasAllEntry]);
+
+  const navigate = useCallback(
+    (ticker: string) => router.push(`/signals/${ticker}`),
+    [router]
+  );
 
   return (
     <div style={{ background: 'var(--canvas)', minHeight: '100vh' }}>
@@ -128,7 +133,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
             }}>
               <TickerCard
                 card={card}
-                onClick={() => router.push(`/signals/${card.ticker}`)}
+                onNavigate={navigate}
                 index={i}
               />
             </div>

@@ -1,25 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { CardProps } from '@/lib/adapt';
 import { ts } from '@/lib/typography';
 
 interface Props {
   card: CardProps;
-  onClick: () => void;
+  onNavigate: (ticker: string) => void;
   index: number;
 }
 
 const fmtNum = (v: number | null): string =>
   v == null ? '—' : v.toLocaleString('ko-KR');
 
-export default function TickerCard({ card, onClick, index }: Props) {
-  const [hov, setHov] = useState(false);
+export default React.memo(function TickerCard({ card, onNavigate, index }: Props) {
   const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), index * 60);
-    return () => clearTimeout(timer);
+    const el = ref.current;
+    if (!el) return;
+    const mountedAt = Date.now();
+    const obs = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      // 페이지 로드 직후(1초 이내) → stagger 유지, 이후 스크롤 진입 → 즉시
+      const delay = Date.now() - mountedAt < 1000 ? Math.min(index * 50, 400) : 0;
+      setTimeout(() => setVisible(true), delay);
+      obs.disconnect();
+    }, { threshold: 0.05 });
+    obs.observe(el);
+    return () => obs.disconnect();
   }, [index]);
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
@@ -52,16 +62,13 @@ export default function TickerCard({ card, onClick, index }: Props) {
 
   return (
     <div
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      ref={ref}
+      className="ticker-card"
+      onClick={() => onNavigate(ticker)}
       style={{
         background: 'var(--canvas)',
-        outline: hov ? '1px solid var(--hairline-strong)' : '1px solid transparent',
-        outlineOffset: '-1px',
         padding: '52px 32px',
         cursor: 'pointer',
-        transition: 'outline-color 200ms ease-out, opacity 400ms ease-out, transform 400ms ease-out',
         opacity: visible ? 1 : 0,
         transform: visible ? 'translateY(0)' : 'translateY(16px)',
         display: 'flex',
@@ -139,7 +146,7 @@ export default function TickerCard({ card, onClick, index }: Props) {
           ))}
         </div>
 
-        {/* 핵심 지표 1행: RR | SCR | ATR — body 톤. RR band 색 분기 제거 */}
+        {/* 핵심 지표 1행: RSI | PER | 랭킹 */}
         <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: '14px', paddingBottom: '14px' }}>
           <div style={{ display: 'flex' }}>
             {primaryMetrics.map(({ label, value }, i) => (
@@ -177,4 +184,4 @@ export default function TickerCard({ card, onClick, index }: Props) {
       </div>
     </div>
   );
-}
+});
