@@ -68,7 +68,10 @@ def find_limit_entry(
     if len(valid) == 0:
         return None
 
-    return round_to_tick(float(valid.max()))
+    candidate = floor_to_tick(float(valid.max()))
+    if candidate <= stop_loss:
+        return None
+    return candidate
 
 
 def compute_limit_stop(
