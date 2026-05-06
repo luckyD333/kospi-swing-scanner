@@ -36,7 +36,8 @@ class StrategyFourConfig:
     min_vol_ratio: float = 0.8  # 당일 거래량 / 20일 평균
     stop_loss_pct: float = 0.025
     target_1_pct: float = 0.03
-    target_2_pct: float = 0.05
+    target_2_pct: float = 0.05          # ATR 미산출 시 fallback
+    atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
     min_bars: int = 25
     min_daily_volume: int = 100_000
 
@@ -108,8 +109,17 @@ class StrategyFourPullbackMa:
                 sl_ma20 = ma20_now * (1 - 0.005)
                 sl_pct = entry * (1 - cfg.stop_loss_pct)
                 stop_loss = floor_to_tick(max(sl_ma20, sl_pct))
+
+                atr_series = calc_atr(df["high"], df["low"], close, 14)
+                atr_val = float(atr_series.iloc[-1])
+                atr_14 = None if pd.isna(atr_val) else atr_val
+
                 t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
-                t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
+                if atr_14 is not None:
+                    t2 = round_to_tick(entry + atr_14 * cfg.atr_target_mult)
+                    t2 = max(t2, t1)
+                else:
+                    t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
 
                 above_ma20_pct = close_now / ma20_now - 1
                 # 5000 배수: +0.2% 위 → score ≈ 10, +10% 위 → score = 500 (추세 강도 비례)
@@ -124,10 +134,6 @@ class StrategyFourPullbackMa:
                     rr_band = "sweet"
                 else:
                     rr_band = "over"
-
-                atr_series = calc_atr(df["high"], df["low"], close, 14)
-                atr_val = float(atr_series.iloc[-1])
-                atr_14 = None if pd.isna(atr_val) else atr_val
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 

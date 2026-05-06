@@ -48,7 +48,8 @@ class StrategyTwoConfig:
     require_volume_above_avg: bool = True  # 당일 거래량 > 평균 강제
     stop_loss_pct: float = 0.025        # -2.5%
     target_1_pct: float = 0.03          # +3%
-    target_2_pct: float = 0.05          # +5%
+    target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
+    atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
 
 
 class StrategyTwoCrossSectionalMomentum:
@@ -133,8 +134,17 @@ class StrategyTwoCrossSectionalMomentum:
             close_now = float(df["close"].iloc[-1])
             entry = round_to_tick(close_now)
             sl = floor_to_tick(entry * (1 - cfg.stop_loss_pct))
+            # ATR 14일 계산 (t2 산출에 선행)
+            atr_series = calc_atr(df["high"], df["low"], df["close"], period=14)
+            atr_val = atr_series.iloc[-1]
+            atr_14 = None if (atr_val is None or atr_val != atr_val) else float(atr_val)
+
             t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
-            t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
+            if atr_14 is not None:
+                t2 = round_to_tick(entry + atr_14 * cfg.atr_target_mult)
+                t2 = max(t2, t1)
+            else:
+                t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
 
             cap_won = ctx.market_caps.get(ticker, 0.0)
             cap_bil = float(cap_won) / 100_000_000
@@ -151,14 +161,6 @@ class StrategyTwoCrossSectionalMomentum:
                 rr_band = "sweet"
             else:
                 rr_band = "over"
-
-            # ATR 14일 계산 (NaN이면 None)
-            atr_series = calc_atr(df["high"], df["low"], df["close"], period=14)
-            atr_val = atr_series.iloc[-1]
-            if atr_val is not None and (atr_val != atr_val):  # NaN 체크
-                atr_14 = None
-            else:
-                atr_14 = float(atr_val) if atr_val is not None else None
 
             rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 

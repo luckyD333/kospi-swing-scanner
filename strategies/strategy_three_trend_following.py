@@ -49,7 +49,8 @@ class StrategyThreeConfig:
     atr_filter_multiplier: float = 0.5  # 돌파 폭 ≥ ATR × mult 만 진입 (0=비활성)
     stop_loss_pct: float = 0.025        # 진입가 -2.5% (보수적 SL 한계)
     target_1_pct: float = 0.03          # +3%
-    target_2_pct: float = 0.05          # +5%
+    target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
+    atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
     score_scale: float = 20000.0        # breakout_pct × scale → score (0..1000 cap; 5% 돌파 = 1000점)
 
 
@@ -136,7 +137,8 @@ class StrategyThreeTrendFollowing:
                 stop_loss = floor_to_tick(stop_loss_raw)
 
                 t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
-                t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
+                t2 = round_to_tick(entry + atr_now * cfg.atr_target_mult)
+                t2 = max(t2, t1)
 
                 cap_won = ctx.market_caps.get(ticker, 0.0)
                 cap_bil = float(cap_won) / 100_000_000
