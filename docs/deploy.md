@@ -290,7 +290,8 @@ crontab -e
 ```crontab
 APP_DIR=/opt/apps/kospi-scanner
 VENV_PYTHON=/opt/apps/kospi-scanner/.venv/bin/python
-LOG_DIR=/opt/apps/kospi-scanner/log
+LOG_DIR=/opt/apps/logs/kospi-scanner/
+LOCK=/tmp/kospi-scanner.lock
 
 # Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
 10 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache >> $LOG_DIR/collect.log 2>&1
@@ -298,40 +299,38 @@ LOG_DIR=/opt/apps/kospi-scanner/log
 # Job B (일봉 신호): 수집 30분 후 (평일 16:40 KST)
 40 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1
 
-# Job B (장중 신호): 장 중 30분 간격 대신 collect → cli 페어링 권장
-1,31 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m --smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1
+# Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
+# flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)
+1,31 9-15 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1h 30m >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
+
+# Job B14 (14:00 1D 포함 전체 갱신): 오늘 14:00 현재가를 1D close로 반영
+# smart-skip 없이 1D 강제 갱신. flock으로 C30(14:01)과 직렬화
+0 14 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m --no-smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
 
 # Job C (실시간 현재가): 시장 지수 + 시그널 종목 현재가만 갱신 (2분 주기, 09:00-15:59)
 */2 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1
 ```
 
-### 6-1. 장중 30m 페어링 스크립트 (권장)
+### 6-1. 스케줄 설명
 
-`crontab.example` 의 장중 entry는 cli.py 만 실행해서 raw 1m 캐시가 stale 일 때 시그널이 한 박자 늦어요. **collect → cli 를 한 스크립트로 묶고**, bar close 시각에서 1분 지연으로 호출하면 네이버 데이터 반영 지연(보통 30~60초)을 흡수할 수 있어요.
+| Job | 시각 | 내용 |
+|-----|------|------|
+| Job A | 16:10 | `collect.py` — 1D/1W/1h/30m OHLCV 수집 |
+| Job B | 16:40 | `cli.py` — 일봉 기준 signals.json 갱신 |
+| Job C30 | 1,31분 (09~15시) | collect(1h/30m) → cli 페어링. `flock`으로 Job B14와 직렬화 |
+| Job B14 | 14:00 | 1D 포함 강제 갱신 (`--no-smart-skip`). 오늘 14:00 현재가를 1D close로 반영 |
+| Job C | 2분 주기 (09~15시) | `collect_live.py` — 현재가·시장지수만 부분 갱신 |
 
-```bash
-# /opt/apps/kospi-scanner/scripts/run_30m.sh
-#!/bin/bash
-cd /opt/apps/kospi-scanner
-.venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache \
-    --timeframes 1D 1h 30m --smart-skip \
-  && .venv/bin/python cli.py --strategy all --cache-root .cache \
-    --format signals_ui --output-dir data
-```
-
-```crontab
-# 30m bar close + 1분 (09:01, 09:31, 10:01, ..., 15:01, 15:31)
-1,31 9-15 * * 1-5 /opt/apps/kospi-scanner/scripts/run_30m.sh >> /opt/apps/kospi-scanner/log/30m.log 2>&1
-```
+**Job C30과 Job B14의 분리 이유**: C30은 1h/30m만 수집해 속도를 높이고, 14:00에만 1D를 강제 갱신해 오늘 시가·현재가를 일봉에 반영해요. `--no-smart-skip` 없이는 1D가 당일 캐시 유효 판정으로 skip될 수 있어요.
 
 | 항목 | 값 | 이유 |
 |------|-----|------|
 | 분 필드 | `1,31` (≠ `*/30`) | bar close 직후 데이터 도착 대기 (`*/30` 은 :00/:30 정시라 너무 빠름) |
 | 시 필드 | `9-15` | 09:01 첫 실행, 15:31 마지막 실행 |
-| `--smart-skip` | flag | 30m TF는 30분 미만 경과 시 자동 skip — 빈 호출 비용 0 |
+| `flock -n` | Job C30·B14 공유 | 두 job이 같은 시각에 겹치면 나중 job은 skip — manifest.json 충돌 방지 |
 | `&&` 체인 | `||` 아님 | collect 실패 시 cli 자동 skip, stale cache 위에 결과 덮어쓰기 회피 |
 
-**기존 `*/30 9-15` entry 와 병행 운영 금지** — 두 cron 이 같은 manifest.json 을 동시에 쓰면 충돌해요. 본 페어링 스크립트로 교체하거나, 시 필드를 어긋나게 두세요.
+**기존 `*/30 9-15` entry와 병행 운영 금지** — 두 cron이 같은 manifest.json을 동시에 쓰면 충돌해요.
 
 ---
 
@@ -419,9 +418,10 @@ sudo journalctl -u signal-api -n 50 --no-pager
 sudo journalctl -u signal-web -n 50 --no-pager
 
 # cron 작업 로그
-tail -f /opt/apps/kospi-scanner/log/collect.log
-tail -f /opt/apps/kospi-scanner/log/signals.log
-tail -f /opt/apps/kospi-scanner/log/live.log        # Job C 실시간 현재가
+tail -f /opt/apps/logs/kospi-scanner/collect.log
+tail -f /opt/apps/logs/kospi-scanner/signals.log
+tail -f /opt/apps/logs/kospi-scanner/collect_intraday.log  # Job C30·B14
+tail -f /opt/apps/logs/kospi-scanner/live.log              # Job C 실시간 현재가
 ```
 
 ### 자주 발생하는 문제
@@ -433,7 +433,7 @@ tail -f /opt/apps/kospi-scanner/log/live.log        # Job C 실시간 현재가
 | `/_next/static/` JS 청크 400 Bad Request | standalone 빌드 후 정적 파일 미복사 — `.next/standalone/.next/static/` 가 비어 있음 | `bash scripts/restart.sh web-build` 실행 (빌드 + 복사 자동 처리) |
 | Next.js 빌드 실패 (메모리 부족) | Droplet RAM 부족 | swap 추가: `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` |
 | cron 미실행 | 시간대 불일치 | `timedatectl set-timezone Asia/Seoul` 후 재설정 |
-| `permission denied` on log/ | 실행 계정이 프로젝트 디렉토리 읽기/쓰기 불가 | `chmod -R o+rX /opt/apps/kospi-scanner` 후 `log/`, `data/`, `.cache/` 권한 재확인 |
+| `permission denied` on log/ | 실행 계정이 로그 디렉토리 쓰기 불가 | `mkdir -p /opt/apps/logs/kospi-scanner && chmod -R o+rwX /opt/apps/logs/kospi-scanner` |
 | 디테일 페이지가 빈 데이터 / FACTOR BREAKDOWN 미노출 | 로컬에 signal-api 미실행 또는 `data/signals.json`에 decision 부재 | 9번 섹션의 로컬 dev 가이드대로 둘 다 띄우고, `cli.py --format signals_ui` 재실행 |
 
 ---
