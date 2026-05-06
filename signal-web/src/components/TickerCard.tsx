@@ -40,9 +40,9 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
   }, [index]);
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
-    entry, stop, target1, per,
+    entry, stop, target1,
     rsi, strategyLabel, timeframe, rank, allStrategyTags,
-    limitEntryActive, signalStatus } = card;
+    signalStatus, decisionMaxRegret } = card;
 
   const statusBadge = (() => {
     switch (signalStatus) {
@@ -75,8 +75,8 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
 
   const primaryMetrics = [
     { label: 'RSI', value: rsi != null ? rsi.toFixed(1) : '—' },
-    { label: 'PER', value: per != null && per > 0 ? `${per}x` : '—' },
     { label: '랭킹', value: rankDisplay },
+    { label: '후회값', value: decisionMaxRegret != null ? decisionMaxRegret.toFixed(2) : '—' },
   ];
 
   // 라벨은 muted-soft로 한 톤 낮춰 데이터가 자연스럽게 떠오르게 함
@@ -118,23 +118,6 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         </span>
       )}
 
-      {/* limit_entry 활성 표시 (좌상단) */}
-      {limitEntryActive && (
-        <span style={{
-          position: 'absolute',
-          top: '16px',
-          left: '16px',
-          padding: '2px 8px',
-          borderRadius: '4px',
-          background: 'rgba(0,113,227,0.10)',
-          color: 'var(--link)',
-          fontSize: '10px',
-          fontWeight: 600,
-          letterSpacing: '0',
-        }}>
-          30m 지정가
-        </span>
-      )}
 
       {/* 종목명 — 시선 앵커 1: 100% ink */}
       <div style={{

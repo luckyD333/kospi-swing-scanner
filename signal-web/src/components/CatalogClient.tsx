@@ -49,10 +49,10 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         return (b.score ?? -Infinity) - (a.score ?? -Infinity);
       }
       if (sortBy === 'rsi') return (a.rsi ?? Infinity) - (b.rsi ?? Infinity);
-      if (sortBy === 'per') {
-        const ap = a.per != null && a.per > 0 ? a.per : Infinity;
-        const bp = b.per != null && b.per > 0 ? b.per : Infinity;
-        return ap - bp;
+      if (sortBy === 'regret') {
+        const ar = a.decisionMaxRegret ?? -Infinity;
+        const br = b.decisionMaxRegret ?? -Infinity;
+        return br - ar;
       }
       if (sortBy === 'price') return a.entry - b.entry;
       return 0;

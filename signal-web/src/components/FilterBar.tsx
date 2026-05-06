@@ -46,8 +46,8 @@ interface Props {
 
 const SORT_OPTIONS: [string, string][] = [
   ['랭킹', 'rank'],
+  ['후회값', 'regret'],
   ['RSI', 'rsi'],
-  ['PER', 'per'],
   ['가격', 'price'],
 ];
 
