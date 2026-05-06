@@ -58,9 +58,12 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       return 0;
     };
 
+    // 손절·만료 신호 제외 — 당일 재진입 기회 없음
+    const activeCards = cards.filter(c => c.signalStatus !== 'STOPPED_OUT' && c.signalStatus !== 'STALE');
+
     if (strategy === 'ALL') {
       // ticker별 그룹화 — 대표 카드(최고 rank)에 모든 전략+TF 태그 병합
-      const rawCards = cards.filter(c => c.strategyId !== 'all');
+      const rawCards = activeCards.filter(c => c.strategyId !== 'all');
       const grouped = new Map<string, CardProps[]>();
       for (const c of rawCards) {
         const arr = grouped.get(c.ticker) ?? [];
@@ -90,7 +93,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         })
         .sort(sortFn);
     }
-    return cards
+    return activeCards
       .filter(c => c.strategyId !== 'all' && c.strategyLabel === strategy)
       .filter(c => timeframe === 'ALL' || c.timeframe === timeframe)
       .sort(sortFn);

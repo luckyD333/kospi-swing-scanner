@@ -4,7 +4,7 @@
 
 APP_DIR=/opt/apps/kospi-scanner
 VENV_PYTHON=/opt/apps/kospi-scanner/.venv/bin/python
-LOG_DIR=/opt/apps/kospi-scanner/log
+LOG_DIR=/opt/apps/logs/kospi-scanner/
 LOCK=/tmp/kospi-scanner.lock
 
 # Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)

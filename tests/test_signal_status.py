@@ -115,3 +115,70 @@ def test_status_priority_stopped_out_over_target_reached():
         now=_now(),
     )
     assert status == "STOPPED_OUT"
+
+
+# ── 장중 TF 신호 만료 (intraday STALE) ─────────────────────────────────────
+
+def test_status_1h_signal_stale_after_2h():
+    """1h 신호가 2봉(2h) 초과 경과 + 미발동 → STALE."""
+    status = compute_signal_status(
+        current_price=1000,
+        stop=975,
+        target_1=1030,
+        signal_date_str="2026-05-11T09:00:00+09:00",
+        now=_now("2026-05-11T11:30:00+09:00"),  # 2.5h 경과
+        timeframe="1h",
+    )
+    assert status == "STALE"
+
+
+def test_status_1h_signal_valid_within_2h():
+    """1h 신호가 2h 이내 + 미발동 → VALID."""
+    status = compute_signal_status(
+        current_price=1000,
+        stop=975,
+        target_1=1030,
+        signal_date_str="2026-05-11T09:00:00+09:00",
+        now=_now("2026-05-11T10:30:00+09:00"),  # 1.5h 경과
+        timeframe="1h",
+    )
+    assert status == "VALID"
+
+
+def test_status_1h_stale_does_not_override_stopped_out():
+    """1h 신호가 2h+ 경과해도 STOPPED_OUT 이면 STOPPED_OUT 유지."""
+    status = compute_signal_status(
+        current_price=970,  # <= stop
+        stop=975,
+        target_1=1030,
+        signal_date_str="2026-05-11T09:00:00+09:00",
+        now=_now("2026-05-11T11:30:00+09:00"),
+        timeframe="1h",
+    )
+    assert status == "STOPPED_OUT"
+
+
+def test_status_30m_signal_stale_after_1h():
+    """30m 신호가 2봉(1h) 초과 경과 + 미발동 → STALE."""
+    status = compute_signal_status(
+        current_price=1000,
+        stop=975,
+        target_1=1030,
+        signal_date_str="2026-05-11T09:00:00+09:00",
+        now=_now("2026-05-11T10:30:00+09:00"),  # 1.5h 경과
+        timeframe="30m",
+    )
+    assert status == "STALE"
+
+
+def test_status_daily_signal_no_intraday_stale():
+    """1D 신호는 장중 STALE 감지 미적용."""
+    status = compute_signal_status(
+        current_price=1000,
+        stop=975,
+        target_1=1030,
+        signal_date_str="2026-05-11T09:00:00+09:00",
+        now=_now("2026-05-11T10:30:00+09:00"),  # 30m 신호라면 STALE 될 시간
+        timeframe="1D",
+    )
+    assert status == "VALID"

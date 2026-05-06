@@ -104,7 +104,10 @@ class StrategyFourPullbackMa:
                     continue
 
                 entry = round_to_tick(close_now)
-                stop_loss = floor_to_tick(entry * (1 - cfg.stop_loss_pct))
+                # MA20 이 핵심 지지선 — MA20-0.5% 와 pct 중 더 보수적(높은) 손절 채택
+                sl_ma20 = ma20_now * (1 - 0.005)
+                sl_pct = entry * (1 - cfg.stop_loss_pct)
+                stop_loss = floor_to_tick(max(sl_ma20, sl_pct))
                 t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
                 t2 = round_to_tick(entry * (1 + cfg.target_2_pct))
 

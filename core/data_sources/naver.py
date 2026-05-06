@@ -276,7 +276,8 @@ class NaverSource(DailyDataSource):
                 return None
             price = int(close_str.replace(",", ""))
             direction_code = (d.get("compareToPreviousPrice") or {}).get("code", "3")
-            sign = -1 if direction_code == "1" else 1
+            # 1=상한가, 2=상승, 3=보합, 4=하한가, 5=하락
+            sign = -1 if direction_code in ("4", "5") else 1
             return {
                 "current_price": price,
                 "change_pct": round(sign * float(ratio), 2),

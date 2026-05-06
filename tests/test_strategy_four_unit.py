@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.strategy_base import ScanContext
 from strategies.strategy_four_pullback_ma import StrategyFourPullbackMa
+from strategies.price_utils import floor_to_tick
 
 
 def _make_df(close_arr, vol_arr=None, base_vol=200_000):
@@ -142,3 +143,29 @@ def test_top_n_limit():
     ctx = _make_ctx({"A": df, "B": _make_df(close), "C": df})
     candidates = StrategyFourPullbackMa().scan(ctx, top_n=2)
     assert len(candidates) <= 2
+
+
+def _pass_df_highprice():
+    """가격대 ~10,000, MA20 이 진입가의 1% 아래 — MA20 anchor 효과 확인용.
+
+    MA20 ≈ 9,920, entry ≈ 9,950.
+    sl_ma20 = floor(9920*0.995) = 9,850 (tick=50)
+    sl_pct  = floor(9950*0.975) = 9,700 (tick=50)
+    → max(9850, 9700) = 9850: MA20 기반 손절 채택.
+    """
+    close = [9800 + i * 10 for i in range(21)]  # 9800..10000 (21봉)
+    close += [9900, 9880, 9870]                  # 눌림목 (MA5 이탈 포함)
+    close += [9960]                              # 당일 MA5 회복
+    return _make_df(close)
+
+
+def test_stop_anchored_to_ma20():
+    """MA20 이 -2.5% 보다 가까울 때 stop 이 MA20 기반으로 채택."""
+    df = _pass_df_highprice()
+    ctx = _make_ctx({"TEST": df})
+    candidates = StrategyFourPullbackMa().scan(ctx, top_n=5)
+    assert len(candidates) == 1, "highprice fixture 가 신호를 생성해야 함"
+    c = candidates[0]
+    pct_based_stop = floor_to_tick(c.entry_price * 0.975)
+    assert c.stop_loss > pct_based_stop, "MA20 anchor 손절이 pct 기반보다 높아야 함"
+    assert c.stop_loss < c.entry_price
