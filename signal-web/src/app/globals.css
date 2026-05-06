@@ -115,15 +115,19 @@ body {
 .topnav-market-inline { display: flex; flex: 1; align-items: center; overflow: hidden; height: 100%; }
 .topnav-market-sub { display: none; }
 
-@container (max-width: 639px) {
-  .topnav-main-row { padding: 0 16px; }
+@container (max-width: 1200px) {
   .topnav-market-inline { display: none; }
   .topnav-market-sub {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 16px;
-    padding: 8px 16px 10px;
+    padding: 8px 40px 10px;
     border-top: 1px solid var(--hairline);
   }
+}
+
+@container (max-width: 639px) {
+  .topnav-main-row { padding: 0 16px; }
+  .topnav-market-sub { padding-left: 16px; padding-right: 16px; }
 }
