@@ -5,6 +5,7 @@
 APP_DIR=/opt/apps/kospi-scanner
 VENV_PYTHON=/opt/apps/kospi-scanner/.venv/bin/python
 LOG_DIR=/opt/apps/kospi-scanner/log
+LOCK=/tmp/kospi-scanner.lock
 
 # Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
 10 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache >> $LOG_DIR/collect.log 2>&1
@@ -12,8 +13,13 @@ LOG_DIR=/opt/apps/kospi-scanner/log
 # Job B (일봉 신호): 수집 30분 후 (평일 16:40 KST)
 40 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1
 
-# Job B (장중 신호): 장 중 30분 간격 대신 collect → cli 페어링 권장
-1,31 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m --smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1
+# Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
+# flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)
+1,31 9-15 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1h 30m --smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
+
+# Job B14 (14:00 1D 포함 전체 갱신): 오늘 14:00 현재가를 1D close로 반영
+# smart-skip 없이 1D 강제 갱신. flock으로 C30(14:01)과 직렬화
+0 14 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
 
 # Job C (실시간 현재가): 시장 지수 + 시그널 종목 현재가만 갱신 (2분 주기, 09:00-15:59)
 */2 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1

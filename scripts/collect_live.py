@@ -66,38 +66,18 @@ def _fetch_market_indices(today: str) -> dict[str, dict]:
     return result
 
 
-def _fetch_current_prices(tickers: list[str], now: datetime) -> dict[str, dict]:
-    """siseJson 1m API로 각 ticker 현재가 수집.
-
-    오늘 09:00 ~ 현재 범위로 조회해 마지막 bar close = 현재가,
-    intraday change_pct = (last_close - first_open) / first_open * 100.
-    장외 시간(빈 응답)이면 해당 ticker skip.
-    """
+def _fetch_current_prices(tickers: list[str]) -> dict[str, dict]:
+    """네이버 모바일 API로 각 ticker 실시간 현재가·전일비 수집 (delayTime=0)."""
     from core.data_sources.naver import NaverSource
 
     src = NaverSource()
-    session_start = now.replace(hour=9, minute=0, second=0, microsecond=0)
-    start_str = session_start.strftime("%Y%m%d%H%M")
-    end_str = now.strftime("%Y%m%d%H%M")
-
     result: dict[str, dict] = {}
     for ticker in tickers:
         try:
-            df = src.get_ohlcv(ticker, start_str, end_str, timeframe="1m")
-            if df.empty:
+            quote = src.get_current_quote(ticker)
+            if quote is None:
                 continue
-            last_close = float(df["close"].iloc[-1])
-            first_open = float(df["open"].iloc[0])
-            change_pct = (
-                round((last_close - first_open) / first_open * 100, 2)
-                if first_open else 0.0
-            )
-            volume = int(df["volume"].sum()) if "volume" in df.columns else None
-            result[ticker] = {
-                "current_price": last_close,
-                "change_pct": change_pct,
-                "volume": volume,
-            }
+            result[ticker] = quote  # current_price, change_pct
         except Exception as e:
             logger.warning(f"  {ticker} 현재가 수집 실패 (skip): {e}")
     return result
@@ -119,7 +99,7 @@ def main() -> None:
 
     tickers = _load_signal_tickers()
     logger.info(f"  시그널 종목 {len(tickers)}개 현재가 수집 중...")
-    prices = _fetch_current_prices(tickers, now)
+    prices = _fetch_current_prices(tickers)
     for ticker, data in prices.items():
         snapshot.setdefault("tickers", {}).setdefault(ticker, {}).update(data)
     logger.info(f"  현재가 갱신: {len(prices)}/{len(tickers)}개")

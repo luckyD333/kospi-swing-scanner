@@ -47,6 +47,7 @@ class NaverSource(DailyDataSource):
     MARKET_SUM_URL = "https://finance.naver.com/sise/sise_market_sum.naver"
     INDEX_URL = "https://finance.naver.com/sise/sise_index.naver"
     ETF_LIST_URL = "https://finance.naver.com/api/sise/etfItemList.nhn"
+    MOBILE_BASIC_URL = "https://m.stock.naver.com/api/stock/{ticker}/basic"
     HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     # 시장 코드: KOSPI=0, KOSDAQ=1
@@ -257,6 +258,31 @@ class NaverSource(DailyDataSource):
             logger.warning(f"국고채3Y 수집 실패: {e}")
 
         return result
+
+    def get_current_quote(self, ticker: str) -> dict | None:
+        """네이버 모바일 API로 실시간 현재가·등락률 조회 (delayTime=0).
+
+        Returns:
+            {"current_price": int, "change_pct": float} or None on failure
+        """
+        url = self.MOBILE_BASIC_URL.format(ticker=ticker)
+        try:
+            r = requests.get(url, headers=self.HEADERS, timeout=5)
+            r.raise_for_status()
+            d = r.json()
+            close_str = d.get("closePrice", "")
+            ratio = d.get("fluctuationsRatio")
+            if not close_str or ratio is None:
+                return None
+            price = int(close_str.replace(",", ""))
+            direction_code = (d.get("compareToPreviousPrice") or {}).get("code", "3")
+            sign = -1 if direction_code == "1" else 1
+            return {
+                "current_price": price,
+                "change_pct": round(sign * float(ratio), 2),
+            }
+        except Exception:
+            return None
 
     def get_ohlcv(
         self, ticker: str, start: str, end: str, timeframe: str = "1D"
