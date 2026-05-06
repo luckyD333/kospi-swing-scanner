@@ -2,7 +2,7 @@
 # 1~3일 단기 스윙 보유 환경 기준 표준 권장값 (학술 + 실무 종합).
 # 근거:
 #   - momentum 비중 ↑: Jegadeesh-Titman 후속 + 한국 post-2009 momentum 연구
-#   - rr_ratio 비중 ↓: must_have 로 이미 게이팅, 가중치 중복 회피
+#   - rr_ratio 비중 ↓: 가중치 내 상대 비교로 반영, 절대 게이팅은 하지 않음
 #   - roe 비중 ↑: 한국 시장 KOSPI/KOSDAQ profitability factor 유효
 #   - per 비중 ↓: 단기 holding 에서 value factor 효과 약화
 priorities:
@@ -32,7 +32,6 @@ priorities:
     label: 시장 국면 (BULL/BEAR 자동 분포 shift)
 must_have:
   - "ensemble_count>=1"
-  - "rr_ratio>=2.5"
 strategy_weights:
   strategy_one_d_v2: 1.3
   strategy_one_w_v2: 1.3
