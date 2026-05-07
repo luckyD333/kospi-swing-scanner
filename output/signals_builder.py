@@ -20,8 +20,16 @@ from output.models import (
     Fundamentals, Flow,
     SignalsPayload, Signal, TradePlan, Ranking, LiveQuote, LiveQuoteDisplay,
     StrategyContext, MarketSnapshot, MarketIndexDisplay,
-    DecisionFactor, DecisionMeta,
+    DecisionFactor, DecisionMeta, RegretFactor,
 )
+
+# 기회 점수(regret_score) 4축 breakdown 라벨/가중치 — DEFAULT_WEIGHTS 와 일치 (×100).
+REGRET_FACTOR_LABELS: dict[str, tuple[str, float]] = {
+    "bull_reward":  ("목표 수익", 45.0),
+    "ensemble":     ("다전략 합의도", 25.0),
+    "max_drawdown": ("손절 위험(역)", 20.0),
+    "dist_to_stop": ("손절까지 여유", 10.0),
+}
 
 if TYPE_CHECKING:
     from core.decision.config import WeightConfig
@@ -412,10 +420,28 @@ def build_signals_payload(
             ]
             factors.sort(key=lambda f: f.contribution, reverse=True)
             mr = rc.normalized_metrics.get("regret_score")
+            # 4축 breakdown — regret_scorer 가 저장한 individual normalized rank 사용.
+            regret_factors_list: list[RegretFactor] | None = [
+                RegretFactor(
+                    key=k,
+                    label=REGRET_FACTOR_LABELS[k][0],
+                    weight=REGRET_FACTOR_LABELS[k][1],
+                    normalized=float(rc.normalized_metrics[f"regret_{k}"]),
+                    contribution=round(
+                        REGRET_FACTOR_LABELS[k][1]
+                        * float(rc.normalized_metrics[f"regret_{k}"]),
+                        4,
+                    ),
+                )
+                for k in REGRET_FACTOR_LABELS
+                if f"regret_{k}" in rc.normalized_metrics
+            ] or None
             decision = DecisionMeta(
                 final_score=rc.final_score,
                 factors=factors,
                 max_regret=float(mr) if mr is not None else None,
+                regret_score=float(mr) if mr is not None else None,
+                regret_factors=regret_factors_list,
             )
 
         sig_date = getattr(c, "signal_date", None)
@@ -475,6 +501,7 @@ def build_signals_payload(
             ),
             ranking=Ranking(
                 score=round(r_score, 1),
+                signal_strength=round(c.score / 10.0, 1),
                 rank=r_rank,
                 percentile=(
                     round((1 - r_rank / r_total) * 100, 1)

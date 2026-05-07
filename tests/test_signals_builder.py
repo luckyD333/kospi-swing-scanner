@@ -249,6 +249,64 @@ def test_timeframe_filters_follow_actual_signal_timeframes():
     assert "4H" not in payload.filters["timeframes"]
 
 
+def test_signal_strength_normalized_to_0_to_100():
+    """ranking.signal_strength = c.score / 10 (0~100 정규화)."""
+    snap = _make_snapshot()
+    cand = _make_candidate("sweet")
+    cand.score = 870.0  # 0~1000 범위
+    payload = build_signals_payload(snap, {"strategy_one_d_v2": [cand]})
+    sig = payload.signals[0]
+    assert sig.ranking.signal_strength == 87.0
+
+
+def test_regret_factors_serialized_with_4_axes():
+    """weight_config 있을 때 regret_factors 4행 노출 + contribution = weight × normalized."""
+    from core.decision.config import Priority, WeightConfig
+    cfg = WeightConfig(
+        priorities=[Priority("score", 100.0, "higher_better", "전략점수")],
+    )
+    snap = _multi_strategy_snapshot()
+    cands = {
+        "strategy_one_d_v2": [_make_cand_for("001", 90.0), _make_cand_for("002", 80.0)],
+        "strategy_two_cross_sectional_momentum": [_make_cand_for("003", 70.0)],
+    }
+    payload = build_signals_payload(snap, cands, weight_config=cfg)
+    all_signals = [s for s in payload.signals if s.strategy.id == "all"]
+    assert len(all_signals) >= 1
+
+    for sig in all_signals:
+        rf = sig.ranking.decision.regret_factors
+        assert rf is not None and len(rf) == 4
+        keys = {f.key for f in rf}
+        assert keys == {"bull_reward", "ensemble", "max_drawdown", "dist_to_stop"}
+        for f in rf:
+            assert abs(f.contribution - f.weight * f.normalized) < 0.01
+
+
+def test_regret_factors_contribution_sum_equals_regret_score():
+    """sum(contribution) ≈ regret_score (max_drawdown 은 dd_norm 사용 명시)."""
+    from core.decision.config import Priority, WeightConfig
+    cfg = WeightConfig(
+        priorities=[Priority("score", 100.0, "higher_better", "전략점수")],
+    )
+    snap = _multi_strategy_snapshot()
+    cands = {
+        "strategy_one_d_v2": [
+            _make_cand_for("001", 90.0),
+            _make_cand_for("002", 80.0),
+            _make_cand_for("003", 70.0),
+        ],
+    }
+    payload = build_signals_payload(snap, cands, weight_config=cfg)
+    all_signals = [s for s in payload.signals if s.strategy.id == "all"]
+    for sig in all_signals:
+        rs = sig.ranking.decision.regret_score
+        rf = sig.ranking.decision.regret_factors
+        assert rs is not None and rf is not None
+        total = sum(f.contribution for f in rf)
+        assert abs(total - rs) < 0.05, f"sum={total}, regret_score={rs}"
+
+
 def test_strategy_one_1h_fallback_variants_skip_duplicate_ticker_in_raw_signals():
     """strategy_one_1h_v2/r1/r2 순차 실행 시 동일 ticker는 첫 entry만 유지."""
     snap = _multi_strategy_snapshot()
