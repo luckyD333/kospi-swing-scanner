@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 class Fundamentals(BaseModel):
     per: Optional[float] = None
+    per_negative: bool = False  # PR-A: 적자 sentinel ('—'/'-'/<0). DATA_MISSING 과 구분
     high_52w: Optional[int] = None
     low_52w: Optional[int] = None
 

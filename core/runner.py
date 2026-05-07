@@ -236,7 +236,8 @@ class ScanRunner:
                 # 전략은 metadata에 자체 키를 넣을 수 있고 보존된다 (update 만 함).
                 for cand in candidates:
                     cand.metadata.update(fundamentals_lookup.get(cand.ticker, {
-                        "per": None, "roe": None, "foreign_pct": None,
+                        "per": None, "per_negative": False,
+                        "roe": None, "foreign_pct": None,
                         "naver_url": naver_detail_url(cand.ticker),
                     }))
                 result.candidates_by_strategy_tf[(strat.name, tf)] = candidates
@@ -292,6 +293,7 @@ class ScanRunner:
             row = df.loc[ticker].to_dict() if (not df.empty and ticker in df.index) else {}
             out[ticker] = {
                 "per": _none_if_nan(row.get("per")),
+                "per_negative": bool(row.get("per_negative", False)),  # PR-A 적자 플래그
                 "roe": _none_if_nan(row.get("roe")),
                 "foreign_pct": _none_if_nan(row.get("foreign_pct")),
                 "naver_url": row.get("naver_url") or naver_detail_url(ticker),

@@ -108,24 +108,94 @@ def test_aggregate_must_have_excludes_failing_candidates():
     assert "B" not in tickers
 
 
-def test_aggregate_handles_missing_metric_as_neutral():
-    """결측(None) 메트릭은 0.5 중립 rank 처리 — ETF 등 N/A 종목을 최하위 취급하지 않음."""
+def test_aggregate_handles_missing_metric_as_zero():
+    """결측(None) 메트릭은 PR-A 정책상 가산 0 — 적자/누락 종목 가산 회피.
+
+    이전에는 0.5 중립이었으나, ETF/적자 종목이 부당 가산받아 P0-1 이슈 유발.
+    NOT_APPLICABLE (ETN/ETF) 분기는 PR-B 의 product_type 도입 후 가중치 정규화로 대체.
+
+    higher_better (ROE) 로 검증 — lower_better 에선 valid 최하위가 0 으로 떨어져
+    결측(0)과 동률이 되므로 분리 검증 어려움.
+    """
+    cfg = WeightConfig(
+        priorities=[
+            Priority("roe", 100.0, "higher_better", "고ROE"),
+        ],
+    )
+    cands = [
+        _make_cand("A", roe=20.0),   # 최고 (rank 2/2=1.0)
+        _make_cand("B", roe=None),   # 결측 → 0.0 (가산 회피)
+        _make_cand("C", roe=10.0),   # valid 최하위 (rank 1/2=0.5)
+    ]
+    ranked = aggregate_candidates(cands, cfg)
+    by_ticker = {r.candidate.ticker: r for r in ranked}
+    # B 는 결측(0.0) → C (valid 최하위 0.5) 보다 낮아야 함
+    assert by_ticker["B"].final_score < by_ticker["C"].final_score
+    # B 의 정규화 점수가 정확히 0.0
+    assert by_ticker["B"].normalized_metrics["roe"] == 0.0
+
+
+def test_aggregate_lower_better_missing_equals_worst():
+    """lower_better 에서 결측은 valid 최악(rank=1.0 → 변환 후 0)과 동률 — 의도된 동작.
+
+    lower_better 의 본질적 특성. 결측을 valid 최악보다 더 페널티하려면 별도 sentinel
+    필요 — PR-A 범위 외. 결측 사유는 normalized_metrics 의 missing_reason 으로 식별.
+    """
+    cfg = WeightConfig(
+        priorities=[Priority("per", 100.0, "lower_better", "저PER")],
+    )
+    cands = [
+        _make_cand("A", per=10.0),
+        _make_cand("B", per=None),
+        _make_cand("C", per=20.0),
+    ]
+    ranked = aggregate_candidates(cands, cfg)
+    by_ticker = {r.candidate.ticker: r for r in ranked}
+    # A (rank 1/2=0.5 → 1-0.5=0.5) > B (결측=0) == C (rank 2/2=1.0 → 1-1.0=0)
+    assert by_ticker["A"].final_score > by_ticker["B"].final_score
+    assert by_ticker["B"].final_score == by_ticker["C"].final_score == 0.0
+    # 단, B 만 missing_reason 기록
+    assert by_ticker["B"].normalized_metrics.get("per_missing_reason") == "DATA_MISSING"
+    assert "per_missing_reason" not in by_ticker["C"].normalized_metrics
+
+
+def test_aggregate_records_missing_reason_data_missing():
+    """단순 누락 후보 → metadata 의 '<key>_negative' 플래그 없으면 DATA_MISSING."""
     cfg = WeightConfig(
         priorities=[
             Priority("per", 100.0, "lower_better", "저PER"),
         ],
     )
     cands = [
-        _make_cand("A", per=10.0),   # 최적 (낮을수록 좋음)
-        _make_cand("B", per=None),   # 결측 → 중립(0.5)
-        _make_cand("C", per=20.0),   # 최하위 (가장 높은 PER)
+        _make_cand("A", per=10.0),
+        _make_cand("B", per=None),  # 단순 누락
     ]
     ranked = aggregate_candidates(cands, cfg)
     by_ticker = {r.candidate.ticker: r for r in ranked}
-    # B 는 중립(0.5) → C (최하위 = 0.0) 보다 높아야 함
-    assert by_ticker["B"].final_score > by_ticker["C"].final_score
-    # B 의 정규화 점수가 정확히 0.5
-    assert by_ticker["B"].normalized_metrics["per"] == 0.5
+    assert by_ticker["B"].normalized_metrics.get("per_missing_reason") == "DATA_MISSING"
+    # 정상 후보는 missing_reason 미기록
+    assert "per_missing_reason" not in by_ticker["A"].normalized_metrics
+
+
+def test_aggregate_records_missing_reason_negative_earnings():
+    """적자 후보 → metadata['per_negative']=True → NEGATIVE_EARNINGS."""
+    cfg = WeightConfig(
+        priorities=[
+            Priority("per", 100.0, "lower_better", "저PER"),
+        ],
+    )
+    cands = [
+        _make_cand("A", per=10.0),
+        _make_cand("B", per=None, per_negative=True),   # 적자
+        _make_cand("C", per=None, per_negative=False),  # 단순 누락
+    ]
+    ranked = aggregate_candidates(cands, cfg)
+    by_ticker = {r.candidate.ticker: r for r in ranked}
+    assert by_ticker["B"].normalized_metrics.get("per_missing_reason") == "NEGATIVE_EARNINGS"
+    assert by_ticker["C"].normalized_metrics.get("per_missing_reason") == "DATA_MISSING"
+    # 둘 다 점수는 0 (가산 회피)
+    assert by_ticker["B"].normalized_metrics["per"] == 0.0
+    assert by_ticker["C"].normalized_metrics["per"] == 0.0
 
 
 def test_aggregate_uses_score_as_metric_key():

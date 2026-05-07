@@ -81,6 +81,7 @@ def build_market_snapshot(
             market_cap_krw=market_cap_krw,
             fundamentals=Fundamentals(
                 per=meta.get("per"),
+                per_negative=bool(meta.get("per_negative", False)),
                 high_52w=high_52w,
                 low_52w=low_52w,
             ),

@@ -30,6 +30,13 @@ def _avg_percentile_rank(values: list[float | None]) -> list[float]:
     aggregator._percentile_rank 와 다르게 stable-sort 분할을 쓰지 않음.
     동률 후보가 여러 축에 동시에 존재할 때 인덱스 의존 분할이 다른 축의
     가중치 효과를 왜곡하지 않도록 평균 rank 채택.
+
+    [D5 결정 — 결측 0.5 의도적 유지]
+      aggregator 는 결측을 0.0 (가산 회피) 으로 두지만, 본 함수는 0.5 (중립) 유지.
+      이유: regret_scorer 의 4축(bull_reward, ensemble, max_drawdown, dist_to_stop)은
+      비대칭 구조이므로 결측을 0 으로 두면 "가장 안 좋다" 로 의미 왜곡됨. 예를 들어
+      max_drawdown 결측을 0 으로 두면 "손실폭 가장 큼" 으로 해석되어 후회값이 오히려 ↑.
+      도구 의도가 다르므로 DRY 보다 *의미 보존* 우선.
     """
     n = len(values)
     if n == 0:

@@ -104,17 +104,23 @@ def test_crawl_market_sum_handles_na_roe():
 
 
 def test_crawl_market_sum_negative_per_kosdaq():
-    """KOSDAQ 적자 종목 음수 PER/ROE 정상 처리."""
+    """KOSDAQ 적자 종목: 음수 PER → None + per_negative=True (PR-A 정책).
+
+    음수 PER 은 lower_better 정렬에서 '가장 낮은 = 가장 좋은 PER' 으로 오해석되어
+    적자 종목이 부당 가산받는 P0-1 이슈 유발. PR-A 가 None + negative_flag 로 분리.
+    ROE 는 PR-A 범위 외 — 별도 흐름이므로 음수값 그대로 보존.
+    """
     html = _load_fixture("kosdaq_p1_default.html")
     src = NaverSource()
     with _patch_one_page(html):
         src._crawl_market_sum("KOSDAQ")
 
-    # 에코프로 (086520): PER=-138.62, ROE=-8.39
+    # 에코프로 (086520): 적자 → PER None + flag, ROE 는 음수값 보존
     ecopro = src._ticker_cache.get("086520")
     assert ecopro is not None
-    assert ecopro["per"] == -138.62
-    assert ecopro["roe"] == -8.39
+    assert ecopro["per"] is None  # 음수 PER 은 적자 sentinel 로 분류 (PR-A)
+    assert ecopro["per_negative"] is True  # 적자 플래그
+    assert ecopro["roe"] == -8.39  # ROE 는 PR-A 범위 외
     assert ecopro["foreign_pct"] == 19.22
 
 

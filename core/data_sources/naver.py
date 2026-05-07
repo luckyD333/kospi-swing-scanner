@@ -33,6 +33,39 @@ def _to_optional_float(value) -> float | None:
         return None
 
 
+def _classify_per_raw(raw) -> tuple[float | None, bool]:
+    """네이버 sise_market_sum PER raw 셀 → (value, negative_flag).
+
+    pd.read_html 동작 (probe 검증):
+      - '—' / '-' (적자 sentinel) → string 그대로 보존
+      - 빈 셀 / 'N/A' → NaN
+      - 정상 양수 → string '10.5'
+
+    분기 규칙:
+      - raw 가 '—' / '-' / 음수 string → (None, True)  적자
+      - NaN / 빈 문자열 → (None, False)               단순 누락
+      - 정상 양수 string/float → (float, False)        값 있음
+    """
+    if raw is None or pd.isna(raw):
+        return (None, False)
+    if isinstance(raw, str):
+        s = raw.strip()
+        if s == "":
+            return (None, False)
+        if s in ("—", "-"):
+            return (None, True)
+        try:
+            v = float(s)
+            return (None, True) if v < 0 else (v, False)
+        except ValueError:
+            return (None, False)
+    try:
+        v = float(raw)
+        return (None, True) if v < 0 else (v, False)
+    except (TypeError, ValueError):
+        return (None, False)
+
+
 class NaverSource(DailyDataSource):
     """
     네이버 금융 전용 소스. 일봉 OHLCV + 전종목 리스트 모두 지원.
@@ -156,9 +189,11 @@ class NaverSource(DailyDataSource):
 
     def get_fundamentals(self, market: str, target_date: str) -> pd.DataFrame:
         """
-        펀더멘털 DataFrame 반환 (인덱스=ticker, 컬럼=per/roe/foreign_pct/market_cap_bil/naver_url).
+        펀더멘털 DataFrame 반환 (인덱스=ticker,
+        컬럼=per/per_negative/roe/foreign_pct/market_cap_bil/naver_url).
 
         결측치는 None (JSON 호환). naver_url은 항상 채워짐 (단순 패턴).
+        per_negative 는 PR-A 의 적자 sentinel 플래그 (default False).
         sise_market_sum 페이지 1회 크롤링과 함께 추출되므로 추가 HTTP 비용 0.
         """
         self._crawl_market_sum(market)
@@ -169,13 +204,16 @@ class NaverSource(DailyDataSource):
             raw_cap = info.get("market_cap") or 0.0
             rows[ticker] = {
                 "per": info.get("per"),
+                "per_negative": info.get("per_negative", False),
                 "roe": info.get("roe"),
                 "foreign_pct": info.get("foreign_pct"),
                 "market_cap_bil": raw_cap / 1e8 if raw_cap else None,
                 "naver_url": naver_detail_url(ticker),
             }
         if not rows:
-            return pd.DataFrame(columns=["per", "roe", "foreign_pct", "market_cap_bil", "naver_url"])
+            return pd.DataFrame(
+                columns=["per", "per_negative", "roe", "foreign_pct", "market_cap_bil", "naver_url"]
+            )
         df = pd.DataFrame(rows).T
         df.index.name = "티커"
         return df
@@ -425,12 +463,15 @@ class NaverSource(DailyDataSource):
                 except Exception:
                     market_cap = 0.0
 
+                # PR-A: PER raw text 분기 — 적자 sentinel 식별
+                per_value, per_negative = _classify_per_raw(row.get("PER"))
                 self._ticker_cache[code] = {
                     "name": name,
                     "market": market,
                     "market_cap": market_cap,
                     # 펀더멘털 (UI 표시 + 의사결정용). N/A → None
-                    "per": _to_optional_float(row.get("PER")),
+                    "per": per_value,
+                    "per_negative": per_negative,  # 적자 종목 식별 플래그
                     "roe": _to_optional_float(row.get("ROE")),
                     "foreign_pct": _to_optional_float(row.get("외국인비율")),
                 }
