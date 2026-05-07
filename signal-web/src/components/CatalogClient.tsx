@@ -29,7 +29,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
   const router = useRouter();
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
-  const [sortBy, setSortBy] = useState('rank');
+  const [sortBy, setSortBy] = useState('composite');
   const [coinFraction, setCoinFraction] = useState(0.4);
   const [aboutOpen, setAboutOpen] = useState(false);
   const onCloseAbout = useCallback(() => setAboutOpen(false), []);
@@ -41,18 +41,25 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
   }, []);
 
   const filtered = useMemo(() => {
+    const compositeScore = (c: CardProps): number => {
+      const vals = [c.score, c.decisionScore, c.decisionMaxRegret]
+        .filter((v): v is number => v != null);
+      return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : -Infinity;
+    };
+
     const sortFn = (a: CardProps, b: CardProps) => {
-      if (sortBy === 'rank') {
-        const ar = a.rank ?? Infinity;
-        const br = b.rank ?? Infinity;
-        if (ar !== br) return ar - br;
-        return (b.score ?? -Infinity) - (a.score ?? -Infinity);
+      if (sortBy === 'composite') return compositeScore(b) - compositeScore(a);
+      if (sortBy === 'signal') {
+        const as = a.score ?? -Infinity;
+        const bs = b.score ?? -Infinity;
+        if (as !== bs) return bs - as;
+        return (b.decisionScore ?? -Infinity) - (a.decisionScore ?? -Infinity);
       }
-      if (sortBy === 'rsi') return (a.rsi ?? Infinity) - (b.rsi ?? Infinity);
-      if (sortBy === 'regret') {
-        const ar = a.decisionMaxRegret ?? -Infinity;
-        const br = b.decisionMaxRegret ?? -Infinity;
-        return br - ar;
+      if (sortBy === 'decision') {
+        return (b.decisionScore ?? -Infinity) - (a.decisionScore ?? -Infinity);
+      }
+      if (sortBy === 'opportunity') {
+        return (b.decisionMaxRegret ?? -Infinity) - (a.decisionMaxRegret ?? -Infinity);
       }
       if (sortBy === 'price') return a.entry - b.entry;
       return 0;

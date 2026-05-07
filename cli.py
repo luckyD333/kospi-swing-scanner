@@ -91,37 +91,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-universe", type=int, default=500,
         help="시총 상위 N 종목으로 유니버스 제한. 0 또는 음수 입력 시 무제한",
     )
-    # ----- Phase 2: 의사결정 모드 -----
-    decision_grp = parser.add_argument_group("의사결정 모드 (Phase 2)")
+    # ----- 가중치 설정 -----
+    decision_grp = parser.add_argument_group("가중치 설정")
     decision_grp.add_argument(
         "--interview", action="store_true",
         help="가중치 인터뷰 실행 → weights.yml 저장 후 종료",
     )
     decision_grp.add_argument(
-        "--decide", action="store_true",
-        help="scan_results 의 후보를 가중치 기반으로 ranking → decision_top{N}.md 생성",
-    )
-    decision_grp.add_argument(
-        "--top-n", type=int, default=5,
-        help="--decide 시 생성할 ranking 상위 개수",
-    )
-    decision_grp.add_argument(
-        "--select", help="--decide 시 Decision Journal 생성할 ticker 목록 (콤마 구분)",
-    )
-    decision_grp.add_argument(
-        "--notes", help="--decide --select 시 Journal 메모 영역에 추가할 텍스트",
-    )
-    decision_grp.add_argument(
         "--weights", help="가중치 yaml 경로 (기본: ~/.kospi-scanner/weights.yml)",
-    )
-    decision_grp.add_argument(
-        "--scan-results-dir", default="scan_results",
-        help="scan_results 루트 (manifest.json 위치)",
-    )
-    decision_grp.add_argument(
-        "--dynamic-weights",
-        action="store_true",
-        help=".cache/dynamic_weights.json 로드 (없으면 --weights fallback)",
     )
     return parser
 
@@ -416,56 +393,6 @@ def _run_interview(args) -> int:
     return 0
 
 
-def _run_decide(args) -> int:
-    """scan_results 의 후보를 ranking 또는 Decision Journal 로 변환."""
-    from core.decision.config import WeightConfig
-    from core.decision.interview import default_weights_path
-    from core.decision.runner import run_decide_journal, run_decide_ranking
-
-    weights_path = Path(args.weights) if args.weights else default_weights_path()
-    if not weights_path.exists():
-        logger.error(
-            f"가중치 파일 없음: {weights_path}. 먼저 `cli.py --interview` 실행해주세요."
-        )
-        return 1
-    weight_config = WeightConfig.load(weights_path)
-
-    target_date = args.date or datetime.now().strftime("%Y%m%d")
-    scan_root = Path(args.scan_results_dir)
-
-    # dynamic_weights 경로 설정
-    dynamic_weights_path = None
-    if getattr(args, "dynamic_weights", False):
-        dynamic_weights_path = Path(args.cache_root or ".cache") / "dynamic_weights.json"
-
-    # regime 로드용 cache_root (regime_analysis.json 위치)
-    cache_root_path = Path(args.cache_root or ".cache")
-
-    if args.select:
-        tickers = [t.strip() for t in args.select.split(",") if t.strip()]
-        paths = run_decide_journal(
-            scan_root=scan_root, target_date=target_date,
-            tickers=tickers, weight_config=weight_config, notes=args.notes,
-            dynamic_weights_path=dynamic_weights_path,
-            cache_root=cache_root_path,
-        )
-        if not paths:
-            logger.warning("생성된 Journal 없음 (선택한 ticker가 후보 풀에 없음)")
-            return 1
-        for p in paths:
-            print(f"📝 {p}")
-        return 0
-
-    out_path = run_decide_ranking(
-        scan_root=scan_root, target_date=target_date,
-        top_n=args.top_n, weight_config=weight_config,
-        dynamic_weights_path=dynamic_weights_path,
-        cache_root=cache_root_path,
-    )
-    print(f"📝 {out_path}")
-    return 0
-
-
 def _handle_signals_ui_format(args, result) -> int:
     """signals_ui 포맷 처리 — MarketSnapshot 로드 → SignalsPayload → data/signals.json 저장."""
     from output.models import MarketSnapshot
@@ -591,11 +518,8 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError:
             parser.error(f"--date 형식 오류: '{args.date}' (YYYYMMDD)")
 
-    # Phase 2: 의사결정 모드 분기 (스캐너 실행과 별도)
     if args.interview:
         return _run_interview(args)
-    if args.decide:
-        return _run_decide(args)
 
     # max-universe: 음수 가드
     cap_limit = args.max_universe if args.max_universe and args.max_universe > 0 else None

@@ -45,9 +45,10 @@ interface Props {
 }
 
 const SORT_OPTIONS: [string, string][] = [
-  ['랭킹', 'rank'],
-  ['후회값', 'regret'],
-  ['RSI', 'rsi'],
+  ['추천순', 'composite'],
+  ['신호 강도', 'signal'],
+  ['종합 점수', 'decision'],
+  ['기회 점수', 'opportunity'],
   ['가격', 'price'],
 ];
 

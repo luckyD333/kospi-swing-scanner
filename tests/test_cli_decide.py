@@ -216,25 +216,6 @@ def test_run_decide_journal_skips_unknown_ticker(tmp_path):
 # CLI 진입점
 # ---------------------------------------------------------------------------
 
-def test_cli_decide_flag_creates_ranking_md(tmp_path, monkeypatch):
-    """python cli.py --decide --top-n 3 → decision_top3.md."""
-    scan_root = tmp_path / "scan_results"
-    _make_scan_results(scan_root)
-    weights_path = tmp_path / "weights.yml"
-    _weights().save(weights_path)
-
-    from cli import main
-    rc = main([
-        "--decide",
-        "--top-n", "3",
-        "--weights", str(weights_path),
-        "--scan-results-dir", str(scan_root),
-        "--date", "20260502",
-    ])
-    assert rc == 0
-    out_md = scan_root / "20260502" / "decision_top3.md"
-    assert out_md.exists()
-
 
 def test_cli_interview_flag_invokes_interview(tmp_path):
     """python cli.py --interview → 인터뷰 호출."""
@@ -250,27 +231,6 @@ def test_cli_interview_flag_invokes_interview(tmp_path):
     assert rc == 0
     assert weights_path.exists()
 
-
-def test_cli_decide_select_creates_journal(tmp_path):
-    """python cli.py --decide --select 005930 --notes '...' → journal 파일."""
-    scan_root = tmp_path / "scan_results"
-    _make_scan_results(scan_root)
-    weights_path = tmp_path / "weights.yml"
-    _weights().save(weights_path)
-
-    from cli import main
-    rc = main([
-        "--decide",
-        "--select", "005930",
-        "--notes", "테스트 메모",
-        "--weights", str(weights_path),
-        "--scan-results-dir", str(scan_root),
-        "--date", "20260502",
-    ])
-    assert rc == 0
-    journal = scan_root / "20260502" / "journal_005930.md"
-    assert journal.exists()
-    assert "테스트 메모" in journal.read_text()
 
 
 # ---------------------------------------------------------------------------

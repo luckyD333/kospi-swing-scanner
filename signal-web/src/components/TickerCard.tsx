@@ -14,12 +14,6 @@ interface Props {
 const fmtNum = (v: number | null): string =>
   v == null ? '—' : v.toLocaleString('ko-KR');
 
-function rsiTone(v: number | null): string {
-  if (v == null) return 'var(--body)';
-  if (v < 30) return '#30d158';   // 그린: 과매도 매수 기회
-  if (v > 70) return '#ff6b81';   // 핑크: 과매수 위험
-  return 'var(--body)';
-}
 
 export default React.memo(function TickerCard({ card, onNavigate, index }: Props) {
   const [visible, setVisible] = useState(false);
@@ -42,8 +36,9 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
     entry, stop, target1,
-    rsi, strategyLabel, timeframe, rank, allStrategyTags,
-    signalStatus, decisionMaxRegret,
+    score, decisionScore, decisionMaxRegret,
+    strategyLabel, timeframe, rank, allStrategyTags,
+    signalStatus,
     productType, confirmationLevel, strategyId } = card;
 
   const statusBadge = (() => {
@@ -73,12 +68,10 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     : '27px';
   const tickerFontSize = nameLen > 12 ? '14px' : '16px';
 
-  const rankDisplay = rank != null ? `#${rank}` : '—';
-
   const primaryMetrics = [
-    { label: 'RSI', value: rsi != null ? rsi.toFixed(1) : '—' },
-    { label: '랭킹', value: rankDisplay },
-    { label: '후회값', value: decisionMaxRegret != null ? decisionMaxRegret.toFixed(2) : '—' },
+    { label: '신호 강도', value: score != null ? score.toFixed(1) : '—' },
+    { label: '종합 점수', value: decisionScore != null ? decisionScore.toFixed(1) : '—' },
+    { label: '기회 점수', value: decisionMaxRegret != null ? decisionMaxRegret.toFixed(2) : '—' },
   ];
 
   // 라벨은 muted-soft로 한 톤 낮춰 데이터가 자연스럽게 떠오르게 함
@@ -222,7 +215,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
                 </div>
                 <div style={{
                   fontFamily: 'var(--f-mono-stack)', fontSize: '14px', letterSpacing: 0,
-                  color: label === 'RSI' ? rsiTone(rsi) : 'var(--body)',
+                  color: 'var(--body)',
                 }}>
                   {value}
                 </div>
