@@ -275,12 +275,11 @@ class NaverSource(DailyDataSource):
             if not close_str or ratio is None:
                 return None
             price = int(close_str.replace(",", ""))
-            direction_code = (d.get("compareToPreviousPrice") or {}).get("code", "3")
-            # 1=상한가, 2=상승, 3=보합, 4=하한가, 5=하락
-            sign = -1 if direction_code in ("4", "5") else 1
+            # fluctuationsRatio 는 부호 포함 (하락 시 음수). 별도 sign 곱셈 금지 —
+            # compareToPreviousPrice.code 로 부호 재계산하면 하락 종목이 양수로 반전됨.
             return {
                 "current_price": price,
-                "change_pct": round(sign * float(ratio), 2),
+                "change_pct": round(float(ratio), 2),
             }
         except Exception:
             return None
