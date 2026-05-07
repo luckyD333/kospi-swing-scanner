@@ -116,16 +116,34 @@ class DecisionFactor(BaseModel):
     contribution: float
 
 
+class RegretFactor(BaseModel):
+    """기회 점수(regret_score) 의 4축 breakdown.
+
+    contribution = weight × normalized. 4행 합산이 regret_score 와 일치한다
+    (max_drawdown 은 dd_norm 반전 후 값이 normalized 에 들어감).
+    """
+    key: str
+    label: str
+    weight: float
+    normalized: float
+    contribution: float
+
+
 class DecisionMeta(BaseModel):
     final_score: float
     factors: list[DecisionFactor]
     max_regret: Optional[float] = None
+    # 신규 — max_regret 의 명확한 alias. 의미: regret_scorer 의 후회 점수.
+    regret_score: Optional[float] = None
+    regret_factors: Optional[list[RegretFactor]] = None
 
 
 class Ranking(BaseModel):
     score: float
     rank: int
     percentile: float
+    # 신규 — UI 표시용 신호 강도 (c.score / 10, 0~100). score 는 정렬 키 유지.
+    signal_strength: Optional[float] = None
     decision: Optional[DecisionMeta] = None
 
 
