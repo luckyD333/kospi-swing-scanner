@@ -135,10 +135,10 @@ def test_regime_overlay_applied_before_aggregate():
     현재 이 테스트는 apply_regime_overlay 를 직접 호출해 pipeline 패턴을 재현.
     """
     base_cfg = _make_base_config()
-    regime = {"1D": {"score": 80, "label": "BULL"}}
+    regime = {"1d": {"score": 80, "regime": "BULL"}}
 
     # cli.py 에 추가될 패턴 재현
-    score_1d = int(regime.get("1D", {}).get("score", 50))
+    score_1d = int(regime.get("1d", {}).get("score", 50))
     adjusted_cfg = apply_regime_overlay(base_cfg, score_1d)
 
     # adjusted_cfg 가 base 와 다른지 확인
