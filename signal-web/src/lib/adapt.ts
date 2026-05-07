@@ -1,4 +1,4 @@
-import type { Signal, DecisionFactor, SignalStatus } from '@/types/signal';
+import type { Signal, DecisionFactor, RegretFactor, SignalStatus } from '@/types/signal';
 import { formatStrategyLabel } from '@/lib/strategy';
 
 export interface CardProps {
@@ -43,6 +43,10 @@ export interface CardProps {
   decisionScore: number | null;
   decisionFactors: DecisionFactor[] | null;
   decisionMaxRegret: number | null;
+  // 신규 — 명확한 의미 매핑 (Task 6/7/8 에서 score/decisionMaxRegret 대체)
+  signalStrength: number | null;          // c.score / 10 (0~100)
+  decisionRegretScore: number | null;     // 기회 점수 (0~100, 높을수록 매수 우선순위)
+  decisionRegretFactors: RegretFactor[] | null;  // 기회 점수 4축 breakdown
   rank: number | null;
   allStrategyTags?: Array<{ label: string; timeframe: string }>;
   // 30m limit_entry 활성 여부와 EOD 참고값
@@ -158,6 +162,16 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     decisionScore: signal.ranking?.decision?.final_score ?? null,
     decisionFactors: signal.ranking?.decision?.factors ?? null,
     decisionMaxRegret: signal.ranking?.decision?.max_regret ?? null,
+    // 신규 매핑 — backend 신규 필드 우선, 구버전 fallback
+    signalStrength:
+      signal.ranking?.signal_strength
+      ?? signal.ranking?.score
+      ?? null,
+    decisionRegretScore:
+      signal.ranking?.decision?.regret_score
+      ?? signal.ranking?.decision?.max_regret
+      ?? null,
+    decisionRegretFactors: signal.ranking?.decision?.regret_factors ?? null,
     rank: signal.ranking?.rank ?? null,
     limitEntryActive,
     eodEntry: limitEntryActive ? tp.entry : null,
