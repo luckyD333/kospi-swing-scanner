@@ -173,3 +173,51 @@ def test_custom_weights_override():
     )
     out_dd = compute_regret_scores([bull, safe], weights=weights_dd)
     assert out_dd[0].candidate.ticker == "SAFE"
+
+
+# ---------------------------------------------------------------------------
+# 4축 breakdown (UI factor breakdown 노출용)
+# ---------------------------------------------------------------------------
+
+def test_compute_regret_scores_stores_4_axis_breakdown():
+    """4축 개별 percentile rank 가 normalized_metrics 에 0~1 범위로 저장된다."""
+    cands = [
+        _make_ranked("A", reward_pct_t2=10.0, risk_pct=2.0),
+        _make_ranked("B", reward_pct_t2=5.0, risk_pct=5.0),
+        _make_ranked("C", reward_pct_t2=2.0, risk_pct=8.0),
+    ]
+    out = compute_regret_scores(cands, ensemble_scores={"A": 3.0, "B": 2.0, "C": 1.0})
+    for rc in out:
+        nm = rc.normalized_metrics
+        assert "regret_bull_reward" in nm
+        assert "regret_ensemble" in nm
+        assert "regret_max_drawdown" in nm
+        assert "regret_dist_to_stop" in nm
+        for k in ("regret_bull_reward", "regret_ensemble", "regret_max_drawdown", "regret_dist_to_stop"):
+            assert 0.0 <= nm[k] <= 1.0, f"{rc.candidate.ticker}.{k}={nm[k]} out of [0,1]"
+
+
+def test_4_axis_sum_equals_regret_score():
+    """4축 가중합 × 100 == regret_score (소수점 4자리 허용 오차).
+
+    UI 의 contribution = weight × normalized 가 합산 regret_score 와 일치하려면
+    max_drawdown 은 dd_norm(반전 후) 을 저장해야 한다.
+    """
+    cands = [
+        _make_ranked(f"T{i}", reward_pct_t2=1.0 + i * 2.0, risk_pct=1.0 + i * 0.7)
+        for i in range(5)
+    ]
+    out = compute_regret_scores(cands, ensemble_scores={f"T{i}": 1.0 + i for i in range(5)})
+    w = DEFAULT_WEIGHTS
+    for rc in out:
+        nm = rc.normalized_metrics
+        recomputed = (
+            w.bull_reward  * nm["regret_bull_reward"]
+            + w.ensemble   * nm["regret_ensemble"]
+            + w.max_drawdown * nm["regret_max_drawdown"]
+            + w.dist_to_stop * nm["regret_dist_to_stop"]
+        ) * 100.0
+        assert abs(recomputed - nm["regret_score"]) < 0.01, (
+            f"{rc.candidate.ticker}: recomputed={recomputed:.4f}, "
+            f"stored={nm['regret_score']:.4f}"
+        )

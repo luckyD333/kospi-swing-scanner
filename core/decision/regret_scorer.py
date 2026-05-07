@@ -145,6 +145,13 @@ def compute_regret_scores(
         score = round(score01 * 100, 4)
         rc.normalized_metrics["regret_score"] = score
         rc.normalized_metrics["regret_total"] = n
+        # 4축 개별 normalized 값 저장 (UI factor breakdown 용).
+        # max_drawdown 은 dd_norm(=1-rank, 반전 후) 을 저장해 contribution 합산이
+        # regret_score 와 일치하도록 한다.
+        rc.normalized_metrics["regret_bull_reward"] = round(bull_rank[i], 4)
+        rc.normalized_metrics["regret_ensemble"] = round(ens_rank[i], 4)
+        rc.normalized_metrics["regret_max_drawdown"] = round(dd_norm[i], 4)
+        rc.normalized_metrics["regret_dist_to_stop"] = round(dist_rank[i], 4)
         annotated.append((score, rc))
 
     # regret_score 내림차순 → final_score 내림차순 → ticker 알파벳
