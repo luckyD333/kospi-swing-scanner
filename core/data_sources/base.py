@@ -48,3 +48,11 @@ class DailyDataSource(ABC):
         인덱스는 ticker.
         """
         return pd.DataFrame(columns=["per", "roe", "foreign_pct", "naver_url"])
+
+    def get_etf_list(self, target_date: str) -> set[str]:
+        """ETF/ETN itemcode 통합 명단. ProductType 분류용 (PR-B).
+
+        선택적 인터페이스. 구현 안 하면 빈 set 반환 — 분류기가 이름 키워드/코드
+        prefix 만으로 동작 (UNKNOWN 폴백 빈도 ↑).
+        """
+        return set()

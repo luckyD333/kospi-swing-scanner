@@ -30,6 +30,7 @@ from .cache.ohlcv_disk import OhlcvDiskCache
 from .cache.resampler import resample_to
 from .data_fetch import DataClient, OhlcvCache
 from .data_sources.naver import naver_detail_url
+from .decision.product_type import ProductType
 from .strategy_base import Candidate, ScanContext, Strategy
 from .universe import UniverseFilter, build_universe
 
@@ -240,6 +241,10 @@ class ScanRunner:
                         "roe": None, "foreign_pct": None,
                         "naver_url": naver_detail_url(cand.ticker),
                     }))
+                    # PR-B: ProductType 메타 주입 — 풀 분리·NOT_APPLICABLE 분기 동력
+                    cand.metadata["product_type"] = univ.product_type_lookup.get(
+                        cand.ticker, ProductType.UNKNOWN,
+                    ).value
                 result.candidates_by_strategy_tf[(strat.name, tf)] = candidates
                 # legacy 1D alias
                 if tf == "1D":

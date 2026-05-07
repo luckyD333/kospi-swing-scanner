@@ -5,13 +5,16 @@ Strategy D v2 §3.4 (시총·유동성·상장경과·관리종목 등) 구현.
 시가총액은 네이버 시총 페이지 크롤링 raw 값을 사용.
 
 거래정지/관리종목 제외는 데이터 소스가 메타데이터를 제공하지 않으면 스킵.
+
+PR-B: ProductType 분류 (STOCK/ETN/ETF/REIT/SPAC/UNKNOWN) 부여 — 풀 분리 동력.
 """
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .data_fetch import DataClient
+from .decision.product_type import ProductType, classify
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +31,13 @@ class UniverseFilter:
 
 @dataclass
 class UniverseResult:
-    """필터 통과 ticker + 시총 lookup."""
+    """필터 통과 ticker + 시총 lookup + ProductType 분류 (PR-B)."""
     tickers: list[str]
     cap_lookup: dict[str, float]   # ticker → 원 단위 시총 (네이버 raw)
     name_lookup: dict[str, str]    # ticker → 종목명
     pre_cap_limit_size: int = 0    # cap range 통과했지만 top-N 컷 전
+    product_type_lookup: dict[str, ProductType] = field(default_factory=dict)
+    """ticker → ProductType. ETF API 명단 + 종목명 키워드 + 코드 prefix 분류 (PR-B)."""
 
 
 def build_universe(
@@ -94,9 +99,26 @@ def build_universe(
     else:
         filtered_final = filtered
 
+    # 5) ProductType 분류 (PR-B) — ETF 명단 1회 fetch 후 ticker 별 매핑.
+    try:
+        etf_list = client.get_etf_list(target_date)
+    except Exception as e:
+        logger.warning(f"ETF 명단 fetch 실패, 키워드/prefix 만으로 분류: {e}")
+        etf_list = set()
+    product_type_lookup: dict[str, ProductType] = {
+        t: classify(t, name_lookup.get(t, ""), etf_list)
+        for t in filtered_final
+    }
+    unknown_count = sum(
+        1 for pt in product_type_lookup.values() if pt == ProductType.UNKNOWN
+    )
+    if unknown_count:
+        logger.info(f"  ProductType UNKNOWN 분류: {unknown_count}건 (D2 안전 분리)")
+
     return UniverseResult(
         tickers=filtered_final,
         cap_lookup=cap_lookup,
         name_lookup=name_lookup,
         pre_cap_limit_size=pre_limit,
+        product_type_lookup=product_type_lookup,
     )

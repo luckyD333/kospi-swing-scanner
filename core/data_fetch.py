@@ -86,6 +86,17 @@ class DataClient:
                 continue
         return ticker
 
+    def get_etf_list(self, target_date: str) -> set[str]:
+        """ETF/ETN itemcode 통합 명단 (PR-B 분류기용). 첫 source 비-empty 결과 반환."""
+        for src in self.ticker_list_sources:
+            try:
+                lst = src.get_etf_list(target_date)
+                if lst:
+                    return lst
+            except Exception:
+                continue
+        return set()
+
     def get_ohlcv(
         self, ticker: str, start: str, end: str, timeframe: str = "1D"
     ) -> pd.DataFrame:

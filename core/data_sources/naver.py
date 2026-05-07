@@ -110,6 +110,18 @@ class NaverSource(DailyDataSource):
         self._crawl_market_sum(market)
         return [t for t, info in self._ticker_cache.items() if info["market"] == market]
 
+    def get_etf_list(self, target_date: str) -> set[str]:
+        """네이버 etfItemList API → ETF/ETN itemcode 통합 set (PR-B 분류기용).
+
+        target_date 는 시그니처 호환용 (네이버 API 는 현재 시점만 반환).
+        실패 시 빈 set + WARN 로그 — 분류기는 이름 키워드/코드 prefix 만으로 동작 가능.
+        """
+        try:
+            return set(self._get_etf_tickers(top_n=None, sort_by="marketSum"))
+        except Exception as e:
+            logger.warning(f"ETF 명단 fetch 실패: {e}")
+            return set()
+
     def _get_etf_tickers(
         self, top_n: int | None = None, sort_by: str = "marketSum"
     ) -> list[str]:

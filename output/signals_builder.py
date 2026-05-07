@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+
+from core.decision.product_type import ProductType, to_pool
 from output.models import (
     Fundamentals, Flow,
     SignalsPayload, Signal, TradePlan, Ranking, LiveQuote, LiveQuoteDisplay,
@@ -361,6 +363,14 @@ def build_signals_payload(
             except Exception:
                 signal_date_iso = None
 
+        # PR-B: ProductType / Pool 메타 — candidate.metadata 에서 추출 후 Signal 노출
+        pt_raw = str(meta.get("product_type") or "UNKNOWN")
+        try:
+            pt_enum = ProductType(pt_raw)
+        except ValueError:
+            pt_enum = ProductType.UNKNOWN
+        pool_value = to_pool(pt_enum).value
+
         return Signal(
             ticker=c.ticker,
             name=c.name,
@@ -395,6 +405,8 @@ def build_signals_payload(
             flow=flow,
             external_links={"naver_finance": naver_url} if naver_url else {},
             signal_date=signal_date_iso,
+            product_type=pt_enum.value,
+            pool=pool_value,
         )
 
     signals: list[Signal] = []

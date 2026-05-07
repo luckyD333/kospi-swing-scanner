@@ -173,6 +173,9 @@ class Signal(BaseModel):
     external_links: dict[str, str] = {}
     signal_date: Optional[str] = None  # 마지막 bar timestamp (ISO 8601)
     signal_status: SignalStatus = "VALID"  # API 응답 시점 동적 계산
+    # PR-B (P0-2): 상품 유형 + 랭킹 풀 — UI/API 소비자 grouping/필터 명시 축
+    product_type: Optional[str] = None  # ProductType.value: STOCK/ETN/ETF/REIT/SPAC/UNKNOWN
+    pool: Optional[str] = None          # Pool.value: STOCK/ETN_ETF/OTHER
 
 
 class SignalsPayload(BaseModel):
