@@ -5,6 +5,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
+from core.decision.order_type_classifier import (
+    OrderTypeIntent,
+    classify as classify_order_type,
+    korean_label,
+)
 from core.decision.product_type import ProductType, to_pool
 from output.models import (
     Fundamentals, Flow,
@@ -389,6 +394,17 @@ def build_signals_payload(
             pt_enum = ProductType.UNKNOWN
         pool_value = to_pool(pt_enum).value
 
+        # PR-C (P1-1): 주문 타입 의도 분류 — limit_entry 우선, 없으면 entry 사용
+        ref_entry = float(limit_entry if limit_entry else entry)
+        try:
+            order_intent = (
+                classify_order_type(ref_entry, float(cp))
+                if cp > 0 else OrderTypeIntent.IMMEDIATE
+            )
+        except Exception:
+            order_intent = OrderTypeIntent.IMMEDIATE
+        order_label_ko = korean_label(order_intent)
+
         return Signal(
             ticker=c.ticker,
             name=c.name,
@@ -399,6 +415,8 @@ def build_signals_payload(
                 entry=entry, stop=stop, target_1=t1, target_2=t2,
                 rr_ratio=rr_ratio, rr_band=rr_band, atr_14=atr_14, rsi_14=rsi_14,
                 limit_entry=limit_entry, limit_stop=limit_stop,
+                order_type_intent=order_intent.value,
+                order_type_label_ko=order_label_ko,
             ),
             ranking=Ranking(
                 score=round(r_score, 1),

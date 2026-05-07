@@ -78,6 +78,11 @@ class TradePlan(BaseModel):
     rr_ratio_limit: Optional[float] = None
     rr_band_limit: Optional[Literal["SWEET", "UNDER", "OVER"]] = None
 
+    # PR-C (P1-1): 주문 타입 의도 + 한국어 UI 라벨.
+    # entry vs current 비율 기반 분류 — 발주 client 부재이므로 출력 표시 한정.
+    order_type_intent: Optional[str] = None      # BREAKOUT / PULLBACK / IMMEDIATE
+    order_type_label_ko: Optional[str] = None    # 역지정가 / 지정가 / 시장가
+
     @model_validator(mode="after")
     def compute_derived(self) -> TradePlan:
         risk = self.entry - self.stop
