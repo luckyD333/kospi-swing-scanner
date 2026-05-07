@@ -351,6 +351,9 @@ def build_signals_payload(
         t1    = int(getattr(c, "target_1",    0))
         t2_raw = getattr(c, "target_2", None)
         t2    = int(t2_raw) if t2_raw else None
+        # PR-G: T2-T1 < 1.5% × entry → 단일 목표로 통합
+        if t2 is not None and entry > 0 and (t2 - t1) < entry * 0.015:
+            t2 = None
 
         limit_entry_raw = getattr(c, "limit_entry", None)
         limit_stop_raw  = getattr(c, "limit_stop", None)

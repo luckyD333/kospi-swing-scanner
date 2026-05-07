@@ -172,15 +172,12 @@ class StrategyOneDv2:
                 )
                 stop_loss = floor_to_tick(stop_raw)
 
-                # 반올림된 진입가 기준으로 목표가 재계산
-                engine_cfg = self._engine.config
-                target_1 = entry_price * (1 + engine_cfg.target_1_pct)
-                if engine_cfg.use_atr_stops and signal.atr_at_entry is not None:
-                    # ATR 모드: 반올림된 진입가 기준으로 ATR 목표가2 재산출
-                    target_2 = entry_price + signal.atr_at_entry * engine_cfg.atr_target_mult
-                    target_2 = max(target_2, target_1)  # target_1 하회 방지
-                else:
-                    target_2 = entry_price * (1 + engine_cfg.target_2_pct)
+                # PR-G: T1 = 20MA (회귀 목표), T2 = 20MA + 1σ (오버슈트)
+                sma_20 = float(df["close"].iloc[-20:].mean())
+                std_20 = float(df["close"].iloc[-20:].std(ddof=1))
+                target_1 = round_to_tick(sma_20)
+                target_2 = round_to_tick(sma_20 + std_20)
+                target_2 = max(target_2, target_1)  # T2 ≥ T1 보장
 
                 # 신규 metadata 키 계산
                 risk_pct = (entry_price - stop_loss) / entry_price * 100
@@ -222,6 +219,9 @@ class StrategyOneDv2:
                         "atr_14": atr_14,
                         "rsi_14": rsi_14_val,
                         "prev_support": prev_support,
+                        # PR-G: 목표가 산정 근거
+                        "target_1_rationale": "20MA 회귀 가격",
+                        "target_2_rationale": "20MA + 1σ",
                     },
                     limit_entry=limit_entry,
                     limit_stop=limit_stop,

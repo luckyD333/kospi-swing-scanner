@@ -153,8 +153,11 @@ class StrategyThreeTrendFollowing:
                 )
                 stop_loss = floor_to_tick(stop_loss_raw)
 
-                t1 = round_to_tick(entry * (1 + cfg.target_1_pct))
-                t2 = round_to_tick(entry + atr_now * cfg.atr_target_mult)
+                # PR-G: T1 = entry + 1R, T2 = entry + Donchian width
+                risk = float(entry) - float(stop_loss)
+                t1 = round_to_tick(float(entry) + risk)
+                donchian_width = channel_high - channel_low
+                t2 = round_to_tick(float(entry) + donchian_width)
                 t2 = max(t2, t1)
 
                 cap_won = ctx.market_caps.get(ticker, 0.0)
@@ -216,6 +219,9 @@ class StrategyThreeTrendFollowing:
                         # PR-E: 단일일 급등 추적 (≥30% 는 이미 차단)
                         "prev_change_pct": prev_change_pct,
                         "pump_penalty": pump_penalty,
+                        # PR-G: 목표가 산정 근거
+                        "target_1_rationale": "1R 목표가 (진입-손절 × 1)",
+                        "target_2_rationale": "Donchian 채널 폭 목표가",
                     },
                 ))
             except Exception as e:
