@@ -60,16 +60,29 @@ export interface DecisionFactor {
   contribution: number;
 }
 
+export interface RegretFactor {
+  key: string;
+  label: string;
+  weight: number;
+  normalized: number;
+  contribution: number;
+}
+
 export interface DecisionMeta {
   final_score: number;
   factors: DecisionFactor[];
   max_regret: number | null;
+  // 신규 — max_regret 의 명확한 alias (기회 점수)
+  regret_score?: number | null;
+  regret_factors?: RegretFactor[] | null;
 }
 
 export interface Ranking {
   score: number | null;
   rank: number | null;
   percentile: number | null;
+  // 신규 — UI 표시용 신호 강도 (c.score / 10, 0~100)
+  signal_strength?: number | null;
   decision: DecisionMeta | null;
 }
 
