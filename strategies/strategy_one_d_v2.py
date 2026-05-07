@@ -15,6 +15,7 @@ import logging
 from dataclasses import dataclass
 
 from backtest_engine.core import calc_atr
+from core.decision.confirmation_strength import evaluate as eval_confirmation
 from backtest_engine.detectors import (
     DoubleBottomDetector,
     DoubleBottomFractal,
@@ -192,6 +193,10 @@ class StrategyOneDv2:
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
+                # PR-H: confirmation 등급 + 점수 배율 (평균 회귀 한정)
+                triggers = {k for k, v in signal.conditions_met.items() if v}
+                conf_level, conf_scale = eval_confirmation(triggers, rsi_14_val)
+
                 df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
                 limit_entry, limit_stop = populate_limit_fields(
                     df_30m, entry_price, stop_loss
@@ -202,7 +207,7 @@ class StrategyOneDv2:
                     name=ctx.names.get(ticker, ticker),
                     strategy=self.name,
                     signal_date=signal.timestamp,
-                    score=signal.confidence * 1000,
+                    score=signal.confidence * 1000 * conf_scale,
                     entry_price=entry_price,
                     stop_loss=stop_loss,
                     target_1=target_1,
@@ -222,6 +227,9 @@ class StrategyOneDv2:
                         # PR-G: 목표가 산정 근거
                         "target_1_rationale": "20MA 회귀 가격",
                         "target_2_rationale": "20MA + 1σ",
+                        # PR-H: confirmation 등급
+                        "confirmation_level": conf_level.value,
+                        "triggers_fired": sorted(triggers),
                     },
                     limit_entry=limit_entry,
                     limit_stop=limit_stop,

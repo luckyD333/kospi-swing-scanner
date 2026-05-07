@@ -68,8 +68,8 @@ def test_snapshot_prices_and_score_match(snapshot, new_candidates):
     for legacy, new in zip(snapshot["candidates"], new_candidates):
         assert legacy["ticker"] == new.ticker
         assert legacy["name"] == new.name
-        # confidence (legacy) ↔ score (new)
-        assert legacy["confidence"] * 1000 == pytest.approx(new.score, abs=1e-6)
+        # PR-H: score = confidence × 1000 × conf_scale (confirmation 배율 ≤ 1.0)
+        assert 0 < new.score <= legacy["confidence"] * 1000 + 1e-6
         # entry_price/stop_loss 는 100원 반올림·반내림 적용 → raw 값은 current_price 에 보존
         assert legacy["entry_price"] == pytest.approx(new.current_price, abs=1e-9)
         assert new.stop_loss <= legacy["stop_loss"]          # 반내림이므로 항상 ≤
