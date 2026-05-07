@@ -41,17 +41,24 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
   }, []);
 
   const filtered = useMemo(() => {
+    // 추천순: 가중 평균 (종합 50% + 기회 35% + 신호 15%).
+    // 세 점수 모두 0~100 척도로 의미가 다르므로 가중치 명시 (단순 평균 X — 이중 가중 방지).
+    // 일반 스캔(decisionScore/decisionRegretScore null) 시 signalStrength fallback.
     const compositeScore = (c: CardProps): number => {
-      const vals = [c.score, c.decisionScore, c.decisionMaxRegret]
-        .filter((v): v is number => v != null);
-      return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : -Infinity;
+      const decision = c.decisionScore ?? null;
+      const regret   = c.decisionRegretScore ?? null;
+      const signal   = c.signalStrength ?? null;
+      if (decision != null && regret != null && signal != null) {
+        return decision * 0.50 + regret * 0.35 + signal * 0.15;
+      }
+      return signal ?? -Infinity;
     };
 
     const sortFn = (a: CardProps, b: CardProps) => {
       if (sortBy === 'composite') return compositeScore(b) - compositeScore(a);
       if (sortBy === 'signal') {
-        const as = a.score ?? -Infinity;
-        const bs = b.score ?? -Infinity;
+        const as = a.signalStrength ?? -Infinity;
+        const bs = b.signalStrength ?? -Infinity;
         if (as !== bs) return bs - as;
         return (b.decisionScore ?? -Infinity) - (a.decisionScore ?? -Infinity);
       }
@@ -59,7 +66,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
         return (b.decisionScore ?? -Infinity) - (a.decisionScore ?? -Infinity);
       }
       if (sortBy === 'opportunity') {
-        return (b.decisionMaxRegret ?? -Infinity) - (a.decisionMaxRegret ?? -Infinity);
+        return (b.decisionRegretScore ?? -Infinity) - (a.decisionRegretScore ?? -Infinity);
       }
       if (sortBy === 'price') return a.entry - b.entry;
       return 0;
@@ -84,7 +91,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
             const br = best.rank ?? Infinity;
             const cr = c.rank ?? Infinity;
             if (cr < br) return c;
-            if (cr === br) return (c.score ?? -Infinity) > (best.score ?? -Infinity) ? c : best;
+            if (cr === br) return (c.signalStrength ?? -Infinity) > (best.signalStrength ?? -Infinity) ? c : best;
             return best;
           });
           const tagSet = new Set<string>();
