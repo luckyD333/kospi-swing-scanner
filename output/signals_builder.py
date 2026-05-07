@@ -436,6 +436,12 @@ def build_signals_payload(
             else None
         )
 
+        # PR-L (P4): confirmation_level + active_regime
+        confirmation_lv: str | None = meta.get("confirmation_level") or None
+        active_regime_lbl: str | None = (
+            (market_regime or {}).get("1D", {}).get("label") or None
+        )
+
         # PR-C (P1-1): 주문 타입 의도 분류 — limit_entry 우선, 없으면 entry 사용
         ref_entry = float(limit_entry if limit_entry else entry)
         try:
@@ -486,6 +492,8 @@ def build_signals_payload(
             product_type=pt_enum.value,
             pool=pool_value,
             tradability_score=tradability_s,
+            confirmation_level=confirmation_lv,
+            active_regime=active_regime_lbl,
         )
 
     signals: list[Signal] = []

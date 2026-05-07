@@ -183,10 +183,13 @@ class Signal(BaseModel):
     pool: Optional[str] = None          # Pool.value: STOCK/ETN_ETF/OTHER
     # PR-K (P3-1): 거래 용이성 점수 (0~100, final_score 와 독립)
     tradability_score: Optional[float] = None
+    # PR-L (P4): Phase 1 신규 필드 Signal 노출
+    confirmation_level: Optional[str] = None  # STRONG/MEDIUM/WEAK (PR-H)
+    active_regime: Optional[str] = None        # BULL/NEUTRAL/BEAR (PR-J)
 
 
 class SignalsPayload(BaseModel):
-    schema_version: str = "1.0"
+    schema_version: str = "1.1"  # PR-L: Phase 1 신규 필드 반영
     generated_at: str
     generated_at_display: str
     target_date: str = ""  # 스캔 기준 영업일 (YYYY-MM-DD)
