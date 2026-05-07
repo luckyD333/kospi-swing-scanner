@@ -115,7 +115,7 @@ def test_signal_has_active_regime_field():
 def test_active_regime_pass_through():
     """market_regime 에 1D score 있으면 Signal.active_regime 에 BULL/NEUTRAL/BEAR 라벨."""
     snap = _make_snapshot()
-    regime = {"1D": {"score": 80, "label": "BULL"}}
+    regime = {"1d": {"score": 80, "regime": "BULL"}}
     payload = build_signals_payload(
         snap, {"strategy_one_d_v2": [_make_candidate()]},
         market_regime=regime,

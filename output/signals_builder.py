@@ -439,7 +439,7 @@ def build_signals_payload(
         # PR-L (P4): confirmation_level + active_regime
         confirmation_lv: str | None = meta.get("confirmation_level") or None
         active_regime_lbl: str | None = (
-            (market_regime or {}).get("1D", {}).get("label") or None
+            (market_regime or {}).get("1d", {}).get("regime") or None
         )
 
         # PR-C (P1-1): 주문 타입 의도 분류 — limit_entry 우선, 없으면 entry 사용
