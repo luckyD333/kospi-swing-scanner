@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { CardProps } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
+import { confirmationColor, confirmationBg } from '@/lib/signal-colors';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
 import Footer from './Footer';
@@ -73,6 +74,13 @@ interface RankRationaleRow {
 
 const C_OPP  = '#30d158';  // 매수 기회 (그린)
 const C_RISK = '#ff6b81';  // 위험/경고 (핑크)
+
+function gradeTradability(s: number | null): { mark: RankRationaleRow['mark']; note: string; tone: string } {
+  if (s == null) return { mark: '', note: '', tone: 'var(--muted-soft)' };
+  if (s >= 70) return { mark: '✓', note: '양호', tone: C_OPP };
+  if (s < 40) return { mark: '⚠', note: '낮음', tone: C_RISK };
+  return { mark: '·', note: '보통', tone: 'var(--muted)' };
+}
 
 function gradeRR(rr: number | null, band: string | null): { mark: RankRationaleRow['mark']; note: string; tone: string } {
   if (rr == null) return { mark: '', note: '', tone: 'var(--muted-soft)' };
@@ -165,6 +173,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
     decisionScore, decisionFactors, decisionMaxRegret,
     rank,
     limitEntryActive, eodEntry, signalStatus,
+    productType, orderTypeLabel, confirmationLevel, activeRegime, tradabilityScore,
   } = card;
 
   const statusBadge = (() => {
@@ -240,6 +249,17 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
               {statusBadge.label}
             </span>
           )}
+          {productType && !['STOCK', 'UNKNOWN'].includes(productType) && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center',
+              padding: '2px 10px', borderRadius: '4px',
+              background: 'rgba(76,152,185,0.12)',
+              color: '#4c98b9',
+              fontSize: '12px', fontWeight: 600,
+            }}>
+              {productType}
+            </span>
+          )}
         </div>
 
         {/* 종목명 + 코드 — 동적 clamp size */}
@@ -297,9 +317,13 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             {
               label: '진입가',
               val: entry,
-              sub: limitEntryActive
-                ? `30m 지정가${eodEntry != null ? ` · EOD ${eodEntry.toLocaleString('ko-KR')} 참고` : ''}`
-                : '지정가',
+              sub: (() => {
+              if (limitEntryActive) {
+                const typeLabel = orderTypeLabel ? ` ${orderTypeLabel}` : '';
+                return `30m${typeLabel}${eodEntry != null ? ` · EOD ${eodEntry.toLocaleString('ko-KR')} 참고` : ''}`;
+              }
+              return orderTypeLabel ?? null;
+            })(),
               color: 'var(--link)',
             },
             { label: '손절가', val: stop,    sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '', color: C_RISK },
@@ -484,17 +508,34 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
                 <div style={{ ...ts('caption', 'var(--muted)') }}>
                   / 100
                 </div>
+                {confirmationLevel && (
+                  <span style={{
+                    padding: '2px 10px', borderRadius: '4px',
+                    background: confirmationBg(confirmationLevel),
+                    color: confirmationColor(confirmationLevel),
+                    fontSize: '12px', fontWeight: 600,
+                  }}>
+                    {confirmationLevel}
+                  </span>
+                )}
               </div>
-              {dayRegime && (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ ...ts('caption', regimeColor), letterSpacing: '0.5px' }}>
-                    {dayRegime.regime}
-                  </span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
+                {dayRegime && (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <span style={{ ...ts('caption', regimeColor), letterSpacing: '0.5px' }}>
+                      {dayRegime.regime}
+                    </span>
+                    <span style={ts('caption-sm', 'var(--muted-soft)')}>
+                      {dayRegime.score} · 1D 시장 국면
+                    </span>
+                  </div>
+                )}
+                {activeRegime && activeRegime !== (dayRegime?.regime ?? '') && (
                   <span style={ts('caption-sm', 'var(--muted-soft)')}>
-                    {dayRegime.score} · 1D 시장 국면
+                    신호 시점 {activeRegime}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Summary */}
@@ -609,6 +650,11 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             label: '외국인 비율',
             value: foreignRatioPct != null ? `${foreignRatioPct.toFixed(1)}%` : '—',
             ...gradeForeign(foreignRatioPct),
+          },
+          {
+            label: '거래 용이성',
+            value: tradabilityScore != null ? `${tradabilityScore.toFixed(0)}/100` : '—',
+            ...gradeTradability(tradabilityScore),
           },
         ];
 

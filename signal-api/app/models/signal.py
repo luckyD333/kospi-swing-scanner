@@ -31,6 +31,9 @@ class TradePlan(BaseModel):
     limit_stop: float | None = None
     rr_ratio_limit: float | None = None
     rr_band_limit: str | None = None
+    # PR-C (P1-1): 주문 타입 의도 분류
+    order_type_intent: str | None = None    # BREAKOUT / PULLBACK / IMMEDIATE
+    order_type_label_ko: str | None = None  # 역지정가 / 지정가 / 시장가
 
 
 class Ranking(BaseModel):
@@ -79,6 +82,14 @@ class Signal(BaseModel):
     external_links: ExternalLinks | None = None
     signal_date: str | None = None
     signal_status: str = "VALID"  # VALID | TARGET_REACHED | STOPPED_OUT | STALE
+    # PR-B (P0-2): 상품 유형 + 랭킹 풀
+    product_type: str | None = None  # STOCK/ETN/ETF/REIT/SPAC/UNKNOWN
+    pool: str | None = None          # STOCK/ETN_ETF/OTHER
+    # PR-K (P3-1): 거래 용이성 점수
+    tradability_score: float | None = None
+    # PR-H/PR-J (P2-3, P3-2): confirmation 등급 + 시장 국면
+    confirmation_level: str | None = None  # STRONG/MEDIUM/WEAK
+    active_regime: str | None = None       # BULL/NEUTRAL/BEAR
 
 
 class SignalMarketEntry(BaseModel):

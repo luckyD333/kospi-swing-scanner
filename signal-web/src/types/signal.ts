@@ -47,6 +47,9 @@ export interface TradePlan {
   limit_stop?: number | null;
   rr_ratio_limit?: number | null;
   rr_band_limit?: string | null;
+  // PR-C (P1-1): 주문 타입 의도
+  order_type_intent?: string | null;    // BREAKOUT | PULLBACK | IMMEDIATE
+  order_type_label_ko?: string | null;  // 역지정가 | 지정가 | 시장가
 }
 
 export interface DecisionFactor {
@@ -103,6 +106,14 @@ export interface Signal {
   external_links: ExternalLinks | null;
   signal_date?: string | null;
   signal_status?: SignalStatus;
+  // PR-B (P0-2): 상품 유형 + 랭킹 풀
+  product_type?: string | null;   // STOCK/ETN/ETF/REIT/SPAC/UNKNOWN
+  pool?: string | null;           // STOCK/ETN_ETF/OTHER
+  // PR-K (P3-1): 거래 용이성 점수
+  tradability_score?: number | null;
+  // PR-H/PR-J (P2-3, P3-2): confirmation 등급 + 시장 국면
+  confirmation_level?: string | null;  // STRONG/MEDIUM/WEAK
+  active_regime?: string | null;       // BULL/NEUTRAL/BEAR
 }
 
 export interface MarketIndex {

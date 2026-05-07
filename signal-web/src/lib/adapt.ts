@@ -49,6 +49,17 @@ export interface CardProps {
   limitEntryActive: boolean;     // limit_entry/limit_stop 적용 여부
   eodEntry: number | null;       // 원래 EOD 종가 진입가 (limit 활성 시 보조 표시)
   signalStatus: SignalStatus;    // VALID | TARGET_REACHED | STOPPED_OUT | STALE
+  // PR-C (P1-1): 주문 타입 의도
+  orderTypeIntent: string | null;
+  orderTypeLabel: string | null;
+  // PR-B (P0-2): 상품 유형 + 풀
+  productType: string | null;
+  pool: string | null;
+  // PR-K (P3-1): 거래 용이성 점수
+  tradabilityScore: number | null;
+  // PR-H/PR-J: confirmation 등급 + 시장 국면
+  confirmationLevel: string | null;
+  activeRegime: string | null;
 }
 
 export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardProps {
@@ -151,5 +162,12 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     limitEntryActive,
     eodEntry: limitEntryActive ? tp.entry : null,
     signalStatus: signal.signal_status ?? 'VALID',
+    orderTypeIntent: tp.order_type_intent ?? null,
+    orderTypeLabel: tp.order_type_label_ko ?? null,
+    productType: signal.product_type ?? null,
+    pool: signal.pool ?? null,
+    tradabilityScore: signal.tradability_score ?? null,
+    confirmationLevel: signal.confirmation_level ?? null,
+    activeRegime: signal.active_regime ?? null,
   };
 }

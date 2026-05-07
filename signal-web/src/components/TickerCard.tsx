@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { CardProps } from '@/lib/adapt';
 import { ts } from '@/lib/typography';
+import { confirmationColor } from '@/lib/signal-colors';
 
 interface Props {
   card: CardProps;
@@ -42,7 +43,8 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
   const { name, ticker, priceDisplay, changeDisplay, direction,
     entry, stop, target1,
     rsi, strategyLabel, timeframe, rank, allStrategyTags,
-    signalStatus, decisionMaxRegret } = card;
+    signalStatus, decisionMaxRegret,
+    productType, confirmationLevel, strategyId } = card;
 
   const statusBadge = (() => {
     switch (signalStatus) {
@@ -144,6 +146,19 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         {ticker}
       </div>
 
+      {/* 상품 유형 배지 (STOCK·UNKNOWN 이외만 표시) */}
+      {productType && !['STOCK', 'UNKNOWN'].includes(productType) && (
+        <span style={{
+          ...ts('caption-sm', '#4c98b9'),
+          border: '1px solid rgba(76,152,185,0.4)',
+          padding: '2px 8px',
+          borderRadius: '3px',
+          alignSelf: 'flex-start',
+        }}>
+          {productType}
+        </span>
+      )}
+
       {/* 현재가 + 등락 — 한국 관례 색 분기 */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '4px' }}>
         <span style={{
@@ -213,6 +228,21 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* 신호 강도 row — 항상 렌더링, null 시 visibility:hidden으로 높이 일관성 유지 */}
+        <div style={{
+          borderTop: (confirmationLevel && strategyId.startsWith('strategy_one_')) ? '1px solid var(--hairline)' : 'none',
+          paddingTop: '14px', paddingBottom: '14px',
+          visibility: (confirmationLevel && strategyId.startsWith('strategy_one_')) ? 'visible' : 'hidden',
+        }}>
+          <div style={labelStyle}>신호 강도</div>
+          <div style={{
+            fontFamily: 'var(--f-mono-stack)', fontSize: '13px', letterSpacing: 0,
+            color: confirmationLevel ? confirmationColor(confirmationLevel) : 'transparent',
+          }}>
+            {confirmationLevel ?? '—'}
           </div>
         </div>
 
