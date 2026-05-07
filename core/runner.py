@@ -31,6 +31,7 @@ from .cache.resampler import resample_to
 from .data_fetch import DataClient, OhlcvCache
 from .data_sources.naver import naver_detail_url
 from .decision.product_type import ProductType
+from .decision.tradability_filter import enrich_metadata as _enrich_tradability
 from .strategy_base import Candidate, ScanContext, Strategy
 from .universe import UniverseFilter, build_universe
 
@@ -245,6 +246,10 @@ class ScanRunner:
                     cand.metadata["product_type"] = univ.product_type_lookup.get(
                         cand.ticker, ProductType.UNKNOWN,
                     ).value
+                    # PR-D: 거래가능성 메타 주입 — 1D OHLCV 에서 거래대금·일중변동폭 계산
+                    _enrich_tradability(
+                        cand, ohlcv_by_tf.get("1D", {}).get(cand.ticker),
+                    )
                 result.candidates_by_strategy_tf[(strat.name, tf)] = candidates
                 # legacy 1D alias
                 if tf == "1D":

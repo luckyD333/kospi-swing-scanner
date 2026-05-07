@@ -11,6 +11,11 @@ from core.decision.order_type_classifier import (
     korean_label,
 )
 from core.decision.product_type import ProductType, to_pool
+from core.decision.tradability_filter import (
+    FilterThresholds,
+    apply as apply_tradability_filter,
+    write_rejection_log,
+)
 from output.models import (
     Fundamentals, Flow,
     SignalsPayload, Signal, TradePlan, Ranking, LiveQuote, LiveQuoteDisplay,
@@ -171,8 +176,35 @@ def build_signals_payload(
     market_regime: dict | None = None,
     weight_config: "WeightConfig | None" = None,
     target_date: str | None = None,
+    tradability_filter: bool = False,
+    tradability_thresholds: FilterThresholds | None = None,
+    rejection_log_path: str | None = None,
 ) -> SignalsPayload:
     filtered_candidates_by_strategy = _dedup_raw_candidates(candidates_by_strategy)
+
+    # PR-D: 거래가능성 hard filter — ranking 이전 차단 (default off, cli/runner 가 enable).
+    # 통과 ticker 만 candidates_by_strategy 에 남김 → signals 리스트 + ranking 모두 영향.
+    if tradability_filter:
+        all_flat = [
+            c for cs in filtered_candidates_by_strategy.values() for c in cs
+        ]
+        _, rejected = apply_tradability_filter(all_flat, tradability_thresholds)
+        rejected_tickers = {r.ticker for r in rejected}
+        if rejection_log_path:
+            write_rejection_log(rejected, rejection_log_path)
+        if rejected_tickers:
+            filtered_candidates_by_strategy = {
+                sid: [c for c in cs if c.ticker not in rejected_tickers]
+                for sid, cs in filtered_candidates_by_strategy.items()
+            }
+            # 빈 strategy 제거
+            filtered_candidates_by_strategy = {
+                sid: cs for sid, cs in filtered_candidates_by_strategy.items() if cs
+            }
+            logger.info(
+                f"  tradability_filter 차단: {len(rejected)}건 "
+                f"(통과 ticker {len({c.ticker for cs in filtered_candidates_by_strategy.values() for c in cs})}개)",
+            )
 
     # 전략 레이블 기준 상위 20개 제한
     # TF별 최소 5개 보장 + 나머지 슬롯은 전체 score 상위로 채움
