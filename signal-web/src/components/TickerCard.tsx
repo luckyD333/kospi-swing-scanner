@@ -36,7 +36,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
 
   const { name, ticker, priceDisplay, changeDisplay, direction,
     entry, stop, target1,
-    score, decisionScore, decisionMaxRegret,
+    signalStrength, decisionScore, decisionRegretScore,
     strategyLabel, timeframe, rank, allStrategyTags,
     signalStatus,
     productType, confirmationLevel, strategyId } = card;
@@ -69,9 +69,9 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
   const tickerFontSize = nameLen > 12 ? '14px' : '16px';
 
   const primaryMetrics = [
-    { label: '신호 강도', value: score != null ? score.toFixed(1) : '—' },
+    { label: '신호 강도', value: signalStrength != null ? signalStrength.toFixed(1) : '—' },
     { label: '종합 점수', value: decisionScore != null ? decisionScore.toFixed(1) : '—' },
-    { label: '기회 점수', value: decisionMaxRegret != null ? decisionMaxRegret.toFixed(2) : '—' },
+    { label: '기회 점수', value: decisionRegretScore != null ? decisionRegretScore.toFixed(1) : '—' },
   ];
 
   // 라벨은 muted-soft로 한 톤 낮춰 데이터가 자연스럽게 떠오르게 함
