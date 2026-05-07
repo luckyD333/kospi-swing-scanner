@@ -491,7 +491,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         return (
           <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
             <div style={SECTION_HEAD}>
-              의사결정 스코어
+              종합 점수
             </div>
 
             {/* 최종 스코어 + 시장 국면 라벨 */}
@@ -541,9 +541,6 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             {/* Summary */}
             <div style={{ ...ts('caption', 'var(--body)'), paddingTop: '24px', paddingBottom: '8px', lineHeight: 1.6 }}>
               {summarySentence}
-              {decisionMaxRegret != null && (
-                <>{' '}최대 후회값 {decisionMaxRegret.toFixed(2)}로 하방 시나리오에서도 안정적이에요.</>
-              )}
             </div>
 
             {/* FACTOR BREAKDOWN 부제 */}
@@ -606,6 +603,24 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         );
       })()}
 
+      {/* 기회 점수 */}
+      {decisionMaxRegret != null && (
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
+          <div style={SECTION_HEAD}>기회 점수</div>
+          <div style={{
+            display: 'flex', alignItems: 'baseline', gap: '12px',
+            paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
+          }}>
+            <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+              {decisionMaxRegret.toFixed(2)}
+            </div>
+          </div>
+          <div style={{ ...ts('caption', 'var(--body)'), paddingTop: '24px', lineHeight: 1.6 }}>
+            낮을수록 하방 시나리오에서 안정적이에요. 후보 풀 내 최악의 결과를 최소화하는 후회 점수예요.
+          </div>
+        </div>
+      )}
+
       {/* 랭킹 산출 근거 */}
       {(() => {
         const scoreCaption = getScoreCaption(strategyId);
@@ -664,20 +679,30 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
               랭킹 산출 근거
             </div>
 
+            {/* 신호 강도 수치 블록 */}
+            {score != null && (
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: '12px',
+                paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
+              }}>
+                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+                  {score.toFixed(1)}
+                </div>
+                <div style={{ ...ts('caption', 'var(--muted)') }}>신호 강도</div>
+                <div style={{ ...ts('caption-sm', 'var(--muted-soft)') }}>{scoreCaption}</div>
+              </div>
+            )}
+
             {/* 헤드라인 */}
             <div style={{
               display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: '16px', flexWrap: 'wrap',
-              paddingBottom: '24px',
+              paddingBottom: '24px', paddingTop: '32px',
               borderBottom: '1px solid var(--hairline)',
             }}>
               <div style={{ ...ts('caption', 'var(--body)'), lineHeight: 1.6 }}>
                 {strategyLabel} ({strategyCategory}) 후보 풀에서{' '}
                 <span style={{ color: 'var(--ink)' }}>{rank != null ? `#${rank}위` : '—'}</span>
-                {score != null ? <>, 점수 <span style={{ fontFamily: 'var(--f-mono-stack)', color: 'var(--ink)' }}>{score.toFixed(1)}</span></> : null}
-              </div>
-              <div style={ts('caption-sm', 'var(--muted-soft)')}>
-                {scoreCaption}
               </div>
             </div>
 
