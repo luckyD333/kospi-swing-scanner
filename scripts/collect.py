@@ -61,7 +61,7 @@ class CollectConfig:
     market: str = "KOSPI"
     cache_root: Path = Path(".cache")
     max_universe_size: int = 300
-    max_etf_size: int = 100
+    max_etf_size: int = 50
     # 1D+1W는 base 1D로, 1h/30m는 base 1m으로 저장 후 리샘플링
     base_tfs: list[str] = field(default_factory=lambda: ["1D", "1m"])
     lookback_days: int = 90
@@ -645,7 +645,7 @@ def main() -> None:
     parser.add_argument("--market", default="KOSPI", choices=["KOSPI", "KOSDAQ"])
     parser.add_argument("--cache-root", default=".cache")
     parser.add_argument("--max-universe", type=int, default=300)
-    parser.add_argument("--max-etf", type=int, default=100, help="ETF 상위 N개 제한 (0=전종목, 기본: 100)")
+    parser.add_argument("--max-etf", type=int, default=50, help="ETF 상위 N개 제한 (0=전종목, 기본: 50)")
     parser.add_argument(
         "--timeframes", nargs="+", default=["1D", "1W", "1h", "30m"],
         metavar="TF", help="1D 1W 1h 30m → 내부에서 base TF로 변환 (기본: 전 구간)",
