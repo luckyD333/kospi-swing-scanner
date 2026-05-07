@@ -70,7 +70,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
 
   const primaryMetrics = [
     { label: '신호 강도', value: signalStrength != null ? signalStrength.toFixed(1) : '—' },
-    { label: '종합 점수', value: decisionScore != null ? decisionScore.toFixed(1) : '—' },
+    { label: '잠재력 점수', value: decisionScore != null ? decisionScore.toFixed(1) : '—' },
     { label: '기회 점수', value: decisionRegretScore != null ? decisionRegretScore.toFixed(1) : '—' },
   ];
 

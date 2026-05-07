@@ -483,15 +483,15 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         const top2 = sortedByContrib[1];
         const summarySentence =
           top1 && top2
-            ? `${top1.label}(${top1.contribution.toFixed(1)})과 ${top2.label}(${top2.contribution.toFixed(1)}) 항목이 종합점수에 가장 크게 기여했어요.`
+            ? `${top1.label}(${top1.contribution.toFixed(1)})과 ${top2.label}(${top2.contribution.toFixed(1)}) 항목이 잠재력 점수에 가장 크게 기여했어요.`
             : top1
-            ? `${top1.label}(${top1.contribution.toFixed(1)})이 종합점수의 주요 기여 요인이에요.`
+            ? `${top1.label}(${top1.contribution.toFixed(1)})이 잠재력 점수의 주요 기여 요인이에요.`
             : '기여 요인 데이터가 비어 있어요.';
 
         return (
           <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
             <div style={SECTION_HEAD}>
-              종합 점수
+              잠재력 점수
             </div>
 
             {/* 최종 스코어 + 시장 국면 라벨 */}
