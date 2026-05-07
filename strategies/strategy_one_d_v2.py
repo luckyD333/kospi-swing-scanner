@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from backtest_engine.core import calc_atr
 from core.decision.confirmation_strength import evaluate as eval_confirmation
+from core.decision.multi_timeframe import compute_multi_tf_penalty
 from backtest_engine.detectors import (
     DoubleBottomDetector,
     DoubleBottomFractal,
@@ -197,7 +198,21 @@ class StrategyOneDv2:
                 triggers = {k for k, v in signal.conditions_met.items() if v}
                 conf_level, conf_scale = eval_confirmation(triggers, rsi_14_val)
 
+                # PR-I: 멀티 TF RSI — 1h/30m 계산 + 동시 과열/과매도 페널티
+                df_1h = ctx.ohlcv_by_tf.get("1h", {}).get(ticker)
+                rsi_1h = (
+                    latest_rsi_or_none(df_1h["close"], period=14)
+                    if df_1h is not None and len(df_1h) >= 14 else None
+                )
                 df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
+                rsi_30m = (
+                    latest_rsi_or_none(df_30m["close"], period=14)
+                    if df_30m is not None and len(df_30m) >= 14 else None
+                )
+                conf_scale *= compute_multi_tf_penalty(
+                    {"1D": rsi_14_val, "1h": rsi_1h, "30m": rsi_30m}
+                )
+
                 limit_entry, limit_stop = populate_limit_fields(
                     df_30m, entry_price, stop_loss
                 )
@@ -230,6 +245,9 @@ class StrategyOneDv2:
                         # PR-H: confirmation 등급
                         "confirmation_level": conf_level.value,
                         "triggers_fired": sorted(triggers),
+                        # PR-I: 멀티 TF RSI
+                        "rsi_1h": rsi_1h,
+                        "rsi_30m": rsi_30m,
                     },
                     limit_entry=limit_entry,
                     limit_stop=limit_stop,
