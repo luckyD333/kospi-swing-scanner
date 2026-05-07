@@ -1,0 +1,20 @@
+# ATR 기반 손절폭 설정 (PR-F)
+# 전략별 ATR 승수 및 지지선 버퍼.
+# 코드 기본값: StrategyThreeConfig / StrategyOneDv2Config 의 atr_stop_* 필드.
+
+trend_following:           # strategy_three_*
+  atr_multiplier: 1.5      # stop = entry - mult×ATR(14)
+  swing_low_buffer: 0.5    # channel_low - buffer×ATR(14)
+
+mean_reversion:            # strategy_one_*_v2
+  atr_multiplier: 2.0      # stop = entry - mult×ATR(14)
+  support_buffer: 1.0      # prev_support - buffer×ATR(14)
+  prev_support_lookback: 20  # 최근 N봉 저점 = prev_support
+
+fallback:
+  stop_loss_pct: 0.025     # ATR 결측 시 진입가 × (1 - pct)
+
+volatility_classes:        # 향후 변동성 구간별 승수 스케일링 (현재 미사용)
+  low:  { multiplier_scale: 0.8 }
+  mid:  { multiplier_scale: 1.0 }
+  high: { multiplier_scale: 1.2 }

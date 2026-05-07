@@ -31,6 +31,7 @@ import pandas as pd
 from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from ._atr_stop import compute_atr_stop
 from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,9 @@ class StrategyThreeConfig:
     lookback: int = 20                  # Donchian 채널 봉 수
     atr_period: int = 14                # ATR 계산 기간
     atr_filter_multiplier: float = 0.5  # 돌파 폭 ≥ ATR × mult 만 진입 (0=비활성)
-    stop_loss_pct: float = 0.025        # 진입가 -2.5% (보수적 SL 한계)
+    stop_loss_pct: float = 0.025        # ATR 결측 시 fallback (-2.5%)
+    atr_stop_mult: float = 1.5          # PR-F: stop = entry - mult×ATR(14)
+    atr_stop_swing_buffer: float = 0.5  # PR-F: channel_low - buffer×ATR(14)
     target_1_pct: float = 0.03          # +3%
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
     atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
@@ -140,12 +143,14 @@ class StrategyThreeTrendFollowing:
                 #    margin 을 추가해 채널 저점을 살짝 하회. 채널이 깊을 때는 자연스럽게
                 #    -2.5% 손절이 더 빡빡하므로 그쪽이 채택됨.
                 entry = round_to_tick(close_now)
-                sl_channel = channel_low * 0.99
-                sl_pct = entry * (1 - cfg.stop_loss_pct)
-                stop_loss_raw = max(sl_channel, sl_pct)
-                if stop_loss_raw >= entry:
-                    # 안전: SL 이 close 보다 크면 -2.5% 강제
-                    stop_loss_raw = entry * (1 - cfg.stop_loss_pct)
+                # PR-F: ATR 기반 손절폭 (추세 추종)
+                # stop = max(entry-1.5×ATR, channel_low-0.5×ATR), fallback: entry×(1-stop_loss_pct)
+                stop_loss_raw = compute_atr_stop(
+                    float(entry), atr_now, channel_low,
+                    atr_mult=cfg.atr_stop_mult,
+                    support_buffer=cfg.atr_stop_swing_buffer,
+                    fallback_pct=cfg.stop_loss_pct,
+                )
                 stop_loss = floor_to_tick(stop_loss_raw)
 
                 t1 = round_to_tick(entry * (1 + cfg.target_1_pct))

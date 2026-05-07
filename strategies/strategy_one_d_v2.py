@@ -25,6 +25,7 @@ from backtest_engine.strategy import StrategyD, StrategyDConfig
 from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from ._atr_stop import compute_atr_stop
 from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,9 @@ class StrategyOneDv2Config:
     db_price_tolerance: float = 0.03        # DoubleBottomSimple price_tolerance
     use_rr_filter: bool = True              # RR < min_rr_ratio 후보 제거
     use_atr_stops: bool = True              # ATR 기반 동적 손절·목표가2
+    atr_stop_mult: float = 2.0              # PR-F: stop = entry - mult×ATR(14)
+    atr_stop_support_buffer: float = 1.0    # PR-F: prev_support - buffer×ATR(14)
+    prev_support_lookback: int = 20         # PR-F: prev_support = 최근 N봉 저점
 
 
 def _build_detector(
@@ -146,7 +150,28 @@ class StrategyOneDv2:
 
                 raw_entry = signal.entry_price
                 entry_price = round_to_tick(raw_entry)
-                stop_loss = floor_to_tick(signal.stop_loss)
+
+                # ATR 14일 계산 — 손절폭(PR-F)·목표가·metadata 공용
+                atr_series = calc_atr(df["high"], df["low"], df["close"], period=14)
+                atr_val = atr_series.iloc[-1]
+                if atr_val is not None and (atr_val != atr_val):  # NaN 체크
+                    atr_14 = None
+                else:
+                    atr_14 = float(atr_val) if atr_val is not None else None
+
+                # PR-F: ATR 기반 손절폭 (평균 회귀)
+                # stop = max(entry-2.0×ATR, prev_support-1×ATR), fallback: entry-2.5%
+                prev_support = float(
+                    df["low"].iloc[-self.config.prev_support_lookback:].min()
+                )
+                stop_raw = compute_atr_stop(
+                    float(entry_price), atr_14, prev_support,
+                    atr_mult=self.config.atr_stop_mult,
+                    support_buffer=self.config.atr_stop_support_buffer,
+                    fallback_pct=0.025,
+                )
+                stop_loss = floor_to_tick(stop_raw)
+
                 # 반올림된 진입가 기준으로 목표가 재계산
                 engine_cfg = self._engine.config
                 target_1 = entry_price * (1 + engine_cfg.target_1_pct)
@@ -167,14 +192,6 @@ class StrategyOneDv2:
                     rr_band = "sweet"
                 else:
                     rr_band = "over"
-
-                # ATR 14일 계산 (NaN이면 None)
-                atr_series = calc_atr(df["high"], df["low"], df["close"], period=14)
-                atr_val = atr_series.iloc[-1]
-                if atr_val is not None and (atr_val != atr_val):  # NaN 체크
-                    atr_14 = None
-                else:
-                    atr_14 = float(atr_val) if atr_val is not None else None
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
@@ -204,6 +221,7 @@ class StrategyOneDv2:
                         "rr_band": rr_band,
                         "atr_14": atr_14,
                         "rsi_14": rsi_14_val,
+                        "prev_support": prev_support,
                     },
                     limit_entry=limit_entry,
                     limit_stop=limit_stop,
