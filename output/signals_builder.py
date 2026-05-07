@@ -300,14 +300,21 @@ def build_signals_payload(
             for _sid, c in all_candidates:
                 if c.ticker not in best_per_ticker or c.score > best_per_ticker[c.ticker].score:
                     best_per_ticker[c.ticker] = c
-            # ensemble_score 메타 주입
+            # ensemble_score + regime_score 메타 주입
+            # regime_score: weights.yml 10% 항목 — market_regime["1d"]["score"] 에서 추출.
+            # runner.py 는 --decide 모드에서만 주입하므로 일반 스캔 흐름에서 별도 주입 필요.
+            _regime_score_val: int | None = (
+                int((market_regime or {}).get("1d", {}).get("score", 0)) or None
+            )
             for ticker, cand in best_per_ticker.items():
                 ws = weighted_scores.get(ticker, 1.0)
-                cand.metadata = {
-                    **(cand.metadata or {}),
+                meta_patch: dict = {
                     "ensemble_score": ws,
                     "ensemble_count": int(round(ws)),
                 }
+                if _regime_score_val is not None:
+                    meta_patch["regime_score"] = _regime_score_val
+                cand.metadata = {**(cand.metadata or {}), **meta_patch}
 
             # PR-B: 풀별 분리 ranking — STOCK 풀과 ETN_ETF 풀이 서로 영향 없이 독립 산출.
             # OTHER 풀(REIT/SPAC/UNKNOWN)은 ranking 미진입 (D2: 안전 분리).
