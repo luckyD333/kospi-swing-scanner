@@ -52,13 +52,23 @@ def _coerce_value(raw: str) -> float | str | bool:
         return s
 
 
+_DEFAULT_POOLS: tuple[str, ...] = ("STOCK", "ETN_ETF", "OTHER")
+
+
 @dataclass
 class Priority:
-    """단일 우선순위 항목 (가중치 + 정규화 방향)."""
+    """단일 우선순위 항목 (가중치 + 정규화 방향).
+
+    PR-B (P0-2): applies_to_pools 로 Pool 별 적용 여부 표시.
+      - default: 모든 풀 적용 (("STOCK", "ETN_ETF", "OTHER"))
+      - 펀더멘털 항목 (per/roe): ("STOCK",) — ETN/ETF 풀에서 자동 NOT_APPLICABLE
+        처리되며 가중치 동적 정규화 (aggregator).
+    """
     key: str           # 메트릭 키 (per, roe, momentum_pct, score, ensemble_count, ...)
     weight: float      # 0~100 (전체 합이 100이어야 함)
     direction: str     # "lower_better" | "higher_better"
     label: str         # 사용자 표기
+    applies_to_pools: tuple[str, ...] = _DEFAULT_POOLS
 
     def __post_init__(self):
         if self.direction not in VALID_DIRECTIONS:
@@ -120,6 +130,9 @@ class WeightConfig:
                 weight=float(item["weight"]),
                 direction=item["direction"],
                 label=item.get("label", item["key"]),
+                applies_to_pools=tuple(
+                    item.get("applies_to_pools", _DEFAULT_POOLS),
+                ),
             )
             for item in data.get("priorities", [])
         ]
@@ -133,12 +146,18 @@ class WeightConfig:
     def save(self, path: Path | str) -> None:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
+        priority_payload: list[dict] = []
+        for x in self.priorities:
+            entry: dict = {
+                "key": x.key, "weight": x.weight,
+                "direction": x.direction, "label": x.label,
+            }
+            # default 풀 집합과 다를 때만 yaml 에 명시 (간결성)
+            if tuple(x.applies_to_pools) != _DEFAULT_POOLS:
+                entry["applies_to_pools"] = list(x.applies_to_pools)
+            priority_payload.append(entry)
         payload = {
-            "priorities": [
-                {"key": x.key, "weight": x.weight,
-                 "direction": x.direction, "label": x.label}
-                for x in self.priorities
-            ],
+            "priorities": priority_payload,
             "must_have": list(self.must_have),
         }
         if self.strategy_weights:
@@ -176,6 +195,9 @@ class WeightConfig:
                 weight=float(item["weight"]),
                 direction=item["direction"],
                 label=item.get("label", item["key"]),
+                applies_to_pools=tuple(
+                    item.get("applies_to_pools", _DEFAULT_POOLS),
+                ),
             )
             for item in wc.get("priorities", [])
         ]

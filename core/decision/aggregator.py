@@ -24,7 +24,7 @@ key 우선순위:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from core.strategy_base import Candidate
 
@@ -56,7 +56,7 @@ def _extract_metric(cand: Candidate, key: str):
 def _classify_missing(value, negative_flag: bool) -> str:
     """결측 사유 분류 — PR-A 범위 (NEGATIVE_EARNINGS / DATA_MISSING / PRESENT).
 
-    NOT_APPLICABLE (ETN/ETF 등) 은 PR-B 에서 product_type 도입과 함께 추가.
+    NOT_APPLICABLE 은 풀 단위 결정 (PR-B) — aggregate_candidates 에서 별도 주입.
     """
     if value is not None:
         return "PRESENT"
@@ -97,8 +97,15 @@ def _percentile_rank(values: list[float | None]) -> list[float]:
 
 def aggregate_candidates(
     candidates: list[Candidate], cfg: WeightConfig,
+    pool: str = "STOCK",
 ) -> list[RankedCandidate]:
-    """후보 리스트 + WeightConfig → RankedCandidate (final_score 내림차순)."""
+    """후보 리스트 + WeightConfig + Pool → RankedCandidate (final_score 내림차순).
+
+    PR-B (P0-2): pool 인자에 따라 cfg.priorities 의 applies_to_pools 와 매칭하지
+    않는 priority 는 NOT_APPLICABLE 처리되어 가중치가 0 으로 빠지고, 적용 priority
+    만으로 가중치가 동적 정규화 (sum=100 유지). 풀별 ranking 분리는 호출자가 풀별
+    candidates 를 분리해 별도 호출.
+    """
     if not candidates:
         return []
 
@@ -111,10 +118,21 @@ def aggregate_candidates(
     if not survivors:
         return []
 
-    # 2) priority 별 percentile rank 정규화
+    # 2) PR-B: pool 별 priority 필터링 + 가중치 동적 정규화
+    active = [p for p in cfg.priorities if pool in p.applies_to_pools]
+    excluded_keys = [p.key for p in cfg.priorities if pool not in p.applies_to_pools]
+    if not active:
+        return []  # 적용 가능 priority 없으면 ranking 불가
+    active_total = sum(p.weight for p in active)
+    if active_total <= 0:
+        return []
+    scale = 100.0 / active_total
+    scaled = [replace(p, weight=p.weight * scale) for p in active]
+
+    # 3) priority 별 percentile rank 정규화 (active 만)
     normalized: dict[str, list[float]] = {}
     raw_by_key: dict[str, list] = {}
-    for prio in cfg.priorities:
+    for prio in scaled:
         raw = [_extract_metric(c, prio.key) for c in survivors]
         raw_by_key[prio.key] = raw
         rank = _percentile_rank(raw)
@@ -126,28 +144,33 @@ def aggregate_candidates(
             ]
         normalized[prio.key] = rank
 
-    # 3) 가중 합산
-    # 스케일: contribution = (정규화 점수 0~1) × (가중치 0~100) → 항목별 0~weight 범위.
-    # final_score = sum(contributions) → 0~100 범위 (가중치 합 = 100 보장됨).
-    # 모든 항목이 percentile 1.0 이면 final_score = 100, 모두 결측이면 0.
+    # 4) 가중 합산
+    # 스케일: contribution = (정규화 점수 0~1) × (정규화된 가중치) → 합 100 보장.
+    # final_score = sum(contributions) → 0~100 범위.
+    # 제외된 priority 는 normalized_metrics 에 NOT_APPLICABLE 사유로 기록 (가산 0).
     ranked: list[RankedCandidate] = []
     for i, cand in enumerate(survivors):
         contributions: dict[str, float] = {}
-        norm_metrics: dict[str, float] = {}
+        norm_metrics: dict[str, float | int | str] = {}
         total = 0.0
         cand_meta = cand.metadata or {}
-        for prio in cfg.priorities:
+        for prio in scaled:
             n = normalized[prio.key][i]
-            contrib = n * prio.weight  # 0~weight 범위
+            contrib = n * prio.weight
             contributions[prio.key] = contrib
             norm_metrics[prio.key] = n
-            # 결측 사유 기록 (PR-A 분기): metadata의 '<key>_negative' 플래그 활용.
+            # PR-A: 결측 사유 (NEGATIVE_EARNINGS / DATA_MISSING)
             value = raw_by_key[prio.key][i]
             negative_flag = bool(cand_meta.get(f"{prio.key}_negative", False))
             reason = _classify_missing(value, negative_flag)
             if reason != "PRESENT":
                 norm_metrics[f"{prio.key}_missing_reason"] = reason
             total += contrib
+        # PR-B: 풀 미적용 priority 는 NOT_APPLICABLE
+        for k in excluded_keys:
+            contributions[k] = 0.0
+            norm_metrics[k] = 0.0
+            norm_metrics[f"{k}_missing_reason"] = "NOT_APPLICABLE"
         ranked.append(RankedCandidate(
             candidate=cand,
             final_score=round(total, 4),
@@ -155,6 +178,6 @@ def aggregate_candidates(
             normalized_metrics=norm_metrics,
         ))
 
-    # 4) final_score 내림차순. 동률 시 ticker 알파벳 순 (결정론).
+    # 5) final_score 내림차순. 동률 시 ticker 알파벳 순 (결정론).
     ranked.sort(key=lambda r: (-r.final_score, r.candidate.ticker))
     return ranked

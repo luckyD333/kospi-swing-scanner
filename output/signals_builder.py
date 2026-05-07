@@ -271,11 +271,29 @@ def build_signals_payload(
                     "ensemble_score": ws,
                     "ensemble_count": int(round(ws)),
                 }
-            ranked = aggregate_candidates(list(best_per_ticker.values()), weight_config)
-            if ranked:
-                ranked = compute_regret_scores(
-                    ranked, ensemble_scores=weighted_scores,
+
+            # PR-B: 풀별 분리 ranking — STOCK 풀과 ETN_ETF 풀이 서로 영향 없이 독립 산출.
+            # OTHER 풀(REIT/SPAC/UNKNOWN)은 ranking 미진입 (D2: 안전 분리).
+            stock_cands, etn_etf_cands = [], []
+            for cand in best_per_ticker.values():
+                pt = (getattr(cand, "metadata", None) or {}).get("product_type", "UNKNOWN")
+                if pt == "STOCK":
+                    stock_cands.append(cand)
+                elif pt in ("ETN", "ETF"):
+                    etn_etf_cands.append(cand)
+                # 그 외 (REIT/SPAC/UNKNOWN) → ranking 미진입
+            ranked_stock = aggregate_candidates(stock_cands, weight_config, pool="STOCK")
+            ranked_etn_etf = aggregate_candidates(etn_etf_cands, weight_config, pool="ETN_ETF")
+            # 풀별 regret 도 독립 산출 (풀 내 비교가 의미 있음)
+            if ranked_stock:
+                ranked_stock = compute_regret_scores(
+                    ranked_stock, ensemble_scores=weighted_scores,
                 )
+            if ranked_etn_etf:
+                ranked_etn_etf = compute_regret_scores(
+                    ranked_etn_etf, ensemble_scores=weighted_scores,
+                )
+            ranked = list(ranked_stock) + list(ranked_etn_etf)
             ranked_for_all = ranked
             ticker_to_ranked = {rc.candidate.ticker: rc for rc in ranked}
         except Exception as e:

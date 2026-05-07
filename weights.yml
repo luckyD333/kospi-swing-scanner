@@ -22,10 +22,12 @@ priorities:
     weight: 15.0
     direction: higher_better
     label: ROE (수익성)
+    applies_to_pools: [STOCK]   # PR-B: ETN/ETF 풀에서 NOT_APPLICABLE → 가중치 동적 정규화
   - key: per
     weight: 10.0
     direction: lower_better
     label: PER (저평가)
+    applies_to_pools: [STOCK]   # PR-B: ETN/ETF 풀에서 NOT_APPLICABLE → 가중치 동적 정규화
   - key: regime_score
     weight: 10.0
     direction: higher_better

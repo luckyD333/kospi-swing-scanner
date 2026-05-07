@@ -149,6 +149,7 @@ def _make_cand_for(ticker, score=80.0):
         metadata={
             "rr_ratio": 2.0, "rr_band": "sweet", "atr_14": 100,
             "naver_url": f"http://x/{ticker}",
+            "product_type": "STOCK",  # PR-B: 풀 분리에서 STOCK 풀로 진입
         },
     )
 
