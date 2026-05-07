@@ -110,6 +110,17 @@ class StrategyThreeTrendFollowing:
                     continue
                 breakout_pct = (close_now - channel_high) / channel_high
 
+                # 3.5) PR-E (P1-3): 단일일 급등 페널티 — 추세 추종 한정
+                # NAV 괴리율 회귀·단일 호가 체결 가능성을 추세로 오인하는 결함 차단.
+                prev_change_pct = 0.0
+                if len(close) >= 2 and float(close.iloc[-2]) > 0:
+                    prev_change_pct = (
+                        (close_now - float(close.iloc[-2])) / float(close.iloc[-2]) * 100.0
+                    )
+                if prev_change_pct >= 30.0:
+                    continue  # +30% 이상 → 후보 풀에서 제외
+                pump_penalty = 0.5 if prev_change_pct >= 20.0 else 1.0
+
                 # 4) ATR 필터
                 atr_series = calc_atr(high, low, close, period=cfg.atr_period)
                 atr_now = float(atr_series.iloc[-1])
@@ -119,8 +130,9 @@ class StrategyThreeTrendFollowing:
                     if (close_now - channel_high) < atr_now * cfg.atr_filter_multiplier:
                         continue
 
-                # 5) Score = 돌파 강도 (cap [0, 1])
+                # 5) Score = 돌파 강도 (cap [0, 1]) × pump_penalty (PR-E)
                 score = float(min(1000.0, max(0.0, breakout_pct * cfg.score_scale)))
+                score *= pump_penalty
 
                 # 6) SL = max(채널 저점 -1%, 진입가 -2.5%)
                 #    더 보수적(=진입가에 가까운) 쪽 선택.
@@ -196,6 +208,9 @@ class StrategyThreeTrendFollowing:
                         "rr_band": rr_band,
                         "atr_14": atr_14,
                         "rsi_14": rsi_14_val,
+                        # PR-E: 단일일 급등 추적 (≥30% 는 이미 차단)
+                        "prev_change_pct": prev_change_pct,
+                        "pump_penalty": pump_penalty,
                     },
                 ))
             except Exception as e:
