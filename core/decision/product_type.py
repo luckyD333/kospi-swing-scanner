@@ -36,6 +36,7 @@ class Pool(str, Enum):
 
 _SPAC_KEYWORDS = ("스팩", "기업인수목적")
 _REIT_KEYWORDS = ("리츠",)
+_ETN_KEYWORDS = ("ETN",)
 
 
 def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> ProductType:
@@ -66,9 +67,11 @@ def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> Produc
 
     # 3) 정형 주식 코드 → STOCK
     if len(ticker) == 6 and ticker.isdigit():
-        # 7xxxxx 비-ETF 는 UNKNOWN (D2 안전 분리)
         if ticker.startswith("7"):
-            return ProductType.UNKNOWN
+            # ETF API 명단 누락 케이스: 이름에 ETN 명시 시 ETN으로 분류
+            if any(kw in name for kw in _ETN_KEYWORDS):
+                return ProductType.ETN
+            return ProductType.UNKNOWN  # D2 안전 분리
         return ProductType.STOCK
 
     # 4) 비정형 코드 → UNKNOWN

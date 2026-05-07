@@ -76,8 +76,18 @@ def test_classify_stock_2_prefix():
 # ---------------------------------------------------------------------------
 
 def test_classify_unknown_for_7_prefix_not_in_etf_list():
-    """7xxxxx 인데 ETF API 에 없음 → UNKNOWN (STOCK 폴백 X — D2)."""
+    """7xxxxx 인데 ETF API 에 없고 이름에 ETN 없음 → UNKNOWN (STOCK 폴백 X — D2)."""
     assert classify("700000", "이상한 종목") == ProductType.UNKNOWN
+
+
+def test_etn_name_keyword_api_miss():
+    """7xxxxx + ETF API 명단 없음 + 이름에 ETN → ETN (700028 케이스)."""
+    assert classify("700028", "하나 레버리지 반도체 ETN", etf_list=set()) == ProductType.ETN
+
+
+def test_etn_name_keyword_api_hit():
+    """7xxxxx + ETF API 명단 hit → ETN (API 명단이 우선, 결과 동일)."""
+    assert classify("700028", "하나 레버리지 반도체 ETN", etf_list={"700028"}) == ProductType.ETN
 
 
 def test_classify_unknown_for_non_6digit():
