@@ -496,6 +496,16 @@ def _handle_signals_ui_format(args, result) -> int:
         except Exception as e:
             logger.warning(f"weights.yml 로드 실패 (decision 데이터 생략): {e}")
 
+    # PR-J: regime_overlay — 국면 점수 기반 priority weight 조정
+    if weight_config is not None and regime is not None:
+        try:
+            from core.decision.market_regime import apply_regime_overlay
+            _score_1d = int(regime.get("1D", {}).get("score", 50))
+            weight_config = apply_regime_overlay(weight_config, _score_1d)
+            logger.info(f"[cli] regime overlay 적용: 1D score={_score_1d}")
+        except Exception as _e:
+            logger.warning(f"regime overlay 적용 실패: {_e}. base weight 사용")
+
     # candidates_by_strategy 는 1D timeframe 만 담음 (legacy alias).
     # 1h/30m 전략 결과까지 포함하려면 candidates_by_strategy_tf 를 평면화.
     candidates_for_signals: dict[str, list] = {
