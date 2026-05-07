@@ -2,8 +2,8 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from ..services.market_loader import MarketLoader
 
@@ -15,13 +15,11 @@ _loader = MarketLoader(_MARKET_PATH)
 
 
 @router.get("/market")
-async def get_market(request: Request):
+async def get_market():
     loaded = _loader.load()
     if loaded is None:
         return {"market_indices": {}}
-    if request.headers.get("if-none-match") == loaded.etag:
-        return Response(status_code=304)
     return JSONResponse(
         content={"market_indices": loaded.indices},
-        headers={"ETag": loaded.etag, "Cache-Control": "no-cache"},
+        headers={"Cache-Control": "no-cache"},
     )

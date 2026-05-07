@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 from app.services.signal_loader import SignalLoader
@@ -32,26 +31,30 @@ def test_loader_caches_by_ticker(tmp_path):
     assert loaded.by_ticker["000020"]["ticker"] == "000020"
 
 
-def test_loader_invalidates_on_size_change_same_mtime(tmp_path):
+def test_loader_returns_cached_within_ttl(tmp_path):
+    """TTL 내에는 동일 instance 반환 (디스크 변경 무시)."""
     p = tmp_path / "s.json"
     _write(p, SAMPLE)
     loader = SignalLoader(p)
     first = loader.load()
-
-    # 같은 mtime을 강제로 유지하면서 내용을 바꾼다 → size로 변경 감지되어야 함
+    # 디스크는 바꿔도, TTL 내라 같은 캐시 반환
     bigger = {**SAMPLE, "extra": "x" * 1000}
     p.write_text(json.dumps(bigger), encoding="utf-8")
-    os.utime(p, (first.mtime, first.mtime))
-
     second = loader.load()
-    assert second is not first
-    assert second.size != first.size
+    assert second is first
 
 
-def test_loader_etag_includes_mtime_and_size(tmp_path):
+def test_loader_reloads_after_ttl_expires(tmp_path, monkeypatch):
+    """TTL 경과 시 디스크 재로드 → 새 instance."""
+    import app.services.signal_loader as sl
     p = tmp_path / "s.json"
     _write(p, SAMPLE)
     loader = SignalLoader(p)
-    loaded = loader.load()
-    assert str(loaded.mtime) in loaded.etag
-    assert str(loaded.size) in loaded.etag
+    first = loader.load()
+    # TTL 짧게 강제
+    monkeypatch.setattr(sl, "_TTL_SECONDS", 0.0)
+    bigger = {**SAMPLE, "extra": "x" * 1000}
+    p.write_text(json.dumps(bigger), encoding="utf-8")
+    second = loader.load()
+    assert second is not first
+    assert "extra" in second.raw

@@ -54,7 +54,6 @@ async def test_signals_returns_200_when_file_exists(with_signals):
         r = await c.get("/api/signals")
     assert r.status_code == 200
     assert r.json()["schema_version"] == "1.0"
-    assert "ETag" in r.headers
 
 
 async def test_signals_returns_503_when_file_missing(with_no_signals):
@@ -77,14 +76,6 @@ async def test_signals_returns_503_on_malformed_json(tmp_path, monkeypatch):
     assert r.json()["detail"]["error"] == "signals_malformed"
 
 
-async def test_signals_304_on_matching_etag(with_signals):
-    async with _make_client() as c:
-        r1 = await c.get("/api/signals")
-        etag = r1.headers["ETag"]
-        r2 = await c.get("/api/signals", headers={"If-None-Match": etag})
-    assert r2.status_code == 304
-
-
 # ── /api/signals/{ticker} ─────────────────────────────────────────────────────
 
 async def test_signals_ticker_returns_signal(with_signals):
@@ -92,7 +83,6 @@ async def test_signals_ticker_returns_signal(with_signals):
         r = await c.get("/api/signals/006340")
     assert r.status_code == 200
     assert r.json()["ticker"] == "006340"
-    assert "ETag" in r.headers
 
 
 async def test_signals_ticker_returns_404_for_unknown(with_signals):
@@ -119,14 +109,6 @@ async def test_market_returns_indices_only(with_market):
     assert "market_indices" in data
     assert "tickers" not in data
     assert "kospi" in data["market_indices"]
-
-
-async def test_market_etag_round_trip(with_market):
-    async with _make_client() as c:
-        r1 = await c.get("/api/market")
-        etag = r1.headers["ETag"]
-        r2 = await c.get("/api/market", headers={"If-None-Match": etag})
-    assert r2.status_code == 304
 
 
 # ── Phase E: signals + market join ────────────────────────────────────────────
@@ -318,21 +300,3 @@ async def test_signals_no_strategy_query_returns_all_entries(
     assert "strategy_one_d_v2" in ids
 
 
-async def test_signals_etag_changes_when_market_changes(
-    with_signals, market_file, monkeypatch,
-):
-    """market 파일이 갱신되면 ETag 도 바뀌어야 함 (signals 는 그대로여도)."""
-    from app.services.market_loader import MarketLoader
-    import app.api.signals as signals_module_local
-    monkeypatch.setattr(signals_module_local, "_market_loader", MarketLoader(market_file))
-    async with _make_client() as c:
-        r1 = await c.get("/api/signals")
-        etag1 = r1.headers["ETag"]
-    # market 파일 갱신 (touch)
-    import time
-    time.sleep(0.01)
-    market_file.write_text(market_file.read_text() + " ", encoding="utf-8")
-    async with _make_client() as c:
-        r2 = await c.get("/api/signals")
-        etag2 = r2.headers["ETag"]
-    assert etag1 != etag2

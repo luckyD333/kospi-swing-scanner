@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -9,12 +10,14 @@ from pydantic import ValidationError
 from ..models.signal import SignalsResponse
 
 
+# 단순 TTL 메모리 캐시. cron 의 collect_live 가 2분 주기라 동일 cycle.
+# 외부 요청과 무관하게 expire 시점에 lazy 로 재로드. mtime/size 비교 race 회피.
+_TTL_SECONDS = 120.0
+
+
 @dataclass
 class LoadedSignals:
     raw: dict[str, Any]
-    etag: str
-    mtime: float
-    size: int
     by_ticker: dict[str, dict[str, Any]]
     entries_by_ticker: dict[str, list[dict[str, Any]]]
 
@@ -23,6 +26,7 @@ class SignalLoader:
     def __init__(self, path: Path):
         self._path = path
         self._cache: LoadedSignals | None = None
+        self._cache_set_at: float = 0.0
         self._lock = threading.Lock()
 
     def load(self) -> LoadedSignals:
@@ -30,11 +34,8 @@ class SignalLoader:
             if not self._path.exists():
                 raise FileNotFoundError(self._path)
 
-            stat = self._path.stat()
-            mtime = stat.st_mtime
-            size = stat.st_size
-            # (mtime,size) 페어로 비교: 같은 초에 atomic rename 두 번 발생해도 size로 변경 감지
-            if self._cache and self._cache.mtime == mtime and self._cache.size == size:
+            now = time.monotonic()
+            if self._cache is not None and (now - self._cache_set_at) < _TTL_SECONDS:
                 return self._cache
 
             try:
@@ -53,10 +54,8 @@ class SignalLoader:
                 entries_by_ticker.setdefault(s["ticker"], []).append(s)
             self._cache = LoadedSignals(
                 raw=raw,
-                etag=f'"{mtime}-{size}"',
-                mtime=mtime,
-                size=size,
                 by_ticker=by_ticker,
                 entries_by_ticker=entries_by_ticker,
             )
+            self._cache_set_at = now
             return self._cache
