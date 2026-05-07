@@ -75,3 +75,84 @@ def test_build_market_snapshot_falls_back_to_daily_close():
         market_indices={},
     )
     assert snapshot.tickers["001390"].current_price == 7120
+
+
+def test_minute_close_change_pct_uses_prev_day_close_not_stale_today_row():
+    """760013 회귀: 1D parquet 의 오늘 row 가 장중 stale (close=250000) 이고
+    분봉 close 가 그 후 갱신된 EOD 값 (181290) 일 때, change_pct 는 stale 일봉
+    pct_change(54.32%) 가 아니라 분봉 vs 전일 종가(162000) 기준(11.91%) 으로 산출.
+
+    오늘 row 가 1D parquet 에 박혀 있다는 신호: ohlcv["last_date"] == today_kst.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    today_kst = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
+    ohlcv = {
+        "001390": {
+            "close": [140740.0, 162000.0, 250000.0],   # 오늘 row=250000 (stale)
+            "high":  [148725.0, 162000.0, 250000.0],
+            "low":   [140740.0, 146805.0, 168845.0],
+            "volume": [4825, 2398, 8],                  # 오늘 1D vol=8 (stale)
+            "change_pct": [0.0, 15.11, 54.32],          # 오늘 stale pct
+            "minute_close": 181290.0,                   # 분봉 EOD close (정확)
+            "minute_volume_today": 9686.0,              # 분봉 누적 거래량 (정확)
+            "last_date": today_kst,                     # 1D 마지막 row 가 오늘
+        }
+    }
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=ohlcv,
+        market_indices={},
+    )
+    snap = snapshot.tickers["001390"]
+    assert snap.current_price == 181290
+    # (181290 - 162000) / 162000 * 100 = 11.91%
+    assert snap.change_pct == 11.91
+    # 분봉 누적 volume 우선 사용
+    assert snap.volume == 9686
+
+
+def test_minute_close_change_pct_when_today_row_absent():
+    """1D parquet 의 마지막 row 가 어제까지만 있고 오늘 row 가 없는 케이스.
+    이때 prev_close 는 closes[-1] (어제 종가) 가 정답.
+    """
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    yesterday = (datetime.now(ZoneInfo("Asia/Seoul")) - timedelta(days=1)).strftime("%Y-%m-%d")
+    ohlcv = {
+        "001390": {
+            "close":  [140000.0, 162000.0],   # last = 어제 종가
+            "high":   [148000.0, 162000.0],
+            "low":    [140000.0, 146000.0],
+            "volume": [4825, 2398],
+            "change_pct": [0.0, 15.71],
+            "minute_close": 181290.0,
+            "minute_volume_today": 9686.0,
+            "last_date": yesterday,           # 오늘 row 없음
+        }
+    }
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=ohlcv,
+        market_indices={},
+    )
+    snap = snapshot.tickers["001390"]
+    assert snap.current_price == 181290
+    # (181290 - 162000) / 162000 * 100 = 11.91%
+    assert snap.change_pct == 11.91
+    assert snap.volume == 9686
+
+
+def test_no_minute_close_keeps_legacy_daily_change_pct():
+    """분봉 데이터 없을 때는 기존 일봉 기반 change_pct/volume 동작 유지."""
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=MOCK_OHLCV,
+        market_indices={},
+    )
+    snap = snapshot.tickers["001390"]
+    assert snap.current_price == 7120
+    assert snap.change_pct == 0.71      # MOCK 의 마지막 change_pct
+    assert snap.volume == 2847000        # MOCK 의 마지막 volume

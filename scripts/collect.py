@@ -534,12 +534,16 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
             continue
         df = df.tail(252)  # 52주 = 약 252 거래일
         change_pct = df["close"].pct_change().fillna(0).mul(100).tolist()
+        # last_date: snapshot_builder 가 분봉 close 사용 시 prev_close 가 closes[-2]
+        # (오늘 row 존재) 인지 closes[-1] (오늘 row 없음) 인지 판단하는 키.
+        last_date = df.index[-1].strftime("%Y-%m-%d") if len(df.index) else None
         entry = {
             "close":      df["close"].tolist(),
             "high":       df["high"].tolist(),
             "low":        df["low"].tolist(),
             "volume":     df["volume"].tolist(),
             "change_pct": change_pct,
+            "last_date":  last_date,
         }
 
         # 1D RSI — strategy 후보 여부와 무관하게 ticker 의 indicator
@@ -557,6 +561,9 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
                         if last_idx.date() == today:
                             entry["minute_close"] = float(mdf_full.loc[last_idx, "close"])
                             entry["minute_close_at"] = last_idx.isoformat()
+                            # 분봉 volume 은 누적 — 마지막 분봉의 volume = 그날 누적 거래량.
+                            # 1D parquet 의 stale row volume 회피용으로 snapshot_builder 가 사용.
+                            entry["minute_volume_today"] = float(mdf_full.loc[last_idx, "volume"])
                         for tf in ("30m", "1h"):
                             try:
                                 resampled = resample_to(mdf_full, tf)

@@ -31,15 +31,40 @@ def build_market_snapshot(
         highs_52w = highs[-_LOOKBACK:] if highs else []
         lows_52w  = lows[-_LOOKBACK:]  if lows  else []
 
-        # 분봉 raw 가 있으면 분봉 close 가 더 최신 — 우선 사용
+        # 분봉 raw 가 있으면 분봉 close 가 더 최신 — 우선 사용.
+        # 단, current_price 가 분봉 EOD 일 때 change_pct/volume 도 일관 source 로
+        # 재계산해야 함. 그렇지 않으면 1D parquet 의 장중 stale row 와 mismatch.
         minute_close = ohlcv.get("minute_close")
         if minute_close is not None:
             current_price = int(minute_close)
+            # prev_close 결정: 1D 의 마지막 row 가 오늘이면 closes[-2] 가 어제 종가,
+            # 아니면 closes[-1] 자체가 어제 종가.
+            today_kst = datetime.now(KST).strftime("%Y-%m-%d")
+            today_row_present = ohlcv.get("last_date") == today_kst
+            prev_close: float | None = None
+            if today_row_present and len(closes) >= 2:
+                prev_close = float(closes[-2])
+            elif not today_row_present and len(closes) >= 1:
+                prev_close = float(closes[-1])
+            last_chg = (
+                (current_price - prev_close) / prev_close * 100
+                if prev_close
+                else 0.0
+            )
+            # 분봉 누적 거래량 우선 (1D row 의 stale volume 회피)
+            minute_volume = ohlcv.get("minute_volume_today")
+            volume = int(minute_volume) if minute_volume is not None else (
+                int(vols[-1]) if vols else 0
+            )
         else:
             current_price = int(closes[-1]) if closes else 0
-        volume        = int(vols[-1])   if vols   else 0
-        change_list   = ohlcv.get("change_pct", [0])
-        last_chg      = float(change_list[-1]) if isinstance(change_list, list) else float(change_list)
+            volume = int(vols[-1]) if vols else 0
+            change_list = ohlcv.get("change_pct", [0])
+            last_chg = (
+                float(change_list[-1])
+                if isinstance(change_list, list)
+                else float(change_list)
+            )
 
         high_52w = int(max(highs_52w)) if highs_52w else None
         low_52w  = int(min(lows_52w))  if lows_52w  else None
