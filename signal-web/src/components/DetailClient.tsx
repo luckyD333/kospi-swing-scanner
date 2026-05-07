@@ -162,7 +162,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
     name, nameEn, ticker,
     priceDisplay, changeDisplay, direction,
     entry, stop, target1, target2,
-    score,
+    signalStrength,
     rsi1d, rsi1h, rsi30m,
     per, high52w, low52w,
     foreignRatioPct, volumeDisplay, marketCapDisplay,
@@ -170,7 +170,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
     rrRatio, rrBand, atr14, changePct, currentPrice,
     strategyId, strategyLabel, strategyCategory, timeframe,
     naverUrl, generatedAtDisplay, signalDate,
-    decisionScore, decisionFactors, decisionMaxRegret,
+    decisionScore, decisionFactors, decisionRegretScore, decisionRegretFactors,
     rank,
     limitEntryActive, eodEntry, signalStatus,
     productType, orderTypeLabel, confirmationLevel, activeRegime, tradabilityScore,
@@ -604,7 +604,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
       })()}
 
       {/* 기회 점수 */}
-      {decisionMaxRegret != null && (
+      {decisionRegretScore != null && (
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
           <div style={SECTION_HEAD}>기회 점수</div>
           <div style={{
@@ -612,16 +612,73 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
           }}>
             <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-              {decisionMaxRegret.toFixed(2)}
+              {decisionRegretScore.toFixed(1)}
             </div>
+            <div style={{ ...ts('caption', 'var(--muted)') }}>/ 100</div>
           </div>
           <div style={{ ...ts('caption', 'var(--body)'), paddingTop: '24px', lineHeight: 1.6 }}>
-            낮을수록 하방 시나리오에서 안정적이에요. 후보 풀 내 최악의 결과를 최소화하는 후회 점수예요.
+            높을수록 매수 우선순위가 높아요. 목표 수익↑·손절 폭↓·다전략 합의도를 종합해 "안 사면 후회 남을" 종목을 위로 올리는 점수예요.
           </div>
+
+          {/* 4축 Factor Breakdown */}
+          {decisionRegretFactors && decisionRegretFactors.length > 0 && (
+            <>
+              <div style={{ ...ts('caption-sm', 'var(--muted)'), paddingTop: '32px', paddingBottom: '12px' }}>
+                Factor Breakdown
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
+                alignItems: 'center',
+                gap: '16px',
+                padding: '12px 0',
+                borderBottom: '1px solid var(--hairline)',
+              }}>
+                <div style={ts('caption-sm', 'var(--muted-soft)')}>요인</div>
+                <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>가중치</div>
+                <div style={ts('caption-sm', 'var(--muted-soft)')}>기여도</div>
+                <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>값</div>
+              </div>
+              <div>
+                {decisionRegretFactors.map((f) => {
+                  const fillPct = f.weight > 0 ? Math.min(100, (f.contribution / f.weight) * 100) : 0;
+                  return (
+                    <div key={f.key} style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
+                      alignItems: 'center',
+                      gap: '16px',
+                      padding: '14px 0',
+                      borderBottom: '1px solid var(--hairline)',
+                    }}>
+                      <div style={{ ...ts('caption', 'var(--ink)') }}>{f.label}</div>
+                      <div style={{ ...ts('caption', 'var(--muted)'), textAlign: 'right' }}>
+                        {f.weight.toFixed(0)}%
+                      </div>
+                      <div style={{ background: 'var(--hairline)', borderRadius: '2px', height: '4px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${Math.max(fillPct, fillPct > 0 ? 1 : 0).toFixed(1)}%`,
+                          height: '100%',
+                          background: 'var(--accent)',
+                          borderRadius: '2px',
+                        }} />
+                      </div>
+                      <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '13px', color: 'var(--ink)', textAlign: 'right' }}>
+                        {f.contribution.toFixed(1)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), marginTop: '16px', lineHeight: 1.6 }}>
+                4행 합산이 기회 점수와 일치해요. 각 요인은 후보 풀 내 백분위 순위 × 정책 가중치예요.
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* 랭킹 산출 근거 */}
+      {/* 신호 강도 */}
       {(() => {
         const scoreCaption = getScoreCaption(strategyId);
 
@@ -676,19 +733,19 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         return (
           <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
             <div style={SECTION_HEAD}>
-              랭킹 산출 근거
+              신호 강도
             </div>
 
             {/* 신호 강도 수치 블록 */}
-            {score != null && (
+            {signalStrength != null && (
               <div style={{
                 display: 'flex', alignItems: 'baseline', gap: '12px',
                 paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
               }}>
                 <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-                  {score.toFixed(1)}
+                  {signalStrength.toFixed(1)}
                 </div>
-                <div style={{ ...ts('caption', 'var(--muted)') }}>신호 강도</div>
+                <div style={{ ...ts('caption', 'var(--muted)') }}>/ 100</div>
                 <div style={{ ...ts('caption-sm', 'var(--muted-soft)') }}>{scoreCaption}</div>
               </div>
             )}
@@ -704,6 +761,11 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
                 {strategyLabel} ({strategyCategory}) 후보 풀에서{' '}
                 <span style={{ color: 'var(--ink)' }}>{rank != null ? `#${rank}위` : '—'}</span>
               </div>
+            </div>
+
+            {/* 참고 지표 sub-label */}
+            <div style={{ ...ts('caption-sm', 'var(--muted)'), paddingTop: '32px', paddingBottom: '12px' }}>
+              참고 지표
             </div>
 
             {/* 지표 행들 */}
