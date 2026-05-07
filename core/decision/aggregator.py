@@ -178,6 +178,28 @@ def aggregate_candidates(
             normalized_metrics=norm_metrics,
         ))
 
+    # 4.5) tradability_score (PR-K): volume·stop_pct·atr_pct 백분위 합산 (0~100).
+    #      final_score 와 독립된 거래 용이성 차원. final_score 미변경 (D2 결정).
+    vol_raw  = [float(c.volume_20d_avg or 0.0) for c in survivors]
+    stop_raw = [
+        (c.entry_price - c.stop_loss) / max(c.entry_price, 1) * 100
+        for c in survivors
+    ]
+    atr_pct_raw = [
+        ((c.metadata or {}).get("atr_14") or 0.0) / max(c.entry_price, 1) * 100
+        for c in survivors
+    ]
+    vol_rank  = _percentile_rank(vol_raw)
+    stop_rank = _percentile_rank(stop_raw)
+    atr_rank  = _percentile_rank(atr_pct_raw)
+    for i, rc in enumerate(ranked):
+        ts = (
+            vol_rank[i]          * 0.4  # 거래대금: 높을수록 좋음
+            + (1 - stop_rank[i]) * 0.3  # 손절폭%: 낮을수록 좋음 → 역백분위
+            + (1 - atr_rank[i])  * 0.3  # ATR/가격%: 낮을수록 안정적 → 역백분위
+        ) * 100
+        rc.normalized_metrics["tradability_score"] = round(ts, 2)
+
     # 5) final_score 내림차순. 동률 시 ticker 알파벳 순 (결정론).
     ranked.sort(key=lambda r: (-r.final_score, r.candidate.ticker))
     return ranked

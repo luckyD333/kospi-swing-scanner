@@ -429,6 +429,13 @@ def build_signals_payload(
             pt_enum = ProductType.UNKNOWN
         pool_value = to_pool(pt_enum).value
 
+        # PR-K (P3-1): tradability_score — RankedCandidate 에서 추출
+        tradability_s: float | None = (
+            float(rc.normalized_metrics["tradability_score"])
+            if rc is not None and "tradability_score" in rc.normalized_metrics
+            else None
+        )
+
         # PR-C (P1-1): 주문 타입 의도 분류 — limit_entry 우선, 없으면 entry 사용
         ref_entry = float(limit_entry if limit_entry else entry)
         try:
@@ -478,6 +485,7 @@ def build_signals_payload(
             signal_date=signal_date_iso,
             product_type=pt_enum.value,
             pool=pool_value,
+            tradability_score=tradability_s,
         )
 
     signals: list[Signal] = []

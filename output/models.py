@@ -181,6 +181,8 @@ class Signal(BaseModel):
     # PR-B (P0-2): 상품 유형 + 랭킹 풀 — UI/API 소비자 grouping/필터 명시 축
     product_type: Optional[str] = None  # ProductType.value: STOCK/ETN/ETF/REIT/SPAC/UNKNOWN
     pool: Optional[str] = None          # Pool.value: STOCK/ETN_ETF/OTHER
+    # PR-K (P3-1): 거래 용이성 점수 (0~100, final_score 와 독립)
+    tradability_score: Optional[float] = None
 
 
 class SignalsPayload(BaseModel):
