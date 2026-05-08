@@ -172,6 +172,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
   const target2 = topTradePlan?.target2 ?? null;
   const rrRatio = topTradePlan?.rrRatio ?? null;
   const rrBand = topTradePlan?.rrBand ?? null;
+  const signalStrength = matches?.[0]?.signalStrength ?? null;
 
   // 대표 match에서 risk/reward 계산
   const riskPerShare = entry > 0 && stop > 0 ? entry - stop : null;
@@ -326,116 +327,6 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
           ))}
         </div>
 
-      </div>
-
-      {/* 주가 참고 지표 */}
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 40px 0' }}>
-        <div style={{ ...LABEL, margin: '48px 0 24px' }}>
-          주가 참고 지표
-        </div>
-
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
-          borderTop: '1px solid var(--hairline)',
-          borderBottom: '1px solid var(--hairline)',
-        }}>
-          {[
-            { label: 'PER',     value: per != null && per > 0 ? `${per}x` : '—', sub: '주가수익비율' },
-            { label: '52주 고가', value: fmt(high52w), sub: '' },
-            { label: '52주 저가', value: fmt(low52w),  sub: '' },
-          ].map(({ label, value, sub }, i) => (
-            <div key={label} style={{
-              padding: '20px 0',
-              borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
-              paddingRight: i < 2 ? '24px' : '0',
-              paddingLeft: i > 0 ? '24px' : '0',
-            }}>
-              <div style={{ ...ts('caption-sm', 'var(--muted)'), marginBottom: '10px' }}>
-                {label}
-              </div>
-              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)', letterSpacing: 0 }}>
-                {value}
-              </div>
-              {sub && (
-                <div style={{
-                  ...ts('caption-sm', 'var(--muted-soft)'),
-                  fontSize: '9px',
-                  marginTop: '6px',
-                }}>
-                  {sub}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* RSI 멀티 타임프레임 */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
-          borderBottom: '1px solid var(--hairline)',
-        }}>
-          {[
-            { label: 'RSI(1D)',  value: rsi1d },
-            { label: 'RSI(1h)',  value: rsi1h },
-            { label: 'RSI(30m)', value: rsi30m },
-          ].map(({ label, value }, i) => (
-            <div key={label} style={{
-              padding: '20px 0',
-              borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
-              paddingRight: i < 2 ? '32px' : '0',
-              paddingLeft: i > 0 ? '32px' : '0',
-            }}>
-              <div style={{ ...LABEL, marginBottom: '10px' }}>
-                {label}
-              </div>
-              <div style={{
-                fontFamily: 'var(--f-mono-stack)', fontSize: '20px',
-                color: value == null ? 'var(--ink)'
-                  : value < 30 ? C_OPP
-                  : value > 70 ? C_RISK
-                  : 'var(--ink)',
-              }}>
-                {value != null ? value.toFixed(1) : '—'}
-              </div>
-              {value != null && (
-                <div style={{ ...LABEL, color: 'var(--muted-soft)', marginTop: '6px' }}>
-                  {value < 30 ? '과매도' : value > 70 ? '과매수' : '중립'}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* 거래량 / 외국인 비율 / 기관 순매수 */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
-          borderBottom: '1px solid var(--hairline)',
-        }}>
-          {[
-            { label: '시가총액',   value: marketCapDisplay ?? '—', sub: '' },
-            { label: '거래량',    value: volumeDisplay,            sub: '당일 기준' },
-            { label: '외국인 비율', value: foreignRatioPct != null ? `${foreignRatioPct.toFixed(1)}%` : '—', sub: '최근 공시' },
-          ].map(({ label, value, sub }, i) => (
-            <div key={label} style={{
-              padding: '20px 0',
-              borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
-              paddingRight: i < 2 ? '32px' : '0',
-              paddingLeft: i > 0 ? '32px' : '0',
-            }}>
-              <div style={{ ...LABEL, marginBottom: '10px' }}>
-                {label}
-              </div>
-              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
-                {value}
-              </div>
-              {sub && (
-                <div style={{ ...LABEL, color: 'var(--muted-soft)', marginTop: '6px' }}>
-                  {sub}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* 잠재력 점수 섹션 */}
@@ -642,6 +533,134 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
         </div>
       )}
 
+      {/* 신호 강도 섹션 */}
+      {signalStrength != null && (
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
+          <div style={SECTION_HEAD}>신호 강도</div>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '32px',
+            paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
+          }}>
+            <div>
+              <div style={{ ...LABEL, marginBottom: '12px' }}>신호 강도</div>
+              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+                {signalStrength.toFixed(1)}
+              </div>
+              <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
+            </div>
+          </div>
+
+          {/* 참고 지표 sub-label */}
+          <div style={{ ...ts('caption-sm', 'var(--muted)'), paddingTop: '32px', paddingBottom: '12px' }}>
+            참고 지표
+          </div>
+
+          {/* PER · 52주 고가 · 52주 저가 */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
+            borderTop: '1px solid var(--hairline)',
+            borderBottom: '1px solid var(--hairline)',
+          }}>
+            {[
+              { label: 'PER',     value: per != null && per > 0 ? `${per}x` : '—', sub: '주가수익비율' },
+              { label: '52주 고가', value: fmt(high52w), sub: '' },
+              { label: '52주 저가', value: fmt(low52w),  sub: '' },
+            ].map(({ label, value, sub }, i) => (
+              <div key={label} style={{
+                padding: '20px 0',
+                borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+                paddingRight: i < 2 ? '24px' : '0',
+                paddingLeft: i > 0 ? '24px' : '0',
+              }}>
+                <div style={{ ...ts('caption-sm', 'var(--muted)'), marginBottom: '10px' }}>
+                  {label}
+                </div>
+                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)', letterSpacing: 0 }}>
+                  {value}
+                </div>
+                {sub && (
+                  <div style={{
+                    ...ts('caption-sm', 'var(--muted-soft)'),
+                    fontSize: '9px',
+                    marginTop: '6px',
+                  }}>
+                    {sub}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* RSI 멀티 타임프레임 */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
+            borderBottom: '1px solid var(--hairline)',
+          }}>
+            {[
+              { label: 'RSI(1D)',  value: rsi1d },
+              { label: 'RSI(1h)',  value: rsi1h },
+              { label: 'RSI(30m)', value: rsi30m },
+            ].map(({ label, value }, i) => (
+              <div key={label} style={{
+                padding: '20px 0',
+                borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+                paddingRight: i < 2 ? '32px' : '0',
+                paddingLeft: i > 0 ? '32px' : '0',
+              }}>
+                <div style={{ ...LABEL, marginBottom: '10px' }}>
+                  {label}
+                </div>
+                <div style={{
+                  fontFamily: 'var(--f-mono-stack)', fontSize: '20px',
+                  color: value == null ? 'var(--ink)'
+                    : value < 30 ? C_OPP
+                    : value > 70 ? C_RISK
+                    : 'var(--ink)',
+                }}>
+                  {value != null ? value.toFixed(1) : '—'}
+                </div>
+                {value != null && (
+                  <div style={{ ...LABEL, color: 'var(--muted-soft)', marginTop: '6px' }}>
+                    {value < 30 ? '과매도' : value > 70 ? '과매수' : '중립'}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* 시가총액 · 거래량 · 외국인 비율 */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
+            borderBottom: '1px solid var(--hairline)',
+          }}>
+            {[
+              { label: '시가총액',   value: marketCapDisplay ?? '—', sub: '' },
+              { label: '거래량',    value: volumeDisplay,            sub: '당일 기준' },
+              { label: '외국인 비율', value: foreignRatioPct != null ? `${foreignRatioPct.toFixed(1)}%` : '—', sub: '최근 공시' },
+            ].map(({ label, value, sub }, i) => (
+              <div key={label} style={{
+                padding: '20px 0',
+                borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+                paddingRight: i < 2 ? '32px' : '0',
+                paddingLeft: i > 0 ? '32px' : '0',
+              }}>
+                <div style={{ ...LABEL, marginBottom: '10px' }}>
+                  {label}
+                </div>
+                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--ink)', whiteSpace: 'nowrap' }}>
+                  {value}
+                </div>
+                {sub && (
+                  <div style={{ ...LABEL, color: 'var(--muted-soft)', marginTop: '6px' }}>
+                    {sub}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 매칭 전략 리스트 섹션 */}
       {matches && matches.length > 0 && (
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
@@ -667,15 +686,6 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                 <div style={ts('caption-sm', 'var(--muted)')}>
                   {match.strategy.timeframe}
                 </div>
-              </div>
-
-              {/* 신호 강도 */}
-              <div style={{ paddingBottom: '0' }}>
-                <div style={{ ...LABEL, marginBottom: '12px' }}>신호 강도</div>
-                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-                  {match.signalStrength != null ? match.signalStrength.toFixed(1) : '—'}
-                </div>
-                <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
               </div>
             </div>
           ))}
