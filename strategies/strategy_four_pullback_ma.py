@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from core.cache.close_resolver import resolve_close_index
 from core.decision.entry_gate import is_strategy_allowed
 from core.decision.setup_quality import (
     SETUP_SCORE_THRESHOLD_DEFAULT,
@@ -65,12 +66,17 @@ class StrategyFourPullbackMa:
         min_bars = max(cfg.min_bars, cfg.ma_trend + 1)
 
         tf_data = ctx.ohlcv_by_tf.get(self.timeframe, {}) or ctx.ohlcv
+        fetched_at = ctx.meta.get("manifest_collected_at") if ctx.meta else None
         candidates: list[Candidate] = []
 
         for ticker in ctx.universe:
             df = tf_data.get(ticker)
             if df is None or len(df) < min_bars:
                 continue
+            if resolve_close_index(df, fetched_at) == -2:
+                df = df.iloc[:-1]
+                if len(df) < min_bars:
+                    continue
 
             try:
                 close = df["close"]

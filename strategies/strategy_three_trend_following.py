@@ -28,6 +28,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from core.cache.close_resolver import resolve_close_index
 from core.decision.entry_gate import is_strategy_allowed
 from core.decision.setup_quality import (
     trend_setup_quality,
@@ -94,11 +95,16 @@ class StrategyThreeTrendFollowing:
         min_bars = max(cfg.lookback + 1, cfg.atr_period + 1)
 
         tf_data = ctx.ohlcv_by_tf.get(self.timeframe, {}) or ctx.ohlcv
+        fetched_at = ctx.meta.get("manifest_collected_at") if ctx.meta else None
         candidates: list[Candidate] = []
         for ticker in ctx.universe:
             df = tf_data.get(ticker)
             if df is None or len(df) < min_bars:
                 continue
+            if resolve_close_index(df, fetched_at) == -2:
+                df = df.iloc[:-1]
+                if len(df) < min_bars:
+                    continue
 
             try:
                 close = df["close"]
