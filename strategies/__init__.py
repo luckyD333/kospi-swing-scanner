@@ -22,7 +22,13 @@ from .strategy_four_pullback_ma import StrategyFourPullbackMa
 from .strategy_five_bull_flag import StrategyFiveBullFlag
 from .strategy_one_d_v2 import StrategyOneDv2, StrategyOneDv2Config
 from .strategy_three_trend_following import StrategyThreeTrendFollowing
-from .strategy_two_cross_sectional_momentum import StrategyTwoCrossSectionalMomentum
+from .strategy_two_cross_sectional_momentum import (
+    StrategyTwoConfig,
+    StrategyTwoCrossSectionalMomentum,
+)
+
+# strategy_two 운영 cfg — over-extension 가드 활성 (mean-reversion 위험 차단).
+_STRATEGY_TWO_CFG = StrategyTwoConfig(rsi_max=80.0, percentile_max=0.95)
 
 # 등록된 전략. 키 = CLI 에서 노출되는 이름. 값 = 인자 없이 호출하면 Strategy 인스턴스 반환하는 factory.
 REGISTRY: dict[str, Callable[[], Strategy]] = {
@@ -89,9 +95,15 @@ REGISTRY: dict[str, Callable[[], Strategy]] = {
         timeframe="30m",
         name_suffix="_r2",
     ),
-    "strategy_two_cross_sectional_momentum": lambda: StrategyTwoCrossSectionalMomentum(timeframe="1D"),
-    "strategy_two_1h": lambda: StrategyTwoCrossSectionalMomentum(timeframe="1h"),
-    "strategy_two_30m": lambda: StrategyTwoCrossSectionalMomentum(timeframe="30m"),
+    "strategy_two_cross_sectional_momentum": lambda: StrategyTwoCrossSectionalMomentum(
+        config=_STRATEGY_TWO_CFG, timeframe="1D",
+    ),
+    "strategy_two_1h": lambda: StrategyTwoCrossSectionalMomentum(
+        config=_STRATEGY_TWO_CFG, timeframe="1h",
+    ),
+    "strategy_two_30m": lambda: StrategyTwoCrossSectionalMomentum(
+        config=_STRATEGY_TWO_CFG, timeframe="30m",
+    ),
     "strategy_three_trend_following": lambda: StrategyThreeTrendFollowing(timeframe="1D"),
     "strategy_three_1h": lambda: StrategyThreeTrendFollowing(timeframe="1h"),
     "strategy_three_30m": lambda: StrategyThreeTrendFollowing(timeframe="30m"),

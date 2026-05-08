@@ -57,6 +57,9 @@ class StrategyTwoConfig:
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
     atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
     use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
+    # over-extension 가드 — None 이면 비활성 (legacy 호환). 운영 cfg 는 registry 에서 활성.
+    rsi_max: float | None = None        # RSI 14 ≥ rsi_max 는 차단
+    percentile_max: float | None = None  # percentile rank ≥ percentile_max 는 차단
 
 
 class StrategyTwoCrossSectionalMomentum:
@@ -144,6 +147,14 @@ class StrategyTwoCrossSectionalMomentum:
         for (ticker, mom, df), rank in zip(rows, ranks):
             if rank < cfg.entry_percentile:
                 continue
+
+            # Over-extension 가드: 폭등 끝물 (mean-reversion 위험) 차단.
+            if cfg.percentile_max is not None and rank >= cfg.percentile_max:
+                continue
+            if cfg.rsi_max is not None:
+                rsi_for_gate = latest_rsi_or_none(df["close"], period=14)
+                if rsi_for_gate is not None and rsi_for_gate >= cfg.rsi_max:
+                    continue
 
             # Entry gate: 1d regime + 1h setup_score 검사
             regime = ctx.per_ticker_regime.get(ticker)
