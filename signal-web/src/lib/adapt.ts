@@ -8,6 +8,8 @@ export interface MatchProps {
     timeframe: string;
   };
   signalStrength: number | null;
+  opportunityScore: number | null;
+  opportunityFactors: RegretFactor[] | null;
 }
 
 export interface DetailProps {
@@ -30,8 +32,6 @@ export interface DetailProps {
   signalDate: string | null;
   potentialScore: number | null;
   potentialFactors: DecisionFactor[] | null;
-  opportunityScore: number | null;
-  opportunityFactors: RegretFactor[] | null;
   topTradePlan: {
     entry: number;
     stop: number;
@@ -166,6 +166,13 @@ export function adaptDetailV2(raw: any): DetailProps {
       timeframe: m.strategy?.timeframe || '',
     },
     signalStrength: m.signal_strength ?? null,
+    opportunityScore: m.opportunity_score ?? null,
+    opportunityFactors: m.opportunity_factors
+      ? (m.opportunity_factors as any[]).map((f: any) => ({
+          ...f,
+          label: getFactorLabel(f.key),
+        }))
+      : null,
   }));
 
   const firstMatch = raw.matches?.[0];
@@ -197,13 +204,6 @@ export function adaptDetailV2(raw: any): DetailProps {
     signalDate: raw.signal_date ?? null,
     potentialScore: raw.potential_score ?? null,
     potentialFactors,
-    opportunityScore: firstMatch?.opportunity_score ?? null,
-    opportunityFactors: firstMatch?.opportunity_factors
-      ? (firstMatch.opportunity_factors as any[]).map((f: any) => ({
-          ...f,
-          label: getFactorLabel(f.key),
-        }))
-      : null,
     topTradePlan: firstMatch?.trade_plan
       ? {
           entry: firstMatch.trade_plan.entry ?? 0,
@@ -236,6 +236,13 @@ export function adaptDetailLegacy(raw: any): DetailProps {
       timeframe: card.timeframe,
     },
     signalStrength: card.signalStrength,
+    opportunityScore: card.decisionRegretScore,
+    opportunityFactors: card.decisionRegretFactors
+      ? (card.decisionRegretFactors || []).map((f) => ({
+          ...f,
+          label: getFactorLabel(f.key),
+        }))
+      : null,
   };
 
   // 잠재력 factor는 기존 decisionFactors 사용
@@ -264,13 +271,6 @@ export function adaptDetailLegacy(raw: any): DetailProps {
     signalDate: card.signalDate,
     potentialScore: card.decisionScore,
     potentialFactors,
-    opportunityScore: card.decisionRegretScore,
-    opportunityFactors: card.decisionRegretFactors
-      ? (card.decisionRegretFactors || []).map((f) => ({
-          ...f,
-          label: getFactorLabel(f.key),
-        }))
-      : null,
     topTradePlan: {
       entry: card.entry,
       stop: card.stop,

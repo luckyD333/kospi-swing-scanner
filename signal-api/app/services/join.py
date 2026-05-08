@@ -249,7 +249,7 @@ def aggregate_entries_for_ticker(
             "strategy": strategy,
             "signal_strength": ranking.get("signal_strength", 0),
             "opportunity_score": decision.get("regret_score", 0),
-            "opportunity_factors": decision.get("factors", []),
+            "opportunity_factors": decision.get("regret_factors", []),
             "trade_plan": trade_plan,
             "setup_score": e.get("setup_score"),
             "setup_reasons": e.get("setup_reasons"),
