@@ -8,14 +8,6 @@ export interface MatchProps {
     timeframe: string;
   };
   signalStrength: number | null;
-  opportunityScore: number | null;
-  opportunityFactors: RegretFactor[] | null;
-  entry: number;
-  stop: number;
-  target1: number | null;
-  target2: number | null;
-  rrRatio: number | null;
-  rrBand: string | null;
 }
 
 export interface DetailProps {
@@ -38,6 +30,16 @@ export interface DetailProps {
   signalDate: string | null;
   potentialScore: number | null;
   potentialFactors: DecisionFactor[] | null;
+  opportunityScore: number | null;
+  opportunityFactors: RegretFactor[] | null;
+  topTradePlan: {
+    entry: number;
+    stop: number;
+    target1: number | null;
+    target2: number | null;
+    rrRatio: number | null;
+    rrBand: string | null;
+  } | null;
   matches: MatchProps[];
   marketCapDisplay_detail?: string | null;
   rsi1d: number | null;
@@ -164,20 +166,9 @@ export function adaptDetailV2(raw: any): DetailProps {
       timeframe: m.strategy?.timeframe || '',
     },
     signalStrength: m.signal_strength ?? null,
-    opportunityScore: m.opportunity_score ?? null,
-    opportunityFactors: m.opportunity_factors ?
-      (m.opportunity_factors || []).map((f: any) => ({
-        ...f,
-        label: getFactorLabel(f.key),
-      }))
-      : null,
-    entry: m.trade_plan?.entry ?? 0,
-    stop: m.trade_plan?.stop ?? 0,
-    target1: m.trade_plan?.target_1 ?? null,
-    target2: m.trade_plan?.target_2 ?? null,
-    rrRatio: m.trade_plan?.rr_ratio ?? null,
-    rrBand: m.trade_plan?.rr_band ?? null,
   }));
+
+  const firstMatch = raw.matches?.[0];
 
   const potentialFactors = (raw.potential_factors || []).map((f: any) => ({
     ...f,
@@ -206,11 +197,28 @@ export function adaptDetailV2(raw: any): DetailProps {
     signalDate: raw.signal_date ?? null,
     potentialScore: raw.potential_score ?? null,
     potentialFactors,
+    opportunityScore: firstMatch?.opportunity_score ?? null,
+    opportunityFactors: firstMatch?.opportunity_factors
+      ? (firstMatch.opportunity_factors as any[]).map((f: any) => ({
+          ...f,
+          label: getFactorLabel(f.key),
+        }))
+      : null,
+    topTradePlan: firstMatch?.trade_plan
+      ? {
+          entry: firstMatch.trade_plan.entry ?? 0,
+          stop: firstMatch.trade_plan.stop ?? 0,
+          target1: firstMatch.trade_plan.target_1 ?? null,
+          target2: firstMatch.trade_plan.target_2 ?? null,
+          rrRatio: firstMatch.trade_plan.rr_ratio ?? null,
+          rrBand: firstMatch.trade_plan.rr_band ?? null,
+        }
+      : null,
     matches,
-    rsi1d: raw.matches?.[0]?.trade_plan?.rsi_1d ?? null,
-    rsi1h: raw.matches?.[0]?.trade_plan?.rsi_1h ?? null,
-    rsi30m: raw.matches?.[0]?.trade_plan?.rsi_30m ?? null,
-    atr14: raw.matches?.[0]?.trade_plan?.atr_14 ?? null,
+    rsi1d: firstMatch?.trade_plan?.rsi_1d ?? null,
+    rsi1h: firstMatch?.trade_plan?.rsi_1h ?? null,
+    rsi30m: firstMatch?.trade_plan?.rsi_30m ?? null,
+    atr14: firstMatch?.trade_plan?.atr_14 ?? null,
     confirmationLevel: raw.confirmation_level ?? null,
     activeRegime: raw.active_regime ?? null,
     tradabilityScore: raw.tradability_score ?? null,
@@ -228,19 +236,6 @@ export function adaptDetailLegacy(raw: any): DetailProps {
       timeframe: card.timeframe,
     },
     signalStrength: card.signalStrength,
-    opportunityScore: card.decisionRegretScore,
-    opportunityFactors: card.decisionRegretFactors ?
-      (card.decisionRegretFactors || []).map((f) => ({
-        ...f,
-        label: getFactorLabel(f.key),
-      }))
-      : null,
-    entry: card.entry,
-    stop: card.stop,
-    target1: card.target1,
-    target2: card.target2,
-    rrRatio: card.rrRatio,
-    rrBand: card.rrBand,
   };
 
   // 잠재력 factor는 기존 decisionFactors 사용
@@ -269,6 +264,21 @@ export function adaptDetailLegacy(raw: any): DetailProps {
     signalDate: card.signalDate,
     potentialScore: card.decisionScore,
     potentialFactors,
+    opportunityScore: card.decisionRegretScore,
+    opportunityFactors: card.decisionRegretFactors
+      ? (card.decisionRegretFactors || []).map((f) => ({
+          ...f,
+          label: getFactorLabel(f.key),
+        }))
+      : null,
+    topTradePlan: {
+      entry: card.entry,
+      stop: card.stop,
+      target1: card.target1,
+      target2: card.target2,
+      rrRatio: card.rrRatio,
+      rrBand: card.rrBand,
+    },
     matches: [match],
     rsi1d: card.rsi1d,
     rsi1h: card.rsi1h,

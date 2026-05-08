@@ -154,6 +154,8 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
     name, nameEn, ticker,
     priceDisplay, changeDisplay, direction,
     potentialScore, potentialFactors,
+    opportunityScore, opportunityFactors,
+    topTradePlan,
     matches,
     rsi1d, rsi1h, rsi30m,
     per, high52w, low52w,
@@ -163,14 +165,13 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
     confirmationLevel, activeRegime, tradabilityScore,
   } = detail;
 
-  // 대표 match (첫 번째) 선택
-  const baseMatch = matches?.[0];
-  const entry = baseMatch?.entry ?? 0;
-  const stop = baseMatch?.stop ?? 0;
-  const target1 = baseMatch?.target1 ?? null;
-  const target2 = baseMatch?.target2 ?? null;
-  const rrRatio = baseMatch?.rrRatio ?? null;
-  const rrBand = baseMatch?.rrBand ?? null;
+  // 대표 매매 파라미터 (matches[0] 기반)
+  const entry = topTradePlan?.entry ?? 0;
+  const stop = topTradePlan?.stop ?? 0;
+  const target1 = topTradePlan?.target1 ?? null;
+  const target2 = topTradePlan?.target2 ?? null;
+  const rrRatio = topTradePlan?.rrRatio ?? null;
+  const rrBand = topTradePlan?.rrBand ?? null;
 
   // 대표 match에서 risk/reward 계산
   const riskPerShare = entry > 0 && stop > 0 ? entry - stop : null;
@@ -230,7 +231,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
         <div style={{ ...LABEL, marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <span>
             {matches.length > 1 ? `${matches.length}개 전략 매칭 · ` : ''}
-            {baseMatch ? `${baseMatch.strategy.label} · ${baseMatch.strategy.timeframe} · ` : ''}
+            {matches?.[0] ? `${matches[0].strategy.label} · ${matches[0].strategy.timeframe} · ` : ''}
             {generatedAtDisplay}
             {signalDate ? ` · 신호 시각 ${signalDate}` : ''}
           </span>
@@ -571,6 +572,76 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
         );
       })()}
 
+      {/* 기회 점수 독립 섹션 */}
+      {opportunityScore != null && (
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
+          <div style={SECTION_HEAD}>기회 점수</div>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '32px',
+            paddingBottom: opportunityFactors && opportunityFactors.length > 0 ? '32px' : '0',
+            borderBottom: opportunityFactors && opportunityFactors.length > 0 ? '1px solid var(--hairline)' : 'none',
+          }}>
+            <div>
+              <div style={{ ...LABEL, marginBottom: '12px' }}>기회 점수</div>
+              <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+                {opportunityScore.toFixed(1)}
+              </div>
+              <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
+            </div>
+          </div>
+          {opportunityFactors && opportunityFactors.length > 0 && (
+            <div style={{ paddingTop: '32px' }}>
+              <div style={ts('caption-sm', 'var(--muted)')}>Factor Breakdown</div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
+                alignItems: 'center',
+                gap: '16px',
+                padding: '12px 0',
+                borderBottom: '1px solid var(--hairline)',
+                marginTop: '12px',
+              }}>
+                <div style={ts('caption-sm', 'var(--muted-soft)')}>요인</div>
+                <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>가중치</div>
+                <div style={ts('caption-sm', 'var(--muted-soft)')}>기여도</div>
+                <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>값</div>
+              </div>
+              <div>
+                {opportunityFactors.map((f) => {
+                  const fillPct = f.weight > 0 ? Math.min(100, (f.contribution / f.weight) * 100) : 0;
+                  return (
+                    <div key={f.key} style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
+                      alignItems: 'center',
+                      gap: '16px',
+                      padding: '14px 0',
+                      borderBottom: '1px solid var(--hairline)',
+                    }}>
+                      <div style={ts('caption', 'var(--ink)')}>{f.label}</div>
+                      <div style={{ ...ts('caption', 'var(--muted)'), textAlign: 'right' }}>
+                        {f.weight.toFixed(0)}%
+                      </div>
+                      <div style={{ background: 'var(--hairline)', borderRadius: '2px', height: '4px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${Math.max(fillPct, fillPct > 0 ? 1 : 0).toFixed(1)}%`,
+                          height: '100%',
+                          background: 'var(--accent)',
+                          borderRadius: '2px',
+                        }} />
+                      </div>
+                      <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '13px', color: 'var(--ink)', textAlign: 'right' }}>
+                        {f.contribution.toFixed(1)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 매칭 전략 리스트 섹션 */}
       {matches && matches.length > 0 && (
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
@@ -598,108 +669,14 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                 </div>
               </div>
 
-              {/* 신호 강도 + 기회 점수 */}
-              <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px',
-                paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
-              }}>
-                <div>
-                  <div style={{ ...LABEL, marginBottom: '12px' }}>신호 강도</div>
-                  <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-                    {match.signalStrength != null ? match.signalStrength.toFixed(1) : '—'}
-                  </div>
-                  <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
+              {/* 신호 강도 */}
+              <div style={{ paddingBottom: '0' }}>
+                <div style={{ ...LABEL, marginBottom: '12px' }}>신호 강도</div>
+                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+                  {match.signalStrength != null ? match.signalStrength.toFixed(1) : '—'}
                 </div>
-                <div>
-                  <div style={{ ...LABEL, marginBottom: '12px' }}>기회 점수</div>
-                  <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-                    {match.opportunityScore != null ? match.opportunityScore.toFixed(1) : '—'}
-                  </div>
-                  <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
-                </div>
+                <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
               </div>
-
-              {/* 매매 파라미터 */}
-              <div style={{ paddingTop: '32px', paddingBottom: '32px', borderBottom: '1px solid var(--hairline)' }}>
-                <div style={{ ...LABEL, marginBottom: '24px' }}>매매 파라미터</div>
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px',
-                }}>
-                  {[
-                    { label: '진입가', val: match.entry, color: 'var(--link)' },
-                    { label: '손절가', val: match.stop, color: C_RISK },
-                    { label: '목표 1', val: match.target1, color: C_OPP },
-                    { label: '목표 2', val: match.target2, color: C_OPP },
-                  ].map(({ label, val, color }) => (
-                    <div key={label}>
-                      <div style={ts('caption-sm', 'var(--muted)')}>
-                        {label}
-                      </div>
-                      {val != null ? (
-                        <PriceScramble
-                          priceDisplay={val.toLocaleString('ko-KR')}
-                          fontSize="20px"
-                          color={color}
-                        />
-                      ) : (
-                        <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--muted-soft)' }}>—</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 기회 점수 Factor Breakdown */}
-              {match.opportunityFactors && match.opportunityFactors.length > 0 && (
-                <div style={{ paddingTop: '32px' }}>
-                  <div style={ts('caption-sm', 'var(--muted)')}>기회 점수 Factor Breakdown</div>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
-                    alignItems: 'center',
-                    gap: '16px',
-                    padding: '12px 0',
-                    borderBottom: '1px solid var(--hairline)',
-                    marginTop: '12px',
-                  }}>
-                    <div style={ts('caption-sm', 'var(--muted-soft)')}>요인</div>
-                    <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>가중치</div>
-                    <div style={ts('caption-sm', 'var(--muted-soft)')}>기여도</div>
-                    <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>값</div>
-                  </div>
-                  <div>
-                    {match.opportunityFactors.map((f) => {
-                      const fillPct = f.weight > 0 ? Math.min(100, (f.contribution / f.weight) * 100) : 0;
-                      return (
-                        <div key={f.key} style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
-                          alignItems: 'center',
-                          gap: '16px',
-                          padding: '14px 0',
-                          borderBottom: '1px solid var(--hairline)',
-                        }}>
-                          <div style={ts('caption', 'var(--ink)')}>{f.label}</div>
-                          <div style={{ ...ts('caption', 'var(--muted)'), textAlign: 'right' }}>
-                            {f.weight.toFixed(0)}%
-                          </div>
-                          <div style={{ background: 'var(--hairline)', borderRadius: '2px', height: '4px', overflow: 'hidden' }}>
-                            <div style={{
-                              width: `${Math.max(fillPct, fillPct > 0 ? 1 : 0).toFixed(1)}%`,
-                              height: '100%',
-                              background: 'var(--accent)',
-                              borderRadius: '2px',
-                            }} />
-                          </div>
-                          <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '13px', color: 'var(--ink)', textAlign: 'right' }}>
-                            {f.contribution.toFixed(1)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>

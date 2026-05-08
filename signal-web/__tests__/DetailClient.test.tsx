@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { adaptDetailSignal } from '@/lib/adapt';
-import type { DetailProps, MarketIndex, RegimeScore } from '@/types/signal';
+import type { MarketIndex, RegimeScore } from '@/types/signal';
 
 describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
   test('matches 1개일 때: DetailProps 구조 검증', () => {
@@ -39,12 +39,12 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
     expect(detail.matches[0].strategy.label).toBe('STRATEGY ONE');
     expect(detail.matches[0].strategy.timeframe).toBe('1D');
     expect(detail.matches[0].signalStrength).toBe(82);
-    expect(detail.matches[0].opportunityScore).toBe(68);
+    expect(detail.opportunityScore).toBe(68);
 
     // 잠재력 점수 확인
     expect(detail.potentialScore).toBe(75);
     expect(detail.potentialFactors).toHaveLength(1);
-    expect(detail.potentialFactors[0].label).toBe('가격 모멘텀 (3개월)');
+    expect(detail.potentialFactors![0].label).toBe('가격 모멘텀 (3개월)');
   });
 
   test('matches 2개일 때: 모든 매칭 전략 보존', () => {
@@ -81,8 +81,7 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
     expect(detail.matches[1].strategy.label).toBe('STRATEGY FOUR');
     expect(detail.matches[0].signalStrength).toBe(82);
     expect(detail.matches[1].signalStrength).toBe(67);
-    expect(detail.matches[0].opportunityScore).toBe(68);
-    expect(detail.matches[1].opportunityScore).toBe(55);
+    expect(detail.opportunityScore).toBe(68);
   });
 
   test('잠재력 점수: factor 라벨 자동 매핑', () => {
@@ -101,8 +100,8 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
     const detail = adaptDetailSignal(raw);
 
     expect(detail.potentialFactors).toHaveLength(2);
-    expect(detail.potentialFactors[0].label).toBe('가격 모멘텀 (3개월)');
-    expect(detail.potentialFactors[1].label).toBe('유동성');
+    expect(detail.potentialFactors![0].label).toBe('가격 모멘텀 (3개월)');
+    expect(detail.potentialFactors![1].label).toBe('유동성');
   });
 
   test('기회 점수 Factor: 4개 factor 라벨 매핑', () => {
@@ -130,11 +129,11 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
 
     const detail = adaptDetailSignal(raw);
 
-    expect(detail.matches[0].opportunityFactors).toHaveLength(4);
-    expect(detail.matches[0].opportunityFactors[0].label).toBe('목표 수익');
-    expect(detail.matches[0].opportunityFactors[1].label).toBe('손절 위험 (역)');
-    expect(detail.matches[0].opportunityFactors[2].label).toBe('손절까지 여유');
-    expect(detail.matches[0].opportunityFactors[3].label).toBe('신호 신선도');
+    expect(detail.opportunityFactors).toHaveLength(4);
+    expect(detail.opportunityFactors![0].label).toBe('목표 수익');
+    expect(detail.opportunityFactors![1].label).toBe('손절 위험 (역)');
+    expect(detail.opportunityFactors![2].label).toBe('손절까지 여유');
+    expect(detail.opportunityFactors![3].label).toBe('신호 신선도');
   });
 
   test('매매 파라미터: 각 match마다 독립적 구조', () => {
@@ -156,14 +155,14 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
     };
 
     const detail = adaptDetailSignal(raw);
-    const m = detail.matches[0];
+    const tp = detail.topTradePlan!;
 
-    expect(m.entry).toBe(70000);
-    expect(m.stop).toBe(68000);
-    expect(m.target1).toBe(72000);
-    expect(m.target2).toBe(75000);
-    expect(m.rrRatio).toBe(2.0);
-    expect(m.rrBand).toBe('SWEET');
+    expect(tp.entry).toBe(70000);
+    expect(tp.stop).toBe(68000);
+    expect(tp.target1).toBe(72000);
+    expect(tp.target2).toBe(75000);
+    expect(tp.rrRatio).toBe(2.0);
+    expect(tp.rrBand).toBe('SWEET');
   });
 
   test('opportunityFactors가 null이면 null로 유지', () => {
@@ -185,6 +184,6 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
     };
 
     const detail = adaptDetailSignal(raw);
-    expect(detail.matches[0].opportunityFactors).toBeNull();
+    expect(detail.opportunityFactors).toBeNull();
   });
 });

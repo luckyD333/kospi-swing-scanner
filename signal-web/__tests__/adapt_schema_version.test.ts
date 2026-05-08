@@ -58,7 +58,7 @@ describe('adaptDetailSignal - dual parser', () => {
     expect(detail.matches.length).toBe(1);
     expect(detail.matches[0].strategy.label).toBe('STRATEGY ONE');
     expect(detail.matches[0].signalStrength).toBe(82);
-    expect(detail.matches[0].opportunityScore).toBe(68);
+    expect(detail.opportunityScore).toBe(68);
   });
 
   test('schema_version 없거나 1.x 응답은 adaptDetailLegacy 사용', () => {
@@ -147,8 +147,8 @@ describe('adaptDetailSignal - dual parser', () => {
     };
 
     const detail = adaptDetailSignal(raw);
-    expect(detail.potentialFactors[0].label).toBe('가격 모멘텀 (3개월)');
-    expect(detail.potentialFactors[1].label).toBe('유동성');
+    expect(detail.potentialFactors![0].label).toBe('가격 모멘텀 (3개월)');
+    expect(detail.potentialFactors![1].label).toBe('유동성');
   });
 
   test('matches의 opportunityFactors도 라벨 매핑', () => {
@@ -172,7 +172,7 @@ describe('adaptDetailSignal - dual parser', () => {
     };
 
     const detail = adaptDetailSignal(raw);
-    expect(detail.matches[0].opportunityFactors[0].label).toBe('목표 수익');
-    expect(detail.matches[0].opportunityFactors[1].label).toBe('신호 신선도');
+    expect(detail.opportunityFactors![0].label).toBe('목표 수익');
+    expect(detail.opportunityFactors![1].label).toBe('신호 신선도');
   });
 });
