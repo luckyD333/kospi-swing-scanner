@@ -46,6 +46,8 @@ class ScanContext:
     per_ticker_regime: dict[str, str] = field(default_factory=dict)  # Task 5a
     donchian_1h_by_ticker: dict = field(default_factory=dict)  # Task 5a
     donchian_1d_by_ticker: dict = field(default_factory=dict)  # 1d 가드레일용
+    meta: dict = field(default_factory=dict)
+    """선택 메타. 키: 'manifest_collected_at' (incomplete-bar 가드용 ISO 시각)."""
 
     def __post_init__(self):
         if not self.ohlcv_by_tf and self.ohlcv:

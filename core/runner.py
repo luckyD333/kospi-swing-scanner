@@ -230,6 +230,18 @@ class ScanRunner:
         for tf_data in ohlcv_by_tf.values():
             tickers_with_data.update(tf_data.keys())
         ctx_universe = tuple(t for t in univ.tickers if t in tickers_with_data)
+        # incomplete-bar 가드용 manifest.collected_at 주입 (없으면 None → 가드 비활성)
+        ctx_meta: dict = {}
+        if self.config.cache_root:
+            try:
+                import json as _json
+                manifest_path = Path(self.config.cache_root) / "manifest.json"
+                if manifest_path.exists():
+                    ctx_meta["manifest_collected_at"] = _json.loads(
+                        manifest_path.read_text()
+                    ).get("collected_at")
+            except Exception as e:
+                logger.debug(f"manifest.collected_at 로드 실패: {e}")
         ctx = ScanContext(
             target_date=target_date,
             universe=ctx_universe,
@@ -243,6 +255,7 @@ class ScanRunner:
             per_ticker_regime=per_ticker_regime,  # Task 5a
             donchian_1h_by_ticker=donchian_1h_by_ticker,  # Task 5a
             donchian_1d_by_ticker=donchian_1d_by_ticker,
+            meta=ctx_meta,
         )
 
         result = RunResult(

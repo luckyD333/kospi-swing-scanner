@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from backtest_engine.core import calc_atr
+from core.cache.close_resolver import resolve_close_index
 from core.decision.entry_gate import is_strategy_allowed
 from core.decision.setup_quality import (
     trend_setup_quality,
@@ -88,10 +89,17 @@ class StrategyTwoCrossSectionalMomentum:
         # 1) 각 ticker 의 모멘텀 + volume 필터 적용 (순차)
         rows = []
         tf_data = ctx.ohlcv_by_tf.get(self.timeframe, {}) or ctx.ohlcv
+        fetched_at = ctx.meta.get("manifest_collected_at") if ctx.meta else None
         for ticker in ctx.universe:
             df = tf_data.get(ticker)
             if df is None or len(df) < cfg.lookback + 1:
                 continue
+            # incomplete-bar 가드: 1D 마지막 row 가 미완료 봉이면 잘라낸다.
+            # 이후 모멘텀/거래량/ATR/RSI 모두 어제 종가 기준으로 산출.
+            if resolve_close_index(df, fetched_at) == -2:
+                df = df.iloc[:-1]
+                if len(df) < cfg.lookback + 1:
+                    continue
             close = df["close"]
             vol = df["volume"]
 
