@@ -20,6 +20,7 @@ export interface MatchProps {
   opportunityScore: number | null;
   opportunityFactors: RegretFactor[] | null;
   signalComponents: SignalComponent[];
+  signalStatus: SignalStatus;  // VALID | TARGET_REACHED | STOPPED_OUT | STALE
 }
 
 export interface DetailProps {
@@ -198,6 +199,7 @@ export function adaptDetailV2(raw: any): DetailProps {
             value: c.value ?? null,
           }))
       : [],
+    signalStatus: (m.signal_status ?? 'VALID') as SignalStatus,
   }));
 
   const firstMatch = raw.matches?.[0];
@@ -287,6 +289,7 @@ export function adaptDetailLegacy(raw: any): DetailProps {
             value: c.value ?? null,
           }))
       : [],
+    signalStatus: card.signalStatus,
   };
 
   // 잠재력 factor는 기존 decisionFactors 사용

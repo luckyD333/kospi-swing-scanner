@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { DetailProps, MatchProps } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
-import { confirmationColor, confirmationBg } from '@/lib/signal-colors';
+import { confirmationColor, confirmationBg, signalStatusBadge } from '@/lib/signal-colors';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
 import Footer from './Footer';
@@ -678,6 +678,22 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                 <div style={ts('caption-sm', 'var(--muted)')}>
                   {match.strategy.timeframe}
                 </div>
+                {(() => {
+                  const badge = signalStatusBadge(match.signalStatus);
+                  if (!badge) return null;
+                  return (
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: badge.color,
+                      background: badge.bg,
+                    }}>
+                      {badge.label}
+                    </span>
+                  );
+                })()}
               </div>
 
               <div style={{
