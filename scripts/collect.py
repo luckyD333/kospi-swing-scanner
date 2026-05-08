@@ -147,6 +147,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
 
     # signals.json 시그널 종목을 combined_tickers에 강제 포함
     # (유니버스 상위 N개 밖으로 밀린 종목도 펀더멘털/snapshot에 포함되도록)
+    signal_tickers: list[str] = []
     signals_path = pathlib.Path(cfg.cache_root).parent / "data" / "signals.json"
     if signals_path.exists():
         try:
@@ -326,6 +327,8 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             market_breadth=breadth_payload,
             market_axes=axes_payload,
             fear_greed=fear_greed_payload,
+            signal_tickers=signal_tickers,
+            cache_root=str(cfg.cache_root),
         )
 
         data_dir = pathlib.Path("data")

@@ -156,3 +156,60 @@ def test_no_minute_close_keeps_legacy_daily_change_pct():
     assert snap.current_price == 7120
     assert snap.change_pct == 0.71      # MOCK 의 마지막 change_pct
     assert snap.volume == 2847000        # MOCK 의 마지막 volume
+
+
+def test_safety_net_for_missing_signal_tickers(tmp_path):
+    """universe 가 시그널 ticker 를 누락해도 disk 1D parquet 에서 보강된다."""
+    import pandas as pd
+
+    cache_dir = tmp_path / "1D"
+    cache_dir.mkdir()
+    df = pd.DataFrame(
+        {
+            "open":   [29000, 29500],
+            "high":   [29800, 30100],
+            "low":    [28800, 29200],
+            "close":  [29500, 30000],
+            "volume": [1_000_000, 1_500_000],
+        },
+        index=pd.to_datetime(["2026-05-07", "2026-05-08"]),
+    )
+    df.to_parquet(cache_dir / "0101N0.parquet")
+
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,                     # 0101N0 누락
+        ohlcv_latest=MOCK_OHLCV,
+        market_indices={},
+        signal_tickers=["0101N0", "001390"],         # 001390 은 universe 에 이미 있음
+        cache_root=str(tmp_path),
+    )
+
+    # 안전망: universe 누락 ETF 가 disk 1D 로 보강
+    assert "0101N0" in snapshot.tickers
+    assert snapshot.tickers["0101N0"].current_price == 30000
+    assert snapshot.tickers["0101N0"].volume == 1_500_000
+    # 기존 universe ticker 는 그대로
+    assert snapshot.tickers["001390"].current_price == 7120
+
+
+def test_safety_net_skips_when_no_disk_parquet(tmp_path):
+    """signal_ticker 의 1D parquet 이 없으면 silently skip (예외 X)."""
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=MOCK_OHLCV,
+        market_indices={},
+        signal_tickers=["NOTEXIST"],
+        cache_root=str(tmp_path),
+    )
+    assert "NOTEXIST" not in snapshot.tickers
+    assert "001390" in snapshot.tickers  # 기존 동작 회귀 없음
+
+
+def test_safety_net_no_op_when_signal_tickers_omitted():
+    """signal_tickers 인자 미지정 시 기존 동작 그대로."""
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=MOCK_OHLCV,
+        market_indices={},
+    )
+    assert list(snapshot.tickers.keys()) == ["001390"]

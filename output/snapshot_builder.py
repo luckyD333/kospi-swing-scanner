@@ -1,10 +1,14 @@
 # output/snapshot_builder.py
 from __future__ import annotations
+import logging
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 from output.models import (
     MarketSnapshot, TickerSnapshot, Fundamentals, Flow, MarketIndexRaw
 )
+
+logger = logging.getLogger(__name__)
 
 KST = ZoneInfo("Asia/Seoul")
 _LOOKBACK = 252  # 52주 = 약 252 거래일
@@ -18,6 +22,8 @@ def build_market_snapshot(
     market_breadth: dict | None = None,
     market_axes: dict | None = None,
     fear_greed: dict | None = None,
+    signal_tickers: list[str] | None = None,
+    cache_root: str | Path | None = None,
 ) -> MarketSnapshot:
     tickers: dict[str, TickerSnapshot] = {}
     for ticker, meta in universe.get("tickers", {}).items():
@@ -91,6 +97,35 @@ def build_market_snapshot(
             external_links={"naver_finance": meta.get("naver_url", "")},
             rsi_by_tf=ohlcv.get("rsi_by_tf"),
         )
+
+    # 안전망: universe 에 누락된 signal_tickers 를 disk 1D parquet 로 보강.
+    # 호출 측 (collect.py) 의 universe 가 작게 들어가도 시그널 종목은 항상 포함.
+    if signal_tickers and cache_root:
+        cache_dir_1d = Path(cache_root) / "1D"
+        for st in signal_tickers:
+            if st in tickers:
+                continue
+            pq = cache_dir_1d / f"{st}.parquet"
+            if not pq.exists():
+                continue
+            try:
+                import pandas as pd
+                df = pd.read_parquet(pq)
+                if df.empty:
+                    continue
+                last_close = int(df["close"].iloc[-1])
+                last_vol = int(df["volume"].iloc[-1]) if "volume" in df.columns else 0
+                tickers[st] = TickerSnapshot(
+                    ticker=st,
+                    name="",
+                    current_price=last_close,
+                    change_pct=0.0,
+                    volume=last_vol,
+                    fundamentals=Fundamentals(),
+                    flow=Flow(),
+                )
+            except Exception as e:
+                logger.warning(f"snapshot 안전망 실패 ({st}): {e}")
 
     indices = {
         k: MarketIndexRaw(value=v["value"], change_pct=v["change_pct"])
