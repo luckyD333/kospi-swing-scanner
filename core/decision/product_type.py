@@ -8,7 +8,8 @@ PR-B (P0-2): ETN/ETF/REIT/SPAC 가 STOCK 풀에서 PER/ROE 가산 받는 결함 
   2. 명자 키워드: '리츠' → REIT
   3. ETF API 명단 hit → ETN (7xxxxx) 또는 ETF (그 외)
   4. 정형 주식 코드 (6자리, 7로 시작 안 함) → STOCK
-  5. 그 외 (7xxxxx 비-ETF 등) → UNKNOWN (D2: STOCK 폴백 대신 안전 분리)
+  5. 신형 우선주 코드 (5자리 숫자 + 1 알파벳, 예: 02826K) → STOCK
+  6. 그 외 (7xxxxx 비-ETF 등) → UNKNOWN (D2: STOCK 폴백 대신 안전 분리)
 
 UNKNOWN 후보는 후속 tradability_filter 에서 풀 진입 차단 + 경고 로그.
 
@@ -92,7 +93,14 @@ def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> Produc
             return ProductType.UNKNOWN  # D2 안전 분리
         return ProductType.STOCK
 
-    # 4) 비정형 코드 → UNKNOWN
+    # 4) 신형 우선주 코드 (5자리 숫자 + 1 알파벳, 예: 02826K = 삼성물산우B) → STOCK
+    #    KRX 가 우B/우C 등 신형 우선주에 부여하는 alphanumeric 코드. 본주와 동일 발행사라
+    #    fundamentals/regime 신호 유효. ETF API 명단(step 2)과 ETN/ETF 직렬코드(\d{4}[A-Z]\d)는
+    #    여기 도달하기 전에 분류되므로 상호배타적.
+    if len(ticker) == 6 and ticker[:5].isdigit() and ticker[5:].isalpha() and ticker[5:].isupper():
+        return ProductType.STOCK
+
+    # 5) 비정형 코드 → UNKNOWN
     return ProductType.UNKNOWN
 
 

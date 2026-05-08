@@ -72,6 +72,33 @@ def test_classify_stock_2_prefix():
 
 
 # ---------------------------------------------------------------------------
+# 신형 우선주 (5자리 숫자 + 1 알파벳) → STOCK
+# ---------------------------------------------------------------------------
+
+def test_classify_stock_new_preferred_share_alphanumeric():
+    """신형 우선주 코드 (5자리 숫자 + 1 대문자, 예: 02826K) → STOCK."""
+    assert classify("02826K", "삼성물산우B") == ProductType.STOCK
+
+
+def test_classify_stock_new_preferred_share_other_suffix():
+    """다른 알파벳 suffix 도 STOCK."""
+    assert classify("00088L", "예시우C") == ProductType.STOCK
+
+
+def test_alphanumeric_preferred_etf_list_overrides():
+    """ETF API 명단 hit 이 우선 (alphanumeric 코드라도 ETF 로 분류)."""
+    assert classify("02826K", "이상한 ETF", etf_list={"02826K"}) == ProductType.ETF
+
+
+def test_alphanumeric_etn_etf_serial_code_unaffected():
+    """ETN/ETF 직렬 코드 (\\d{4}[A-Z]\\d) 는 step 5 패턴 미해당 → ETF API 명단 의존."""
+    # 명단 미포함 → UNKNOWN (정상 운영에선 collect.py 가 명단 채워서 도달 X)
+    assert classify("0025N0", "어떤 ETN") == ProductType.UNKNOWN
+    # 명단 포함 → 0xxxxx 라 ETF (7-prefix 아님)
+    assert classify("0025N0", "KODEX 채권 ETN", etf_list={"0025N0"}) == ProductType.ETF
+
+
+# ---------------------------------------------------------------------------
 # UNKNOWN 폴백 (D2)
 # ---------------------------------------------------------------------------
 
