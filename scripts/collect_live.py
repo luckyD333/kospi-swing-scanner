@@ -100,9 +100,14 @@ def main() -> None:
     tickers = _load_signal_tickers()
     logger.info(f"  시그널 종목 {len(tickers)}개 현재가 수집 중...")
     prices = _fetch_current_prices(tickers)
+    existing_tickers = snapshot.setdefault("tickers", {})
+    updated = 0
     for ticker, data in prices.items():
-        snapshot.setdefault("tickers", {}).setdefault(ticker, {}).update(data)
-    logger.info(f"  현재가 갱신: {len(prices)}/{len(tickers)}개")
+        if ticker in existing_tickers:
+            existing_tickers[ticker].update(data)
+            updated += 1
+        # full snapshot 없는 ticker는 skip — partial entry 생성 시 TickerSnapshot 검증 실패
+    logger.info(f"  현재가 갱신: {updated}/{len(tickers)}개 ({len(prices)-updated}개 full snapshot 없어 skip)")
 
     snapshot.setdefault("source", {})["collected_at"] = now.isoformat()
 
