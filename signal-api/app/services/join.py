@@ -231,6 +231,7 @@ def aggregate_entries_for_ticker(
 
     # matches 배열 (all entry 는 제외, strategy entries 만 포함)
     matches = []
+    base_cp = (base_meta.get("live_quote") or {}).get("current_price")
     for e in entries:
         strategy = e.get("strategy") or {}
         if strategy.get("id") == "all":
@@ -245,12 +246,21 @@ def aggregate_entries_for_ticker(
             if v is not None or k not in trade_plan:
                 trade_plan[k] = v
 
+        match_status = compute_signal_status(
+            current_price=base_cp,
+            stop=trade_plan.get("limit_stop") or trade_plan.get("stop"),
+            target_1=trade_plan.get("target_1"),
+            signal_date_str=e.get("signal_date"),
+            timeframe=strategy.get("timeframe"),
+        )
+
         match = {
             "strategy": strategy,
             "signal_strength": ranking.get("signal_strength", 0),
             "opportunity_score": decision.get("regret_score", 0),
             "opportunity_factors": decision.get("regret_factors", []),
             "trade_plan": trade_plan,
+            "signal_status": match_status,
             "setup_score": e.get("setup_score"),
             "setup_reasons": e.get("setup_reasons"),
             "signal_components": e.get("signal_components") or [],
