@@ -40,9 +40,10 @@ def _make_snapshot():
             ),
             "469830": TickerSnapshot(
                 ticker="469830", name="SOL 초단기채권액티브",
-                current_price=9800, change_pct=0.02, volume=50000,
+                # cp 6000 = stop(5700) < cp < target_1(6200) — VALID 신호로 fixture 정상화
+                current_price=6000, change_pct=0.02, volume=50000,
                 market_cap_krw=None,
-                fundamentals=Fundamentals(per=None, high_52w=9900, low_52w=9700),
+                fundamentals=Fundamentals(per=None, high_52w=6100, low_52w=5800),
                 flow=Flow(foreign_ratio_pct=None),
             ),
         }

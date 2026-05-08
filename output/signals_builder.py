@@ -13,6 +13,7 @@ from core.decision.order_type_classifier import (
 from core.decision.product_type import (
     ProductType, to_pool, classify_asset_class,
 )
+from core.decision.signal_status import compute_signal_status
 from core.decision.tradability_filter import (
     FilterThresholds,
     apply as apply_tradability_filter,
@@ -588,6 +589,21 @@ def build_signals_payload(
             signal_components=signal_components_list,
         )
 
+    def _is_actionable(sig: Signal) -> bool:
+        """compute_signal_status 가 VALID 인 신호만 signals.json 에 포함.
+
+        '오늘 매수할 종목' 만 노출 — current_price >= target_1 (TARGET_REACHED) /
+        current_price <= stop (STOPPED_OUT) / signal_date 4 거래일 초과 (STALE) 후보 자동 제외.
+        """
+        status = compute_signal_status(
+            current_price=sig.live_quote.current_price,
+            stop=sig.trade_plan.limit_stop or sig.trade_plan.stop,
+            target_1=sig.trade_plan.target_1,
+            signal_date_str=sig.signal_date,
+            timeframe=sig.strategy.timeframe,
+        )
+        return status == "VALID"
+
     signals: list[Signal] = []
     # all_candidates 리스트에서 candidate 객체만 추출 (percentile rank 계산용)
     candidates_for_percentile = [c for _, c in all_candidates]
@@ -596,10 +612,12 @@ def build_signals_payload(
             strategy_id, (strategy_id.upper(), ""),
         )
         tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(strategy_id)
-        signals.append(_build_signal(
+        sig = _build_signal(
             strategy_id, label, category, tf, c, rank_idx, total,
             all_candidates_for_percentile=candidates_for_percentile,
-        ))
+        )
+        if _is_actionable(sig):
+            signals.append(sig)
 
     # 'all' 통합 entry — ticker dedup + regret 기반 정렬
     if ranked_for_all:
@@ -611,12 +629,14 @@ def build_signals_payload(
             origin_tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(
                 getattr(c, "strategy", "") or "",
             )
-            signals.append(_build_signal(
+            sig = _build_signal(
                 "all", "ALL", "MULTI", origin_tf, c,
                 fallback_rank=int(rc.normalized_metrics.get("regret_rank", 1)),
                 fallback_total=n_all,
                 all_candidates_for_percentile=all_entry_candidates,
-            ))
+            )
+            if _is_actionable(sig):
+                signals.append(sig)
 
     by_strategy: dict[str, int] = {}
     by_rr_band: dict[str, int] = {}
