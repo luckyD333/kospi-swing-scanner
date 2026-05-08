@@ -24,6 +24,7 @@ from output.models import (
     StrategyContext, MarketSnapshot, MarketIndexDisplay,
     DecisionFactor, DecisionMeta, RegretFactor,
 )
+from output.signal_components import build_signal_components
 
 # 기회 점수(regret_score) 4축 breakdown 라벨/가중치 — DEFAULT_WEIGHTS 와 일치 (×100).
 REGRET_FACTOR_LABELS: dict[str, tuple[str, float]] = {
@@ -535,6 +536,9 @@ def build_signals_payload(
         except (ValueError, AttributeError):
             asset_class_value = None
 
+        # 전략 고유 진입 시그널 컴포넌트 ('all' aggregator 는 빈 리스트 반환)
+        signal_components_list = build_signal_components(meta, strategy_id) or None
+
         return Signal(
             ticker=c.ticker,
             name=c.name,
@@ -581,6 +585,7 @@ def build_signals_payload(
             confirmation_level=confirmation_lv,
             active_regime=active_regime_lbl,
             asset_class=asset_class_value,
+            signal_components=signal_components_list,
         )
 
     signals: list[Signal] = []

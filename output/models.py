@@ -209,6 +209,9 @@ class Signal(BaseModel):
     # Task 5c (Plan 2026-05-08): 1h 셋업 품질 점수 + 메타 노출
     setup_score: Optional[int] = None  # 0~100, 1h 셋업 품질 점수
     setup_reasons: Optional[list[str]] = None  # ['1h_aligned_up', '1h_squeeze', ...]
+    # 전략 고유 진입 시그널 컴포넌트 — UI ✓/⚠ 리스트 노출용.
+    # 4축 기회 점수와 별개로 전략마다 다른 키 셋을 가진다 (RSI/BB/double_bottom 등).
+    signal_components: Optional[list[dict]] = None
 
 
 class SignalsPayload(BaseModel):

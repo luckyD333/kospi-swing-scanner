@@ -253,6 +253,7 @@ def aggregate_entries_for_ticker(
             "trade_plan": trade_plan,
             "setup_score": e.get("setup_score"),
             "setup_reasons": e.get("setup_reasons"),
+            "signal_components": e.get("signal_components") or [],
             "_score": ranking.get("score", 0),  # 정렬용
         }
         matches.append(match)

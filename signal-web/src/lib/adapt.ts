@@ -1,6 +1,15 @@
 import type { Signal, DecisionFactor, RegretFactor, SignalStatus } from '@/types/signal';
 import { formatStrategyLabel } from '@/lib/strategy';
 
+export type SignalComponentStatus = 'ok' | 'warn' | 'miss';
+
+export interface SignalComponent {
+  key: string;
+  label: string;
+  status: SignalComponentStatus;
+  value: string | null;
+}
+
 export interface MatchProps {
   strategy: {
     id: string;
@@ -10,6 +19,7 @@ export interface MatchProps {
   signalStrength: number | null;
   opportunityScore: number | null;
   opportunityFactors: RegretFactor[] | null;
+  signalComponents: SignalComponent[];
 }
 
 export interface DetailProps {
@@ -32,6 +42,9 @@ export interface DetailProps {
   signalDate: string | null;
   potentialScore: number | null;
   potentialFactors: DecisionFactor[] | null;
+  // 기회 점수 — matches[0] (top 매칭) 대표값. 잠재력과 동급의 ticker 단위 노출용.
+  opportunityScore: number | null;
+  opportunityFactors: RegretFactor[] | null;
   topTradePlan: {
     entry: number;
     stop: number;
@@ -159,7 +172,7 @@ export function adaptDetailV2(raw: any): DetailProps {
   const direction = d?.direction ?? 'flat';
 
   // matches 배열 처리
-  const matches = (raw.matches || []).map((m: any) => ({
+  const matches: MatchProps[] = (raw.matches || []).map((m: any) => ({
     strategy: {
       id: m.strategy?.id || '',
       label: m.strategy?.label || 'Unknown',
@@ -173,6 +186,18 @@ export function adaptDetailV2(raw: any): DetailProps {
           label: getFactorLabel(f.key),
         }))
       : null,
+    signalComponents: Array.isArray(m.signal_components)
+      ? (m.signal_components as any[])
+          .filter((c) => c && typeof c.key === 'string')
+          .map((c) => ({
+            key: String(c.key),
+            label: typeof c.label === 'string' ? c.label : c.key,
+            status: (c.status === 'ok' || c.status === 'warn' || c.status === 'miss')
+              ? c.status
+              : 'ok',
+            value: c.value ?? null,
+          }))
+      : [],
   }));
 
   const firstMatch = raw.matches?.[0];
@@ -181,6 +206,11 @@ export function adaptDetailV2(raw: any): DetailProps {
     ...f,
     label: getFactorLabel(f.key),
   }));
+
+  // 기회 점수: matches[0] (top 매칭) 대표값을 ticker 단위로 끌어올림.
+  // matches[0].opportunityFactors 와 동일한 reference 를 공유하므로 매칭별 매핑과 일관.
+  const topOpportunityScore: number | null = matches[0]?.opportunityScore ?? null;
+  const topOpportunityFactors: RegretFactor[] | null = matches[0]?.opportunityFactors ?? null;
 
   return {
     ticker,
@@ -204,6 +234,8 @@ export function adaptDetailV2(raw: any): DetailProps {
     signalDate: raw.signal_date ?? null,
     potentialScore: raw.potential_score ?? null,
     potentialFactors,
+    opportunityScore: topOpportunityScore,
+    opportunityFactors: topOpportunityFactors,
     topTradePlan: firstMatch?.trade_plan
       ? {
           entry: firstMatch.trade_plan.entry ?? 0,
@@ -243,6 +275,18 @@ export function adaptDetailLegacy(raw: any): DetailProps {
           label: getFactorLabel(f.key),
         }))
       : null,
+    signalComponents: Array.isArray(raw.signal_components)
+      ? (raw.signal_components as any[])
+          .filter((c: any) => c && typeof c.key === 'string')
+          .map((c: any) => ({
+            key: String(c.key),
+            label: typeof c.label === 'string' ? c.label : c.key,
+            status: (c.status === 'ok' || c.status === 'warn' || c.status === 'miss')
+              ? c.status
+              : 'ok',
+            value: c.value ?? null,
+          }))
+      : [],
   };
 
   // 잠재력 factor는 기존 decisionFactors 사용
@@ -271,6 +315,8 @@ export function adaptDetailLegacy(raw: any): DetailProps {
     signalDate: card.signalDate,
     potentialScore: card.decisionScore,
     potentialFactors,
+    opportunityScore: match.opportunityScore,
+    opportunityFactors: match.opportunityFactors,
     topTradePlan: {
       entry: card.entry,
       stop: card.stop,

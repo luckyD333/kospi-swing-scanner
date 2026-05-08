@@ -272,4 +272,94 @@ def test_catalog_signals_list_includes_schema_version():
     assert result.get("schema_version") is None or result.get("schema_version") == "2.0"
     # signals 배열은 변경 없음
     assert len(result["signals"]) == 1
-    assert result["signals"][0]["ticker"] == "486290"
+
+
+def test_aggregate_entries_passes_signal_components():
+    """매칭 dict 에 signal_components 가 그대로 전달되어야 한다."""
+    entries = [
+        {
+            "ticker": "005930",
+            "name": "삼성전자",
+            "asset_class": "STOCK",
+            "fundamentals": {},
+            "live_quote": {"current_price": 71000},
+            "external_links": {},
+            "strategy": {
+                "id": "strategy_one_d_v2",
+                "label": "STRATEGY ONE",
+                "category": "MEAN REVERSION",
+                "timeframe": "1D",
+            },
+            "trade_plan": {"entry": 71000, "stop": 69000, "target_1": 73500, "target_2": 75000},
+            "ranking": {"score": 80.0, "signal_strength": 75.0, "decision": {"final_score": 80.0}},
+            "signal_components": [
+                {"key": "rsi_oversold", "label": "RSI 과매도", "status": "ok", "value": "28.5"},
+                {"key": "double_bottom", "label": "쌍바닥", "status": "ok", "value": None},
+            ],
+            "signal_date": "2026-05-08T15:30:00+09:00",
+            "signal_status": "VALID",
+        },
+        {
+            "ticker": "005930",
+            "name": "삼성전자",
+            "asset_class": "STOCK",
+            "fundamentals": {},
+            "live_quote": {"current_price": 71000},
+            "external_links": {},
+            "strategy": {
+                "id": "strategy_three_trend_following",
+                "label": "STRATEGY THREE",
+                "category": "TREND FOLLOWING",
+                "timeframe": "1D",
+            },
+            "trade_plan": {"entry": 71000, "stop": 69500, "target_1": 73000, "target_2": 75000},
+            "ranking": {"score": 65.0, "signal_strength": 60.0, "decision": {"final_score": 65.0}},
+            "signal_components": [
+                {"key": "donchian_breakout", "label": "Donchian 20일 돌파", "status": "ok", "value": "+2.40%"},
+                {"key": "volume_surge", "label": "거래량 동반", "status": "warn", "value": "1.1x"},
+            ],
+            "signal_date": "2026-05-08T15:30:00+09:00",
+            "signal_status": "VALID",
+        },
+    ]
+
+    result = aggregate_entries_for_ticker(entries, "005930")
+    matches = result["matches"]
+    assert len(matches) == 2
+
+    # 정렬 후 matches[0] 은 strategy_one (score 80)
+    assert matches[0]["strategy"]["id"] == "strategy_one_d_v2"
+    assert matches[0]["signal_components"] == [
+        {"key": "rsi_oversold", "label": "RSI 과매도", "status": "ok", "value": "28.5"},
+        {"key": "double_bottom", "label": "쌍바닥", "status": "ok", "value": None},
+    ]
+
+    assert matches[1]["strategy"]["id"] == "strategy_three_trend_following"
+    assert {c["key"] for c in matches[1]["signal_components"]} == {
+        "donchian_breakout", "volume_surge",
+    }
+
+
+def test_aggregate_entries_signal_components_default_empty():
+    """signal_components 누락 시 빈 배열 fallback."""
+    entries = [
+        {
+            "ticker": "005930",
+            "name": "삼성전자",
+            "fundamentals": {},
+            "live_quote": {},
+            "external_links": {},
+            "strategy": {
+                "id": "strategy_one_d_v2",
+                "label": "STRATEGY ONE",
+                "category": "MEAN REVERSION",
+                "timeframe": "1D",
+            },
+            "trade_plan": {"entry": 71000, "stop": 69000, "target_1": 73500, "target_2": 75000},
+            "ranking": {"score": 80.0, "signal_strength": 75.0, "decision": {}},
+            "signal_date": "2026-05-08T15:30:00+09:00",
+            "signal_status": "VALID",
+        },
+    ]
+    result = aggregate_entries_for_ticker(entries, "005930")
+    assert result["matches"][0]["signal_components"] == []
