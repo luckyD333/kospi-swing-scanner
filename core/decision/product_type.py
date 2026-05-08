@@ -11,6 +11,10 @@ PR-B (P0-2): ETN/ETF/REIT/SPAC 가 STOCK 풀에서 PER/ROE 가산 받는 결함 
   5. 그 외 (7xxxxx 비-ETF 등) → UNKNOWN (D2: STOCK 폴백 대신 안전 분리)
 
 UNKNOWN 후보는 후속 tradability_filter 에서 풀 진입 차단 + 경고 로그.
+
+Task 1 (Plan 2026-05-08): 3-tier 자산군 분류.
+  - AssetClass enum: STOCK / EQUITY_ETF / BOND_ETF / OTHER
+  - classify_asset_class(product_type, name) → AssetClass
 """
 from __future__ import annotations
 
@@ -27,6 +31,14 @@ class ProductType(str, Enum):
     UNKNOWN = "UNKNOWN"  # D2: 분류 실패 시 안전 분리
 
 
+class AssetClass(str, Enum):
+    """자산군 3-tier 분류 (Task 1)."""
+    STOCK = "STOCK"
+    EQUITY_ETF = "EQUITY_ETF"
+    BOND_ETF = "BOND_ETF"
+    OTHER = "OTHER"
+
+
 class Pool(str, Enum):
     """랭킹 풀 (UI/API 소비자 grouping 용 명시 축, D3)."""
     STOCK = "STOCK"
@@ -37,6 +49,9 @@ class Pool(str, Enum):
 _SPAC_KEYWORDS = ("스팩", "기업인수목적")
 _REIT_KEYWORDS = ("리츠",)
 _ETN_KEYWORDS = ("ETN",)
+
+# Task 1: 채권 ETF 감지 키워드 (정확히 이 7개만)
+BOND_KEYWORDS = {"채권", "초단기채", "회사채", "국고", "금리", "단기자금", "MMF"}
 
 
 def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> ProductType:
@@ -79,6 +94,30 @@ def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> Produc
 
     # 4) 비정형 코드 → UNKNOWN
     return ProductType.UNKNOWN
+
+
+def classify_asset_class(product_type: ProductType, name: str) -> AssetClass:
+    """ProductType + 종목명 → AssetClass (3-tier 자산군 분류).
+
+    주식(STOCK) / 주식형ETF(EQUITY_ETF) / 채권형ETF(BOND_ETF) / 기타(OTHER) 로 분류.
+    종목명의 채권 키워드 매칭으로 채권 ETF 감지.
+
+    Args:
+        product_type: ProductType enum (STOCK/ETF/ETN/REIT/SPAC/UNKNOWN).
+        name: 종목명 (한글).
+
+    Returns:
+        AssetClass — STOCK | EQUITY_ETF | BOND_ETF | OTHER.
+    """
+    if product_type == ProductType.STOCK:
+        return AssetClass.STOCK
+
+    if product_type in (ProductType.ETF, ProductType.ETN):
+        if any(kw in name for kw in BOND_KEYWORDS):
+            return AssetClass.BOND_ETF
+        return AssetClass.EQUITY_ETF
+
+    return AssetClass.OTHER
 
 
 def to_pool(pt: ProductType) -> Pool:

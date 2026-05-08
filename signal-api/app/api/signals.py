@@ -7,7 +7,10 @@ from fastapi.responses import JSONResponse
 
 from ..services.signal_loader import SignalLoader
 from ..services.market_loader import MarketLoader
-from ..services.join import build_aggregated_signal, overlay_signals_list
+from ..services.join import (
+    aggregate_entries_for_ticker,
+    overlay_signals_list,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -59,6 +62,8 @@ async def get_signals(strategy: str | None = None):
     market = _market_loader.load()
     tickers = market.tickers if market else {}
     body = overlay_signals_list(loaded.raw, tickers) if tickers else dict(loaded.raw)
+    # Task 8: schema_version 필드 추가 (카탈로그는 2.0으로 고정)
+    body["schema_version"] = "2.0"
     if market and market.regime:
         body["market_regime"] = market.regime
     if market and market.breadth:
@@ -85,7 +90,8 @@ async def get_signal(ticker: str):
     entries = loaded.entries_by_ticker.get(ticker)
     if not entries:
         raise HTTPException(404, detail={"error": "ticker_not_found", "ticker": ticker})
+    # Task 8: multi-strategy aggregate 응답 (schema_version 2.0)
     market = _market_loader.load()
     snapshot_ticker = market.tickers.get(ticker) if market else None
-    body = build_aggregated_signal(entries, snapshot_ticker)
+    body = aggregate_entries_for_ticker(entries, ticker, snapshot_ticker)
     return JSONResponse(content=body, headers={"Cache-Control": "no-cache"})

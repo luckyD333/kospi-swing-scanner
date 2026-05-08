@@ -202,7 +202,28 @@ class ScanRunner:
 
         logger.info(f"💾 cache stats={cache.stats}")
 
-        # 3) ScanContext 1회 생성 (모든 TF 포함)
+        # 3) Task 5a: Entry gate 용 Donchian 지표 빌드
+        # 3a) 1d regime 분류 (전략별 게이트)
+        from core.decision.per_ticker_regime import build_per_ticker_regime_map
+        from core.decision.donchian import compute_donchian
+
+        ohlcv_1d = ohlcv_by_tf.get("1D", {})
+        per_ticker_regime = build_per_ticker_regime_map(ohlcv_1d)
+
+        # 3b) 1h Donchian (setup quality 점수 산출용)
+        ohlcv_1h = ohlcv_by_tf.get("1h", {})
+        donchian_1h_by_ticker = {}
+        for ticker, df_1h in ohlcv_1h.items():
+            d_1h = compute_donchian(df_1h, timeframe="1h")
+            donchian_1h_by_ticker[ticker] = d_1h
+
+        # 3b-2) 1D Donchian (strategy_two 변동성 가드레일용)
+        donchian_1d_by_ticker = {}
+        for ticker, df_1d in ohlcv_1d.items():
+            d_1d = compute_donchian(df_1d, timeframe="1d")
+            donchian_1d_by_ticker[ticker] = d_1d
+
+        # 3c) ScanContext 1회 생성 (모든 TF 포함)
         legacy_ohlcv = ohlcv_by_tf.get("1D", {})
         # universe 는 어떤 TF 라도 데이터 있는 ticker 합집합 (univ.tickers 순서 유지)
         tickers_with_data: set = set()
@@ -219,6 +240,9 @@ class ScanRunner:
             ohlcv_by_tf=ohlcv_by_tf,
             fundamentals=fundamentals_lookup,
             regime=regime_data,
+            per_ticker_regime=per_ticker_regime,  # Task 5a
+            donchian_1h_by_ticker=donchian_1h_by_ticker,  # Task 5a
+            donchian_1d_by_ticker=donchian_1d_by_ticker,
         )
 
         result = RunResult(

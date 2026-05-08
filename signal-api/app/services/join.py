@@ -188,23 +188,101 @@ def pick_base_entry(entries: list[dict[str, Any]]) -> dict[str, Any]:
     return max(entries, key=_score)
 
 
-def build_aggregated_signal(
+def aggregate_entries_for_ticker(
     entries: list[dict[str, Any]],
-    snapshot_ticker: dict[str, Any] | None,
+    ticker: str,
+    snapshot_ticker: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """ticker 의 모든 entries 를 합쳐 단일 응답 dict 생성.
+    """Multi-strategy aggregate response (schema_version 2.0).
 
-    - base = highest score entry (deepcopy + snapshot overlay).
-    - trade_plan 에 rsi_1d/rsi_1h/rsi_30m merge: snapshot.rsi_by_tf 우선, entries fallback.
+    구조:
+      {
+        "schema_version": "2.0",
+        "ticker": ...,
+        "name": ...,
+        "asset_class": ...,
+        "fundamentals": ..., "live_quote": ..., "external_links": ...,
+        "potential_score": float,        # ticker 단위 1개 (잠재력)
+        "potential_factors": [ ... ],    # 잠재력 factor breakdown
+        "matches": [                     # 매칭 strategy 별 N개 (all entry 제외)
+          {
+            "strategy": {...},
+            "signal_strength": int,
+            "opportunity_score": int,
+            "opportunity_factors": [...],
+            "trade_plan": {...},
+            "setup_score": int | None,
+            "setup_reasons": [...] | None,
+          },
+        ]
+      }
     """
-    base = pick_base_entry(entries)
-    out = apply_snapshot_overlay(base, snapshot_ticker)
+    if not entries:
+        raise ValueError("empty entries")
+
+    # base = "all" entry 우선 (potential_score 베이스), snapshot overlay 적용
+    all_entry = next((e for e in entries if (e.get("strategy") or {}).get("id") == "all"), None)
+    base_meta_raw = all_entry or entries[0]
+    base_meta = apply_snapshot_overlay(base_meta_raw, snapshot_ticker)
+
+    # RSI merge: snapshot.rsi_by_tf 우선, entries fallback
     snapshot_rsi = (snapshot_ticker or {}).get("rsi_by_tf")
     rsi_merged = merge_rsi_by_timeframe(entries, snapshot_rsi)
-    trade_plan = out.setdefault("trade_plan", {})
-    for key, val in rsi_merged.items():
-        trade_plan[key] = val
-    return out
+
+    # matches 배열 (all entry 는 제외, strategy entries 만 포함)
+    matches = []
+    for e in entries:
+        strategy = e.get("strategy") or {}
+        if strategy.get("id") == "all":
+            continue  # all entry 는 matches 에서 제외
+
+        ranking = e.get("ranking") or {}
+        decision = ranking.get("decision") or {}
+
+        # trade_plan 에 RSI merge 적용
+        trade_plan = dict(e.get("trade_plan") or {})
+        for k, v in rsi_merged.items():
+            if v is not None or k not in trade_plan:
+                trade_plan[k] = v
+
+        match = {
+            "strategy": strategy,
+            "signal_strength": ranking.get("signal_strength", 0),
+            "opportunity_score": decision.get("regret_score", 0),
+            "opportunity_factors": decision.get("factors", []),
+            "trade_plan": trade_plan,
+            "setup_score": e.get("setup_score"),
+            "setup_reasons": e.get("setup_reasons"),
+            "_score": ranking.get("score", 0),  # 정렬용
+        }
+        matches.append(match)
+
+    # matches 정렬: highest ranking.score 순 (= base entry 가 matches[0])
+    matches.sort(key=lambda m: m.pop("_score"), reverse=True)
+
+    # 최상위 응답 구조
+    base_ranking = base_meta.get("ranking") or {}
+    base_decision = base_ranking.get("decision") or {}
+
+    return {
+        "schema_version": "2.0",
+        "ticker": ticker,
+        "name": base_meta.get("name"),
+        "asset_class": base_meta.get("asset_class"),
+        "fundamentals": base_meta.get("fundamentals"),
+        "flow": base_meta.get("flow"),
+        "live_quote": base_meta.get("live_quote"),
+        "external_links": base_meta.get("external_links"),
+        "potential_score": base_decision.get("final_score", 0),
+        "potential_factors": base_decision.get("factors", []),
+        "matches": matches,
+        # 호환 필드 (signal_date, active_regime, signal_status, tradability_score 등)
+        "signal_date": base_meta.get("signal_date"),
+        "signal_status": base_meta.get("signal_status"),
+        "active_regime": base_meta.get("active_regime"),
+        "tradability_score": base_meta.get("tradability_score"),
+        "product_type": base_meta.get("product_type"),
+    }
 
 
 def overlay_signals_list(

@@ -65,18 +65,19 @@ def test_bull_heavy_candidate_has_higher_regret_than_risk_heavy():
     )
 
 
-def test_ensemble_count_boosts_score():
-    """다전략 등장 ticker 가 동일 reward 대비 부스팅."""
+def test_ensemble_scores_param_ignored():
+    """ensemble_scores 매개변수는 하위호환용으로 무시됨 (신규 4축에서 제거)."""
     a = _make_ranked("A", reward_pct_t2=5.0, risk_pct=3.0)
     b = _make_ranked("B", reward_pct_t2=5.0, risk_pct=3.0)
+    # ensemble_scores를 전달해도 점수에 영향 없음 (reward/risk/dist가 동일)
     out = compute_regret_scores(
         [a, b],
         ensemble_scores={"A": 3.0, "B": 1.0},
     )
-    assert out[0].candidate.ticker == "A"
+    # reward/risk/dist가 동일 → 점수도 동일
     assert (
         out[0].normalized_metrics["regret_score"]
-        > out[1].normalized_metrics["regret_score"]
+        == out[1].normalized_metrics["regret_score"]
     )
 
 
@@ -149,10 +150,13 @@ def test_score_is_in_zero_to_hundred_range():
 # ---------------------------------------------------------------------------
 
 def test_default_weights_constants():
-    assert DEFAULT_WEIGHTS.bull_reward == 0.45
-    assert DEFAULT_WEIGHTS.ensemble == 0.25
+    """신규 4 factor 가중치 (R:R 75% + freshness 25%)."""
+    assert DEFAULT_WEIGHTS.bull_reward == 0.40
     assert DEFAULT_WEIGHTS.max_drawdown == 0.20
-    assert DEFAULT_WEIGHTS.dist_to_stop == 0.10
+    assert DEFAULT_WEIGHTS.dist_to_stop == 0.15
+    assert DEFAULT_WEIGHTS.signal_freshness == 0.25
+    # ensemble factor 는 없음
+    assert not hasattr(DEFAULT_WEIGHTS, "ensemble")
 
 
 def test_custom_weights_override():
@@ -162,14 +166,14 @@ def test_custom_weights_override():
 
     # bull_reward 만 → BULL 1위 (reward 큼)
     weights_bull = RegretWeights(
-        bull_reward=1.0, ensemble=0.0, max_drawdown=0.0, dist_to_stop=0.0,
+        bull_reward=1.0, max_drawdown=0.0, dist_to_stop=0.0, signal_freshness=0.0,
     )
     out_bull = compute_regret_scores([bull, safe], weights=weights_bull)
     assert out_bull[0].candidate.ticker == "BULL"
 
     # max_drawdown 만 → SAFE 1위 (risk 작음)
     weights_dd = RegretWeights(
-        bull_reward=0.0, ensemble=0.0, max_drawdown=1.0, dist_to_stop=0.0,
+        bull_reward=0.0, max_drawdown=1.0, dist_to_stop=0.0, signal_freshness=0.0,
     )
     out_dd = compute_regret_scores([bull, safe], weights=weights_dd)
     assert out_dd[0].candidate.ticker == "SAFE"
@@ -180,25 +184,27 @@ def test_custom_weights_override():
 # ---------------------------------------------------------------------------
 
 def test_compute_regret_scores_stores_4_axis_breakdown():
-    """4축 개별 percentile rank 가 normalized_metrics 에 0~1 범위로 저장된다."""
+    """신규 4축 개별 percentile rank 가 normalized_metrics 에 0~1 범위로 저장된다."""
     cands = [
         _make_ranked("A", reward_pct_t2=10.0, risk_pct=2.0),
         _make_ranked("B", reward_pct_t2=5.0, risk_pct=5.0),
         _make_ranked("C", reward_pct_t2=2.0, risk_pct=8.0),
     ]
-    out = compute_regret_scores(cands, ensemble_scores={"A": 3.0, "B": 2.0, "C": 1.0})
+    out = compute_regret_scores(cands)
     for rc in out:
         nm = rc.normalized_metrics
         assert "regret_bull_reward" in nm
-        assert "regret_ensemble" in nm
         assert "regret_max_drawdown" in nm
         assert "regret_dist_to_stop" in nm
-        for k in ("regret_bull_reward", "regret_ensemble", "regret_max_drawdown", "regret_dist_to_stop"):
+        assert "regret_signal_freshness" in nm
+        # ensemble factor 는 없음
+        assert "regret_ensemble" not in nm
+        for k in ("regret_bull_reward", "regret_max_drawdown", "regret_dist_to_stop", "regret_signal_freshness"):
             assert 0.0 <= nm[k] <= 1.0, f"{rc.candidate.ticker}.{k}={nm[k]} out of [0,1]"
 
 
 def test_4_axis_sum_equals_regret_score():
-    """4축 가중합 × 100 == regret_score (소수점 4자리 허용 오차).
+    """신규 4축 가중합 × 100 == regret_score (소수점 4자리 허용 오차).
 
     UI 의 contribution = weight × normalized 가 합산 regret_score 와 일치하려면
     max_drawdown 은 dd_norm(반전 후) 을 저장해야 한다.
@@ -207,15 +213,15 @@ def test_4_axis_sum_equals_regret_score():
         _make_ranked(f"T{i}", reward_pct_t2=1.0 + i * 2.0, risk_pct=1.0 + i * 0.7)
         for i in range(5)
     ]
-    out = compute_regret_scores(cands, ensemble_scores={f"T{i}": 1.0 + i for i in range(5)})
+    out = compute_regret_scores(cands)
     w = DEFAULT_WEIGHTS
     for rc in out:
         nm = rc.normalized_metrics
         recomputed = (
             w.bull_reward  * nm["regret_bull_reward"]
-            + w.ensemble   * nm["regret_ensemble"]
             + w.max_drawdown * nm["regret_max_drawdown"]
             + w.dist_to_stop * nm["regret_dist_to_stop"]
+            + w.signal_freshness * nm["regret_signal_freshness"]
         ) * 100.0
         assert abs(recomputed - nm["regret_score"]) < 0.01, (
             f"{rc.candidate.ticker}: recomputed={recomputed:.4f}, "

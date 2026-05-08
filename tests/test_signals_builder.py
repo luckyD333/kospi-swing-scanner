@@ -250,13 +250,17 @@ def test_timeframe_filters_follow_actual_signal_timeframes():
 
 
 def test_signal_strength_normalized_to_0_to_100():
-    """ranking.signal_strength = c.score / 10 (0~100 정규화)."""
+    """ranking.signal_strength = asset_class 내 percentile rank (0~100).
+
+    단독 후보(풀 크기 1)는 50.0 반환 (중립).
+    """
     snap = _make_snapshot()
     cand = _make_candidate("sweet")
     cand.score = 870.0  # 0~1000 범위
     payload = build_signals_payload(snap, {"strategy_one_d_v2": [cand]})
     sig = payload.signals[0]
-    assert sig.ranking.signal_strength == 87.0
+    # 단독 asset_class OTHER → 50.0 (중립)
+    assert sig.ranking.signal_strength == 50.0
 
 
 def test_regret_factors_serialized_with_4_axes():
@@ -278,7 +282,7 @@ def test_regret_factors_serialized_with_4_axes():
         rf = sig.ranking.decision.regret_factors
         assert rf is not None and len(rf) == 4
         keys = {f.key for f in rf}
-        assert keys == {"bull_reward", "ensemble", "max_drawdown", "dist_to_stop"}
+        assert keys == {"bull_reward", "max_drawdown", "dist_to_stop", "signal_freshness"}
         for f in rf:
             assert abs(f.contribution - f.weight * f.normalized) < 0.01
 

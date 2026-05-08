@@ -26,6 +26,10 @@ class ScanContext:
       - ohlcv_by_tf: timeframe → ticker → OHLCV (multi-tf scan 용)
       - fundamentals: ticker → {per, roe, foreign_pct, naver_url, ...} (Phase 1)
         전략은 직접 읽지 않음 (전략 무수정 원칙). runner가 후보 metadata에 사후 주입.
+      - regime: dict | None — regime_analysis.json 로드 결과 (없으면 None)
+      - per_ticker_regime: ticker → "UPTREND_STRONG"|"RANGE"|... (Task 5a, default={})
+      - donchian_1h_by_ticker: ticker → DonchianFrame | None (1h setup quality, Task 5a, default={})
+      - donchian_1d_by_ticker: ticker → DonchianFrame | None (1d 가드레일용, default={})
 
     legacy 호환: `ohlcv` 또는 `ohlcv_by_tf` 중 하나만 채워서 생성하면 다른 쪽이
     `__post_init__` 에서 자동 동기화된다.
@@ -39,6 +43,9 @@ class ScanContext:
     ohlcv_by_tf: dict[str, dict[str, pd.DataFrame]] = field(default_factory=dict)
     fundamentals: dict[str, dict] = field(default_factory=dict)
     regime: dict | None = None  # regime_analysis.json 로드 결과 (없으면 None)
+    per_ticker_regime: dict[str, str] = field(default_factory=dict)  # Task 5a
+    donchian_1h_by_ticker: dict = field(default_factory=dict)  # Task 5a
+    donchian_1d_by_ticker: dict = field(default_factory=dict)  # 1d 가드레일용
 
     def __post_init__(self):
         if not self.ohlcv_by_tf and self.ohlcv:

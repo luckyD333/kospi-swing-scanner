@@ -1,39 +1,49 @@
-# weights.yml — Multi-factor 점수 가중치.
-# 1~3일 단기 스윙 보유 환경 기준 표준 권장값 (학술 + 실무 종합).
-# 근거:
-#   - momentum 비중 ↑: Jegadeesh-Titman 후속 + 한국 post-2009 momentum 연구
-#   - rr_ratio 비중 ↓: 가중치 내 상대 비교로 반영, 절대 게이팅은 하지 않음
-#   - roe 비중 ↑: 한국 시장 KOSPI/KOSDAQ profitability factor 유효
-#   - per 비중 ↓: 단기 holding 에서 value factor 효과 약화
+# weights.yml — Multi-factor 점수 가중치 (신규 스키마)
+# Task 6 이후: 잠재력 점수 5 factor (본질 매력도) + 기회 점수는 regret_scorer 에서 직접 관리
+#
+# 잠재력 점수 factor (종목 본질):
+#   - momentum_3m: 3개월(60봉) 누적 수익률 (중기 추세)
+#   - regime_score: 시장 국면 (BULL/BEAR 자동 분포 shift)
+#   - roe: ROE (수익성, STOCK 전용)
+#   - per: PER (저평가, STOCK 전용, lower_better)
+#   - liquidity: 유동성 (시총×거래대금, cross-sectional rank)
+#
+# 기회 점수 factor: regret_scorer.py 에서 직접 관리
+#   - bull_reward (40%) / max_drawdown (20%) / dist_to_stop (15%) / signal_freshness (25%)
+#   - R:R 75% + freshness 25%
 priorities:
-  - key: ensemble_score
-    weight: 25.0
+  - key: momentum_3m
+    label: 가격 모멘텀 (3개월)
+    weight: 35.0
     direction: higher_better
-    label: 다중 전략 합의도
-  - key: momentum_pct
-    weight: 25.0
-    direction: higher_better
-    label: 가격 모멘텀
-  - key: rr_ratio
+    applies_to_pools: [STOCK, ETN_ETF]
+
+  - key: regime_score
+    label: 시장 국면
     weight: 15.0
     direction: higher_better
-    label: 손익비
+    applies_to_pools: [STOCK, ETN_ETF]
+
   - key: roe
+    label: ROE (수익성)
     weight: 15.0
     direction: higher_better
-    label: ROE (수익성)
-    applies_to_pools: [STOCK]   # PR-B: ETN/ETF 풀에서 NOT_APPLICABLE → 가중치 동적 정규화
+    applies_to_pools: [STOCK]
+
   - key: per
+    label: PER (저평가)
     weight: 10.0
     direction: lower_better
-    label: PER (저평가)
-    applies_to_pools: [STOCK]   # PR-B: ETN/ETF 풀에서 NOT_APPLICABLE → 가중치 동적 정규화
-  - key: regime_score
-    weight: 10.0
+    applies_to_pools: [STOCK]
+
+  - key: liquidity
+    label: 유동성
+    weight: 25.0
     direction: higher_better
-    label: 시장 국면 (BULL/BEAR 자동 분포 shift)
-must_have:
-  - "ensemble_count>=1"
+    applies_to_pools: [STOCK, ETN_ETF]
+
+must_have: []
+
 strategy_weights:
   strategy_one_d_v2: 1.3
   strategy_one_w_v2: 1.3

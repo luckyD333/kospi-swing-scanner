@@ -14,6 +14,11 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from core.decision.entry_gate import is_strategy_allowed
+from core.decision.setup_quality import (
+    SETUP_SCORE_THRESHOLD_DEFAULT,
+    trend_setup_quality,
+)
 from core.indicators import calc_atr, latest_rsi_or_none, moving_average
 from core.strategy_base import Candidate, ScanContext
 
@@ -40,6 +45,7 @@ class StrategyFourConfig:
     atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
     min_bars: int = 25
     min_daily_volume: int = 100_000
+    use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
 
 
 class StrategyFourPullbackMa:
@@ -142,6 +148,21 @@ class StrategyFourPullbackMa:
                 df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
                 limit_entry, limit_stop = populate_limit_fields(df_30m, entry, stop_loss)
 
+                # Entry gate: 1d regime + 1h setup_score (추세 추종 setup)
+                regime = ctx.per_ticker_regime.get(ticker)
+                d_1h = ctx.donchian_1h_by_ticker.get(ticker)
+                if d_1h is not None:
+                    setup = trend_setup_quality(d_1h)
+                    setup_score: int | None = setup.score
+                    setup_reasons = list(setup.reasons)
+                else:
+                    setup_score = None
+                    setup_reasons = None
+                if not is_strategy_allowed(self.name, regime, setup_score):
+                    continue
+                if setup_score is not None and setup_score < SETUP_SCORE_THRESHOLD_DEFAULT:
+                    continue
+
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -173,6 +194,10 @@ class StrategyFourPullbackMa:
                         "rr_band": rr_band,
                         "atr_14": atr_14,
                         "rsi_14": rsi_14_val,
+                        "per_ticker_regime": regime,
+                        "setup_score": setup_score,
+                        "setup_reasons": setup_reasons,
+                        "bars_since_trigger": 0,
                     },
                 ))
             except Exception as e:

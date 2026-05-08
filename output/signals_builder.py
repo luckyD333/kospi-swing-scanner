@@ -10,7 +10,9 @@ from core.decision.order_type_classifier import (
     classify as classify_order_type,
     korean_label,
 )
-from core.decision.product_type import ProductType, to_pool
+from core.decision.product_type import (
+    ProductType, to_pool, classify_asset_class,
+)
 from core.decision.tradability_filter import (
     FilterThresholds,
     apply as apply_tradability_filter,
@@ -25,10 +27,10 @@ from output.models import (
 
 # 기회 점수(regret_score) 4축 breakdown 라벨/가중치 — DEFAULT_WEIGHTS 와 일치 (×100).
 REGRET_FACTOR_LABELS: dict[str, tuple[str, float]] = {
-    "bull_reward":  ("목표 수익", 45.0),
-    "ensemble":     ("다전략 합의도", 25.0),
-    "max_drawdown": ("손절 위험(역)", 20.0),
-    "dist_to_stop": ("손절까지 여유", 10.0),
+    "bull_reward":        ("목표 수익", 40.0),
+    "max_drawdown":       ("손절 위험(역)", 20.0),
+    "dist_to_stop":       ("손절까지 여유", 15.0),
+    "signal_freshness":   ("신호 신선도", 25.0),
 }
 
 if TYPE_CHECKING:
@@ -150,6 +152,42 @@ def _format_target_display(target_date: str | None, now_kst: datetime) -> str:
 def _timeframe_sort_key(tf: str) -> tuple[int, str]:
     order = {"1D": 0, "1W": 1, "1h": 2, "30m": 3}
     return (order.get(tf, 99), tf)
+
+
+def compute_signal_strength_percentile(
+    c,
+    all_candidates: list,
+) -> float:
+    """자산군 (asset_class) 내 cross-sectional percentile rank 를 0~100 으로.
+
+    같은 자산군 후보 풀에서 c.score 의 상대 위치를 측정.
+    풀 크기가 1 이하면 50.0 default (단독 종목은 중립).
+
+    Args:
+        c: Candidate 객체 (score, asset_class 속성)
+        all_candidates: 전체 Candidate 리스트
+
+    Returns:
+        0.0~100.0 범위 percentile rank (소수 첫째 자리까지)
+    """
+    asset_class = getattr(c, "asset_class", None)
+    if not asset_class:
+        # 미분류 케이스 fallback: 기존 산식 유지
+        return round(c.score / 10.0, 1)
+
+    # 같은 자산군 필터링
+    same_class = [
+        x for x in all_candidates
+        if getattr(x, "asset_class", None) == asset_class
+    ]
+    if len(same_class) <= 1:
+        return 50.0  # 단독 자산군 중립
+
+    # cross-sectional percentile rank
+    # rank: c.score 보다 작은 후보 수
+    rank = sum(1 for x in same_class if x.score < c.score)
+    pct = rank / (len(same_class) - 1) * 100
+    return round(pct, 1)
 
 
 def _dedup_raw_candidates(
@@ -359,6 +397,7 @@ def build_signals_payload(
         c,
         fallback_rank: int,
         fallback_total: int,
+        all_candidates_for_percentile: list | None = None,
     ) -> Signal:
         meta = getattr(c, "metadata", {}) or {}
         entry = int(getattr(c, "entry_price", 0))
@@ -486,6 +525,16 @@ def build_signals_payload(
             order_intent = OrderTypeIntent.IMMEDIATE
         order_label_ko = korean_label(order_intent)
 
+        # Task 2: asset_class 분류 — candidate.metadata 의 product_type + 종목명 사용
+        asset_class_value: str | None = None
+        try:
+            product_type_str = str(meta.get("product_type") or "UNKNOWN")
+            product_type_enum = ProductType(product_type_str)
+            asset_class_enum = classify_asset_class(product_type_enum, c.name)
+            asset_class_value = asset_class_enum.value
+        except (ValueError, AttributeError):
+            asset_class_value = None
+
         return Signal(
             ticker=c.ticker,
             name=c.name,
@@ -501,7 +550,10 @@ def build_signals_payload(
             ),
             ranking=Ranking(
                 score=round(r_score, 1),
-                signal_strength=round(c.score / 10.0, 1),
+                signal_strength=(
+                    compute_signal_strength_percentile(c, all_candidates_for_percentile)
+                    if all_candidates_for_percentile else round(c.score / 10.0, 1)
+                ),
                 rank=r_rank,
                 percentile=(
                     round((1 - r_rank / r_total) * 100, 1)
@@ -528,9 +580,12 @@ def build_signals_payload(
             tradability_score=tradability_s,
             confirmation_level=confirmation_lv,
             active_regime=active_regime_lbl,
+            asset_class=asset_class_value,
         )
 
     signals: list[Signal] = []
+    # all_candidates 리스트에서 candidate 객체만 추출 (percentile rank 계산용)
+    candidates_for_percentile = [c for _, c in all_candidates]
     for rank_idx, (strategy_id, c) in enumerate(all_candidates, start=1):
         label, category = _STRATEGY_LABELS.get(
             strategy_id, (strategy_id.upper(), ""),
@@ -538,11 +593,14 @@ def build_signals_payload(
         tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(strategy_id)
         signals.append(_build_signal(
             strategy_id, label, category, tf, c, rank_idx, total,
+            all_candidates_for_percentile=candidates_for_percentile,
         ))
 
     # 'all' 통합 entry — ticker dedup + regret 기반 정렬
     if ranked_for_all:
         n_all = len(ranked_for_all)
+        # all entry용 percentile 계산: ranked_for_all 의 candidate 리스트
+        all_entry_candidates = [rc.candidate for rc in ranked_for_all]
         for rc in ranked_for_all:
             c = rc.candidate
             origin_tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(
@@ -552,6 +610,7 @@ def build_signals_payload(
                 "all", "ALL", "MULTI", origin_tf, c,
                 fallback_rank=int(rc.normalized_metrics.get("regret_rank", 1)),
                 fallback_total=n_all,
+                all_candidates_for_percentile=all_entry_candidates,
             ))
 
     by_strategy: dict[str, int] = {}

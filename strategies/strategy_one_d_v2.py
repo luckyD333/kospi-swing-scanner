@@ -16,7 +16,12 @@ from dataclasses import dataclass
 
 from backtest_engine.core import calc_atr
 from core.decision.confirmation_strength import evaluate as eval_confirmation
+from core.decision.entry_gate import is_strategy_allowed
 from core.decision.multi_timeframe import compute_multi_tf_penalty
+from core.decision.setup_quality import (
+    mean_rev_setup_quality,
+    SETUP_SCORE_THRESHOLD_DEFAULT,
+)
 from backtest_engine.detectors import (
     DoubleBottomDetector,
     DoubleBottomFractal,
@@ -48,6 +53,7 @@ class StrategyOneDv2Config:
     atr_stop_mult: float = 2.0              # PR-F: stop = entry - mult×ATR(14)
     atr_stop_support_buffer: float = 1.0    # PR-F: prev_support - buffer×ATR(14)
     prev_support_lookback: int = 20         # PR-F: prev_support = 최근 N봉 저점
+    use_donchian_levels: bool = False       # 30m Donchian 기반 trade_plan 산출 (Optional)
 
 
 def _build_detector(
@@ -145,6 +151,25 @@ class StrategyOneDv2:
                 last_idx = len(prepared) - 1
                 signal = self._engine.check_entry(prepared, last_idx, ticker=ticker)
                 if signal is None:
+                    continue
+
+                # Entry gate: 1d regime + 1h setup_score 검사
+                regime = ctx.per_ticker_regime.get(ticker)
+                d_1h = ctx.donchian_1h_by_ticker.get(ticker)
+                if d_1h is not None:
+                    setup = mean_rev_setup_quality(d_1h)
+                    setup_score: int | None = setup.score
+                    setup_reasons = list(setup.reasons)
+                else:
+                    setup_score = None
+                    setup_reasons = None
+
+                # Gate 1: regime + setup_score 정책 매트릭스
+                if not is_strategy_allowed(self.name, regime, setup_score):
+                    continue
+
+                # Gate 2: setup_score 임계값 (메타 점수 가산 X, 차단만)
+                if setup_score is not None and setup_score < SETUP_SCORE_THRESHOLD_DEFAULT:
                     continue
 
                 cap_won = ctx.market_caps.get(ticker, 0.0)
@@ -248,6 +273,11 @@ class StrategyOneDv2:
                         # PR-I: 멀티 TF RSI
                         "rsi_1h": rsi_1h,
                         "rsi_30m": rsi_30m,
+                        # Task 5a: entry gate
+                        "per_ticker_regime": regime,
+                        "setup_score": setup_score,
+                        "setup_reasons": setup_reasons,
+                        "bars_since_trigger": 0,
                     },
                     limit_entry=limit_entry,
                     limit_stop=limit_stop,

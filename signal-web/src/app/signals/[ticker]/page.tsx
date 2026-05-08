@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { fetchSignal, fetchSignals } from '@/lib/api';
-import { adaptSignal } from '@/lib/adapt';
+import { adaptDetailSignal } from '@/lib/adapt';
 import DetailClient from '@/components/DetailClient';
 
 export default async function Page({ params }: { params: Promise<{ ticker: string }> }) {
@@ -13,11 +13,11 @@ export default async function Page({ params }: { params: Promise<{ ticker: strin
 
   if (!signal) notFound();
 
-  const card = adaptSignal(signal, context.generated_at_display);
+  const detail = adaptDetailSignal(signal);
 
   return (
     <DetailClient
-      card={card}
+      detail={detail}
       marketIndices={context.market_indices}
       targetDateDisplay={context.target_date_display}
       marketRegime={context.market_regime}

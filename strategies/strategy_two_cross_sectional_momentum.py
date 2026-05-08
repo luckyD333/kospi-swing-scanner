@@ -26,6 +26,11 @@ import numpy as np
 import pandas as pd
 
 from backtest_engine.core import calc_atr
+from core.decision.entry_gate import is_strategy_allowed
+from core.decision.setup_quality import (
+    trend_setup_quality,
+    SETUP_SCORE_THRESHOLD_DEFAULT,
+)
 from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
@@ -50,6 +55,7 @@ class StrategyTwoConfig:
     target_1_pct: float = 0.03          # +3%
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
     atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
+    use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
 
 
 class StrategyTwoCrossSectionalMomentum:
@@ -131,8 +137,48 @@ class StrategyTwoCrossSectionalMomentum:
             if rank < cfg.entry_percentile:
                 continue
 
+            # Entry gate: 1d regime + 1h setup_score 검사
+            regime = ctx.per_ticker_regime.get(ticker)
+            d_1h = ctx.donchian_1h_by_ticker.get(ticker)
+            if d_1h is not None:
+                setup = trend_setup_quality(d_1h)
+                setup_score: int | None = setup.score
+                setup_reasons = list(setup.reasons)
+            else:
+                setup_score = None
+                setup_reasons = None
+
+            # Gate 1: regime + setup_score 정책 매트릭스
+            if not is_strategy_allowed(self.name, regime, setup_score):
+                continue
+
+            # Gate 2: setup_score 임계값 (메타 점수 가산 X, 차단만)
+            if setup_score is not None and setup_score < SETUP_SCORE_THRESHOLD_DEFAULT:
+                continue
+
+            # 가드레일 1: 거래량 1.5× 이상 필요 (추세 추종 전략 공통)
+            vol_today = float(df["volume"].iloc[-1])
+            avg_vol = float(df["volume"].iloc[-20:].mean()) if len(df) >= 20 else float(df["volume"].mean())
+            if avg_vol > 0 and vol_today < avg_vol * 1.0:  # Task 10 완화: 1.5 → 1.0 (strategy 본인 vol filter 와 중복 방지)
+                continue
+
             close_now = float(df["close"].iloc[-1])
             entry = round_to_tick(close_now)
+
+            # 가드레일 2: 1d width_percentile_60 > 0.85 → score ×0.7 (변동성 휩쏘 위험)
+            d_1d = ctx.donchian_1d_by_ticker.get(ticker) if hasattr(ctx, "donchian_1d_by_ticker") else None
+            score_multiplier = 1.0
+            if d_1d is not None:
+                # NaN 확인
+                if d_1d.width_percentile_60 == d_1d.width_percentile_60:  # not NaN
+                    if d_1d.width_percentile_60 > 0.85:
+                        score_multiplier = 0.7
+
+            # 가드레일 3: 52주 고가 ±3% 이내 → signal_strength ≥ 75 추가 요구 (메타 플래그)
+            high_52w = float(df["high"].iloc[-min(252, len(df)):].max())
+            near_52w_high = False
+            if high_52w > 0 and abs(close_now - high_52w) / high_52w <= 0.03:
+                near_52w_high = True
             sl = floor_to_tick(entry * (1 - cfg.stop_loss_pct))
             # ATR 14일 계산 (t2 산출에 선행)
             atr_series = calc_atr(df["high"], df["low"], df["close"], period=14)
@@ -172,7 +218,7 @@ class StrategyTwoCrossSectionalMomentum:
                 name=ctx.names.get(ticker, ticker),
                 strategy=self.name,
                 signal_date=df.index[-1],
-                score=float(rank) * 1000,
+                score=float(rank) * 1000 * score_multiplier,
                 entry_price=entry,
                 stop_loss=sl,
                 target_1=t1,
@@ -197,6 +243,13 @@ class StrategyTwoCrossSectionalMomentum:
                     "rr_band": rr_band,
                     "atr_14": atr_14,
                     "rsi_14": rsi_14_val,
+                    # Task 5a: entry gate
+                    "per_ticker_regime": regime,
+                    "setup_score": setup_score,
+                    "setup_reasons": setup_reasons,
+                    "bars_since_trigger": 0,
+                    # Task 5e: 52주 고가 근접 (signal_strength percentile 추가 검증용)
+                    "near_52w_high": near_52w_high,
                 },
             ))
 

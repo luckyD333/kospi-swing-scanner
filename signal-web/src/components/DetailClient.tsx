@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { CardProps } from '@/lib/adapt';
+import type { DetailProps, MatchProps } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
 import { confirmationColor, confirmationBg } from '@/lib/signal-colors';
@@ -12,7 +12,7 @@ import Footer from './Footer';
 import AboutOverlay from './AboutOverlay';
 
 interface Props {
-  card: CardProps;
+  detail: DetailProps;
   marketIndices: Record<string, MarketIndex>;
   targetDateDisplay?: string;
   marketRegime?: Record<string, RegimeScore> | null;
@@ -140,16 +140,8 @@ function gradeForeign(p: number | null) {
   return { mark: '·' as const, note: '', tone: 'var(--muted)' };
 }
 
-function getScoreCaption(strategyId: string): string {
-  if (strategyId.startsWith('strategy_one_')) return 'Mean Reversion 신호 강도 (RSI/BB/쌍바닥/장악형)';
-  if (strategyId.startsWith('strategy_two_')) return '15일 상대 수익률 순위';
-  if (strategyId.startsWith('strategy_three_')) return 'Donchian 20일 채널 돌파 강도';
-  if (strategyId.startsWith('strategy_four_')) return 'MA20 추세 + MA5 눌림목 회복도';
-  if (strategyId.startsWith('strategy_five_')) return 'Bull flag 돌파 강도';
-  return '전략 점수';
-}
 
-export default function DetailClient({ card, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
+export default function DetailClient({ detail, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
   const router = useRouter();
   const [aboutOpen, setAboutOpen] = useState(false);
   const onCloseAbout = useCallback(() => setAboutOpen(false), []);
@@ -161,33 +153,39 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
   const {
     name, nameEn, ticker,
     priceDisplay, changeDisplay, direction,
-    entry, stop, target1, target2,
-    signalStrength,
+    potentialScore, potentialFactors,
+    matches,
     rsi1d, rsi1h, rsi30m,
     per, high52w, low52w,
     foreignRatioPct, volumeDisplay, marketCapDisplay,
-    riskPerShare, riskPct, reward1Pct, reward2Pct,
-    rrRatio, rrBand, atr14, changePct, currentPrice,
-    strategyId, strategyLabel, strategyCategory, timeframe,
+    atr14, changePct, currentPrice,
     naverUrl, generatedAtDisplay, signalDate,
-    decisionScore, decisionFactors, decisionRegretScore, decisionRegretFactors,
-    rank,
-    limitEntryActive, eodEntry, signalStatus,
-    productType, orderTypeLabel, confirmationLevel, activeRegime, tradabilityScore,
-  } = card;
+    confirmationLevel, activeRegime, tradabilityScore,
+  } = detail;
 
-  const statusBadge = (() => {
-    switch (signalStatus) {
-      case 'TARGET_REACHED':
-        return { label: '목표 도달', color: '#30d158', bg: 'rgba(48,209,88,0.12)' };
-      case 'STOPPED_OUT':
-        return { label: '손절선 이탈', color: '#ff6b81', bg: 'rgba(255,107,129,0.12)' };
-      case 'STALE':
-        return { label: '만료', color: 'var(--muted)', bg: 'rgba(128,128,128,0.12)' };
-      default:
-        return null;
-    }
-  })();
+  // 대표 match (첫 번째) 선택
+  const baseMatch = matches?.[0];
+  const entry = baseMatch?.entry ?? 0;
+  const stop = baseMatch?.stop ?? 0;
+  const target1 = baseMatch?.target1 ?? null;
+  const target2 = baseMatch?.target2 ?? null;
+  const rrRatio = baseMatch?.rrRatio ?? null;
+  const rrBand = baseMatch?.rrBand ?? null;
+
+  // 대표 match에서 risk/reward 계산
+  const riskPerShare = entry > 0 && stop > 0 ? entry - stop : null;
+  const riskPct = riskPerShare != null && entry > 0
+    ? Math.round((riskPerShare / entry) * 10000) / 100
+    : null;
+  const reward1Pct = target1 != null && entry > 0
+    ? Math.round(((target1 - entry) / entry) * 10000) / 100
+    : null;
+  const reward2Pct = target2 != null && entry > 0
+    ? Math.round(((target2 - entry) / entry) * 10000) / 100
+    : null;
+
+  // statusBadge는 더 이상 사용되지 않음 (legacy)
+  const statusBadge = null;
 
   const pct52w =
     currentPrice != null && high52w != null && low52w != null && high52w > low52w
@@ -231,35 +229,11 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
       }}>
         <div style={{ ...LABEL, marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <span>
-            {rank != null ? `#${rank} · ` : ''}{strategyLabel} · {strategyCategory} · {timeframe} · {generatedAtDisplay}
+            {matches.length > 1 ? `${matches.length}개 전략 매칭 · ` : ''}
+            {baseMatch ? `${baseMatch.strategy.label} · ${baseMatch.strategy.timeframe} · ` : ''}
+            {generatedAtDisplay}
             {signalDate ? ` · 신호 시각 ${signalDate}` : ''}
           </span>
-          {statusBadge && (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '2px 10px',
-              borderRadius: '4px',
-              background: statusBadge.bg,
-              color: statusBadge.color,
-              fontSize: '12px',
-              fontWeight: 600,
-              letterSpacing: '0',
-            }}>
-              {statusBadge.label}
-            </span>
-          )}
-          {productType && !['STOCK', 'UNKNOWN'].includes(productType) && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center',
-              padding: '2px 10px', borderRadius: '4px',
-              background: 'rgba(76,152,185,0.12)',
-              color: '#4c98b9',
-              fontSize: '12px', fontWeight: 600,
-            }}>
-              {productType}
-            </span>
-          )}
         </div>
 
         {/* 종목명 + 코드 — 동적 clamp size */}
@@ -317,13 +291,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             {
               label: '진입가',
               val: entry,
-              sub: (() => {
-              if (limitEntryActive) {
-                const typeLabel = orderTypeLabel ? ` ${orderTypeLabel}` : '';
-                return `30m${typeLabel}${eodEntry != null ? ` · EOD ${eodEntry.toLocaleString('ko-KR')} 참고` : ''}`;
-              }
-              return orderTypeLabel ?? null;
-            })(),
+              sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '',
               color: 'var(--link)',
             },
             { label: '손절가', val: stop,    sub: riskPerShare != null && riskPct != null ? `리스크 ${riskPerShare.toLocaleString('ko-KR')} (${riskPct.toFixed(1)}%)` : '', color: C_RISK },
@@ -469,8 +437,8 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         </div>
       </div>
 
-      {/* 의사결정 스코어 */}
-      {decisionScore != null && decisionFactors != null && (() => {
+      {/* 잠재력 점수 섹션 */}
+      {potentialScore != null && (() => {
         const dayRegime = marketRegime?.['1d'] ?? null;
         const regimeColor = dayRegime
           ? dayRegime.regime === 'BULL' ? 'var(--gain)'
@@ -478,7 +446,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             : 'var(--flat)'
           : 'var(--muted)';
 
-        const sortedByContrib = [...decisionFactors].sort((a, b) => b.contribution - a.contribution);
+        const sortedByContrib = potentialFactors ? [...potentialFactors].sort((a, b) => b.contribution - a.contribution) : [];
         const top1 = sortedByContrib[0];
         const top2 = sortedByContrib[1];
         const summarySentence =
@@ -503,7 +471,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
                 <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-                  {decisionScore.toFixed(1)}
+                  {potentialScore.toFixed(1)}
                 </div>
                 <div style={{ ...ts('caption', 'var(--muted)') }}>
                   / 100
@@ -565,7 +533,7 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
 
             {/* Factor 행들 */}
             <div>
-              {decisionFactors.map((f) => {
+              {potentialFactors && potentialFactors.map((f) => {
                 const fillPct = f.weight > 0 ? Math.min(100, (f.contribution / f.weight) * 100) : 0;
                 return (
                   <div key={f.key} style={{
@@ -603,199 +571,140 @@ export default function DetailClient({ card, marketIndices, targetDateDisplay, m
         );
       })()}
 
-      {/* 기회 점수 */}
-      {decisionRegretScore != null && (
+      {/* 매칭 전략 리스트 섹션 */}
+      {matches && matches.length > 0 && (
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
-          <div style={SECTION_HEAD}>기회 점수</div>
-          <div style={{
-            display: 'flex', alignItems: 'baseline', gap: '12px',
-            paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
-          }}>
-            <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-              {decisionRegretScore.toFixed(1)}
+          {matches.length > 1 && (
+            <div style={SECTION_HEAD}>
+              매칭 전략 {matches.length}개
             </div>
-            <div style={{ ...ts('caption', 'var(--muted)') }}>/ 100</div>
-          </div>
-          <div style={{ ...ts('caption', 'var(--body)'), paddingTop: '24px', lineHeight: 1.6 }}>
-            높을수록 매수 우선순위가 높아요. 목표 수익↑·손절 폭↓·다전략 합의도를 종합해 "안 사면 후회 남을" 종목을 위로 올리는 점수예요.
-          </div>
-
-          {/* 4축 Factor Breakdown */}
-          {decisionRegretFactors && decisionRegretFactors.length > 0 && (
-            <>
-              <div style={{ ...ts('caption-sm', 'var(--muted)'), paddingTop: '32px', paddingBottom: '12px' }}>
-                Factor Breakdown
-              </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
-                alignItems: 'center',
-                gap: '16px',
-                padding: '12px 0',
-                borderBottom: '1px solid var(--hairline)',
-              }}>
-                <div style={ts('caption-sm', 'var(--muted-soft)')}>요인</div>
-                <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>가중치</div>
-                <div style={ts('caption-sm', 'var(--muted-soft)')}>기여도</div>
-                <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>값</div>
-              </div>
-              <div>
-                {decisionRegretFactors.map((f) => {
-                  const fillPct = f.weight > 0 ? Math.min(100, (f.contribution / f.weight) * 100) : 0;
-                  return (
-                    <div key={f.key} style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
-                      alignItems: 'center',
-                      gap: '16px',
-                      padding: '14px 0',
-                      borderBottom: '1px solid var(--hairline)',
-                    }}>
-                      <div style={{ ...ts('caption', 'var(--ink)') }}>{f.label}</div>
-                      <div style={{ ...ts('caption', 'var(--muted)'), textAlign: 'right' }}>
-                        {f.weight.toFixed(0)}%
-                      </div>
-                      <div style={{ background: 'var(--hairline)', borderRadius: '2px', height: '4px', overflow: 'hidden' }}>
-                        <div style={{
-                          width: `${Math.max(fillPct, fillPct > 0 ? 1 : 0).toFixed(1)}%`,
-                          height: '100%',
-                          background: 'var(--accent)',
-                          borderRadius: '2px',
-                        }} />
-                      </div>
-                      <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '13px', color: 'var(--ink)', textAlign: 'right' }}>
-                        {f.contribution.toFixed(1)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), marginTop: '16px', lineHeight: 1.6 }}>
-                4행 합산이 기회 점수와 일치해요. 각 요인은 후보 풀 내 백분위 순위 × 정책 가중치예요.
-              </div>
-            </>
           )}
+          {matches.map((match, idx) => (
+            <div key={idx} style={{
+              marginBottom: idx < matches.length - 1 ? '48px' : '0',
+              paddingBottom: idx < matches.length - 1 ? '48px' : '0',
+              borderBottom: idx < matches.length - 1 ? '1px solid var(--hairline)' : 'none',
+            }}>
+              {/* 매칭 전략 헤더 */}
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: '12px',
+                marginBottom: '24px',
+              }}>
+                <div style={{ ...ts('caption', 'var(--ink)'), fontWeight: 600 }}>
+                  {match.strategy.label}
+                </div>
+                <div style={ts('caption-sm', 'var(--muted)')}>
+                  {match.strategy.timeframe}
+                </div>
+              </div>
+
+              {/* 신호 강도 + 기회 점수 */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px',
+                paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
+              }}>
+                <div>
+                  <div style={{ ...LABEL, marginBottom: '12px' }}>신호 강도</div>
+                  <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+                    {match.signalStrength != null ? match.signalStrength.toFixed(1) : '—'}
+                  </div>
+                  <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
+                </div>
+                <div>
+                  <div style={{ ...LABEL, marginBottom: '12px' }}>기회 점수</div>
+                  <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '32px', color: 'var(--ink)', letterSpacing: '-1px' }}>
+                    {match.opportunityScore != null ? match.opportunityScore.toFixed(1) : '—'}
+                  </div>
+                  <div style={ts('caption-sm', 'var(--muted-soft)')}>/100</div>
+                </div>
+              </div>
+
+              {/* 매매 파라미터 */}
+              <div style={{ paddingTop: '32px', paddingBottom: '32px', borderBottom: '1px solid var(--hairline)' }}>
+                <div style={{ ...LABEL, marginBottom: '24px' }}>매매 파라미터</div>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px',
+                }}>
+                  {[
+                    { label: '진입가', val: match.entry, color: 'var(--link)' },
+                    { label: '손절가', val: match.stop, color: C_RISK },
+                    { label: '목표 1', val: match.target1, color: C_OPP },
+                    { label: '목표 2', val: match.target2, color: C_OPP },
+                  ].map(({ label, val, color }) => (
+                    <div key={label}>
+                      <div style={ts('caption-sm', 'var(--muted)')}>
+                        {label}
+                      </div>
+                      {val != null ? (
+                        <PriceScramble
+                          priceDisplay={val.toLocaleString('ko-KR')}
+                          fontSize="20px"
+                          color={color}
+                        />
+                      ) : (
+                        <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '20px', color: 'var(--muted-soft)' }}>—</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 기회 점수 Factor Breakdown */}
+              {match.opportunityFactors && match.opportunityFactors.length > 0 && (
+                <div style={{ paddingTop: '32px' }}>
+                  <div style={ts('caption-sm', 'var(--muted)')}>기회 점수 Factor Breakdown</div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
+                    alignItems: 'center',
+                    gap: '16px',
+                    padding: '12px 0',
+                    borderBottom: '1px solid var(--hairline)',
+                    marginTop: '12px',
+                  }}>
+                    <div style={ts('caption-sm', 'var(--muted-soft)')}>요인</div>
+                    <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>가중치</div>
+                    <div style={ts('caption-sm', 'var(--muted-soft)')}>기여도</div>
+                    <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), textAlign: 'right' }}>값</div>
+                  </div>
+                  <div>
+                    {match.opportunityFactors.map((f) => {
+                      const fillPct = f.weight > 0 ? Math.min(100, (f.contribution / f.weight) * 100) : 0;
+                      return (
+                        <div key={f.key} style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(80px, 160px) minmax(40px, 56px) 1fr minmax(40px, 56px)',
+                          alignItems: 'center',
+                          gap: '16px',
+                          padding: '14px 0',
+                          borderBottom: '1px solid var(--hairline)',
+                        }}>
+                          <div style={ts('caption', 'var(--ink)')}>{f.label}</div>
+                          <div style={{ ...ts('caption', 'var(--muted)'), textAlign: 'right' }}>
+                            {f.weight.toFixed(0)}%
+                          </div>
+                          <div style={{ background: 'var(--hairline)', borderRadius: '2px', height: '4px', overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${Math.max(fillPct, fillPct > 0 ? 1 : 0).toFixed(1)}%`,
+                              height: '100%',
+                              background: 'var(--accent)',
+                              borderRadius: '2px',
+                            }} />
+                          </div>
+                          <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '13px', color: 'var(--ink)', textAlign: 'right' }}>
+                            {f.contribution.toFixed(1)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* 신호 강도 */}
-      {(() => {
-        const scoreCaption = getScoreCaption(strategyId);
-
-        const rows: RankRationaleRow[] = [
-          {
-            label: '손익비',
-            value: rrRatio != null ? `${rrRatio.toFixed(1)}${rrBand ? ` / ${rrBand}` : ''}` : '—',
-            ...gradeRR(rrRatio, rrBand),
-          },
-          {
-            label: '손절 폭',
-            value: riskPct != null ? `${riskPct.toFixed(1)}%` : '—',
-            ...gradeRiskPct(riskPct),
-          },
-          {
-            label: '목표(T2)',
-            value: reward2Pct != null ? `+${reward2Pct.toFixed(1)}%` : '—',
-            ...gradeReward(reward2Pct),
-          },
-          {
-            label: '당일 등락',
-            value: changePct != null ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%` : '—',
-            ...gradeChange(changePct),
-          },
-          {
-            label: 'RSI(1D)',
-            value: rsi1d != null ? rsi1d.toFixed(1) : '—',
-            ...gradeRsi(rsi1d),
-          },
-          {
-            label: '52주 위치',
-            value: pct52w != null ? `${pct52w.toFixed(0)}%` : '—',
-            ...grade52w(pct52w),
-          },
-          {
-            label: 'PER',
-            value: per != null && per > 0 ? `${per.toFixed(1)}x` : '—',
-            ...gradePer(per),
-          },
-          {
-            label: '외국인 비율',
-            value: foreignRatioPct != null ? `${foreignRatioPct.toFixed(1)}%` : '—',
-            ...gradeForeign(foreignRatioPct),
-          },
-          {
-            label: '거래 용이성',
-            value: tradabilityScore != null ? `${tradabilityScore.toFixed(0)}/100` : '—',
-            ...gradeTradability(tradabilityScore),
-          },
-        ];
-
-        return (
-          <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '56px 40px 0' }}>
-            <div style={SECTION_HEAD}>
-              신호 강도
-            </div>
-
-            {/* 신호 강도 수치 블록 */}
-            {signalStrength != null && (
-              <div style={{
-                display: 'flex', alignItems: 'baseline', gap: '12px',
-                paddingBottom: '32px', borderBottom: '1px solid var(--hairline)',
-              }}>
-                <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '48px', color: 'var(--ink)', letterSpacing: '-1px' }}>
-                  {signalStrength.toFixed(1)}
-                </div>
-                <div style={{ ...ts('caption', 'var(--muted)') }}>/ 100</div>
-                <div style={{ ...ts('caption-sm', 'var(--muted-soft)') }}>{scoreCaption}</div>
-              </div>
-            )}
-
-            {/* 헤드라인 */}
-            <div style={{
-              display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-              gap: '16px', flexWrap: 'wrap',
-              paddingBottom: '24px', paddingTop: '32px',
-              borderBottom: '1px solid var(--hairline)',
-            }}>
-              <div style={{ ...ts('caption', 'var(--body)'), lineHeight: 1.6 }}>
-                {strategyLabel} ({strategyCategory}) 후보 풀에서{' '}
-                <span style={{ color: 'var(--ink)' }}>{rank != null ? `#${rank}위` : '—'}</span>
-              </div>
-            </div>
-
-            {/* 참고 지표 sub-label */}
-            <div style={{ ...ts('caption-sm', 'var(--muted)'), paddingTop: '32px', paddingBottom: '12px' }}>
-              참고 지표
-            </div>
-
-            {/* 지표 행들 */}
-            <div>
-              {rows.map((r) => (
-                <div key={r.label} style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(80px, 160px) 1fr minmax(80px, 140px)',
-                  alignItems: 'center',
-                  gap: '16px',
-                  padding: '14px 0',
-                  borderBottom: '1px solid var(--hairline)',
-                }}>
-                  <div style={ts('caption', 'var(--ink)')}>{r.label}</div>
-                  <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '15px', color: 'var(--ink)' }}>
-                    {r.value}
-                  </div>
-                  <div style={{ ...ts('caption-sm', r.tone), textAlign: 'right' }}>
-                    {r.mark}{r.mark && r.note ? ' ' : ''}{r.note}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ ...ts('caption-sm', 'var(--muted-soft)'), marginTop: '16px', lineHeight: 1.6 }}>
-              순위는 전략별 점수 내림차순 정렬 결과예요. 위 8개 지표는 진입 안정성·모멘텀·펀더멘탈 관점에서 산출 근거를 보조적으로 평가하기 위한 참고치이며 ATR(14)는 {atr14 != null ? atr14.toLocaleString('ko-KR') : '—'} 입니다.
-            </div>
-          </div>
-        );
-      })()}
 
       <div style={{ height: '30px' }} />
       <Footer />

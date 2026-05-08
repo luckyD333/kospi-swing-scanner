@@ -29,14 +29,19 @@ from strategies.strategy_two_cross_sectional_momentum import (
 # ============================================================================
 
 def _trend_df(start_price: float, daily_return: float, n: int = 30, volume: int = 1_000_000) -> pd.DataFrame:
-    """일정 일간 수익률로 상승/하락하는 결정론적 OHLCV."""
+    """일정 일간 수익률로 상승/하락하는 결정론적 OHLCV.
+
+    마지막 봉 volume 은 2× boost — Task 5e 거래량 1.5× 가드레일 통과용.
+    (volume_filter 테스트는 호출자에서 마지막 봉을 명시적으로 덮어씀)
+    """
     closes = [start_price * ((1 + daily_return) ** i) for i in range(n)]
+    volumes = [volume] * (n - 1) + [volume * 2]
     return pd.DataFrame({
         "open": closes,
         "high": [c * 1.005 for c in closes],
         "low": [c * 0.995 for c in closes],
         "close": closes,
-        "volume": [volume] * n,
+        "volume": volumes,
     }, index=pd.date_range("2026-01-01", periods=n, freq="D"))
 
 

@@ -15,13 +15,17 @@ DSL 형식:
 from __future__ import annotations
 
 import json
+import logging
 import operator
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 VALID_DIRECTIONS = ("lower_better", "higher_better")
 # value 는 numeric/string/boolean 모두 허용 — 임의 word 매칭 후 parse 단계에서 type 분기.
@@ -124,6 +128,14 @@ class WeightConfig:
         if not p.exists():
             raise FileNotFoundError(f"weights 설정 파일 없음: {p}")
         data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+
+        # Task 6: 구형식 weights 감지 → 자동 migration
+        priorities_raw = data.get("priorities", [])
+        if _is_legacy_weights(priorities_raw):
+            # 구형식 감지됨 → backup + migration
+            backup_legacy_weights(p)
+            data = migrate_legacy_weights(data)
+
         priorities = [
             Priority(
                 key=item["key"],
@@ -272,3 +284,141 @@ def eval_must_have(exprs: list[str], metrics: dict) -> bool:
             except TypeError:
                 return False
     return True
+
+
+# ---------------------------------------------------------------------------
+# Task 6: Legacy weights.yml migration
+# ---------------------------------------------------------------------------
+
+LEGACY_KEY_MAP: dict[str, str | None] = {
+    "ensemble_score": None,      # 잠재력에서 완전 제거 (대응 factor 없음, drop)
+    "momentum_pct": "momentum_3m",  # 단기 → 중기 모멘텀으로 의미 변경
+    "rr_ratio": None,             # 잠재력에서 제거, 기회 점수 R:R 그룹으로 재배치
+    "ensemble": None,             # 기회 점수에서도 제거 (정보 중복)
+}
+
+
+def backup_legacy_weights(path: Path) -> Path | None:
+    """구형식 weights.yml 을 weights.legacy.yml.bak 으로 백업.
+
+    이미 백업이 존재하면 덮어쓰지 않음 (기존 백업 보존).
+    백업 실패 시 None 반환, migration 은 진행.
+    """
+    backup = path.with_suffix(".legacy.yml.bak")
+    if backup.exists():
+        return backup  # 기존 백업 보존
+    try:
+        shutil.copy2(path, backup)
+        logger.info(f"구형식 weights.yml 백업 생성: {backup}")
+        return backup
+    except OSError as e:
+        logger.warning(f"weights.yml 백업 실패: {e}. 계속 진행합니다.")
+        return None
+
+
+def _is_legacy_weights(priorities_list: list[dict]) -> bool:
+    """weights yaml 이 구형식인지 판정.
+
+    구형식 key 가 하나라도 있으면 legacy 로 간주.
+    """
+    legacy_keys = set(LEGACY_KEY_MAP.keys())
+    present_keys = {item.get("key") for item in priorities_list}
+    return bool(present_keys & legacy_keys)
+
+
+def migrate_legacy_weights(yaml_dict: dict) -> dict:
+    """구형식 priority key 를 신규 key 로 변환.
+
+    동작:
+      1. priorities 리스트 순회
+      2. key 가 LEGACY_KEY_MAP 에 있으면 매핑 확인
+         - value 가 None → drop + 경고 (logger.warning)
+         - value 가 str → key 만 신규 이름으로 갱신, weight 유지
+      3. drop 된 항목의 가중치를 남은 항목에 정규화 분배
+      4. 각 pool 별 weight 합 100% 로 정규화
+      5. 결과 dict 반환
+
+    이미 신규 형식이면 그대로 통과.
+    """
+    priorities = yaml_dict.get("priorities", [])
+
+    if not _is_legacy_weights(priorities):
+        # 신규 형식이거나 legacy key 가 없으면 그대로 반환
+        return yaml_dict
+
+    new_priorities = []
+    dropped_weight = 0.0
+
+    for item in priorities:
+        key = item.get("key")
+
+        if key in LEGACY_KEY_MAP:
+            new_key = LEGACY_KEY_MAP[key]
+            if new_key is None:
+                # drop 케이스
+                dropped_weight += item.get("weight", 0.0)
+                logger.warning(
+                    f"잠재력 점수에서 제거됨 (대응 factor 없음): {key!r}. "
+                    f"기회 점수 또는 신규 factor 로 재배치되었습니다."
+                )
+                continue
+            else:
+                # 매핑 케이스: key 만 변경, 나머지는 유지
+                item = dict(item)  # shallow copy
+                logger.warning(
+                    f"priority key 변환: {key!r} → {new_key!r}. "
+                    f"의미 변경 확인 (단기→중기 모멘텀 등): {item.get('label')}"
+                )
+                item["key"] = new_key
+
+        new_priorities.append(item)
+
+    # drop 된 가중치를 남은 항목에 proportionally 분배 (정규화)
+    if new_priorities and dropped_weight > 0.01:
+        total_weight = sum(p.get("weight", 0.0) for p in new_priorities)
+        if total_weight > 0.01:
+            scale_factor = 100.0 / total_weight
+            for item in new_priorities:
+                item["weight"] = item.get("weight", 0.0) * scale_factor
+            logger.info(
+                f"drop 된 가중치({dropped_weight:.1f}) 를 남은 항목에 정규화 분배. "
+                f"정규화 인수: {scale_factor:.3f}"
+            )
+
+    # 새 priorities 로 dict 업데이트
+    result = dict(yaml_dict)
+    result["priorities"] = new_priorities
+
+    # Pool 별 weight 합 검증
+    _validate_pool_weights(result)
+
+    return result
+
+
+def _validate_pool_weights(yaml_dict: dict) -> None:
+    """Pool 별 가중치 합 검증 및 경고.
+
+    각 pool (STOCK, ETN_ETF, BOND_ETF, OTHER) 별로
+    적용 가능한 priority 의 weight 합이 100% 인지 확인.
+    미달 또는 초과 시 logger.warning 으로 안내.
+    """
+    priorities = yaml_dict.get("priorities", [])
+
+    # pool 명 수집
+    all_pools = set()
+    for item in priorities:
+        applies_to = item.get("applies_to_pools", _DEFAULT_POOLS)
+        all_pools.update(applies_to)
+
+    # pool 별 weight 합 검증
+    for pool in all_pools:
+        pool_weight = sum(
+            item.get("weight", 0.0)
+            for item in priorities
+            if pool in item.get("applies_to_pools", _DEFAULT_POOLS)
+        )
+        if abs(pool_weight - 100.0) > 0.01:
+            logger.warning(
+                f"Pool '{pool}' 의 priority weight 합이 100이 아닙니다: {pool_weight:.2f}. "
+                f"aggregator 에서 동적 정규화되거나, 설정을 검토하세요."
+            )

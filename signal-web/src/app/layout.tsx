@@ -26,7 +26,7 @@ const pretendard = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Signal — This Week's Stock Signals",
+  title: "SIG-BORA — Daily Stock Signals",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

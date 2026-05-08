@@ -28,6 +28,11 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from core.decision.entry_gate import is_strategy_allowed
+from core.decision.setup_quality import (
+    trend_setup_quality,
+    SETUP_SCORE_THRESHOLD_DEFAULT,
+)
 from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
@@ -55,6 +60,7 @@ class StrategyThreeConfig:
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
     atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
     score_scale: float = 20000.0        # breakout_pct × scale → score (0..1000 cap; 5% 돌파 = 1000점)
+    use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
 
 
 class StrategyThreeTrendFollowing:
@@ -98,6 +104,7 @@ class StrategyThreeTrendFollowing:
                 close = df["close"]
                 high = df["high"]
                 low = df["low"]
+                volume = df["volume"]
 
                 # 1) Donchian 채널 — 직전 lookback 봉 (오늘 제외)
                 channel_high = float(high.iloc[-(cfg.lookback + 1):-1].max())
@@ -112,6 +119,40 @@ class StrategyThreeTrendFollowing:
                 if close_now <= channel_high:
                     continue
                 breakout_pct = (close_now - channel_high) / channel_high
+
+                # Entry gate: 1d regime + 1h setup_score 검사
+                regime = ctx.per_ticker_regime.get(ticker)
+                d_1h = ctx.donchian_1h_by_ticker.get(ticker)
+                if d_1h is not None:
+                    setup = trend_setup_quality(d_1h)
+                    setup_score: int | None = setup.score
+                    setup_reasons = list(setup.reasons)
+                else:
+                    setup_score = None
+                    setup_reasons = None
+
+                # Gate 1: regime + setup_score 정책 매트릭스
+                if not is_strategy_allowed(self.name, regime, setup_score):
+                    continue
+
+                # Gate 2: setup_score 임계값 (메타 점수 가산 X, 차단만)
+                if setup_score is not None and setup_score < SETUP_SCORE_THRESHOLD_DEFAULT:
+                    continue
+
+                # Task 5b: Donchian 필터 보강 (Task 5e와 구분)
+                # NOTE: 거래량 동반 필터 (1.5×) 는 Task 5e (가드레일) 에서 구현
+                #       Task 5b 는 횡보 회피 필터만 담당
+
+                vol_today = float(volume.iloc[-1])
+                avg_vol_20 = float(volume.iloc[-20:].mean()) if len(volume) >= 20 else float(volume.mean())
+
+                # Task 5b: 횡보 회피 필터 (469830 채권 ETF 같은 완전 평탄 채널 차단)
+                # 채널 폭이 매우 좁은 경우만 제외 (flat consolidation detection)
+                # channel_width / channel_high < 0.0001 → 0.01% 미만 폭 → 제외
+                # (469830: width ≈ 0.002%, 정상 주식: width ≥ 1% ~ 5%)
+                channel_width_pct = (channel_high - channel_low) / max(channel_high, 1e-9)
+                if channel_width_pct < 0.0001:
+                    continue
 
                 # 3.5) PR-E (P1-3): 단일일 급등 페널티 — 추세 추종 한정
                 # NAV 괴리율 회귀·단일 호가 체결 가능성을 추세로 오인하는 결함 차단.
@@ -162,10 +203,10 @@ class StrategyThreeTrendFollowing:
 
                 cap_won = ctx.market_caps.get(ticker, 0.0)
                 cap_bil = float(cap_won) / 100_000_000
-                avg_vol_20 = float(df["volume"].iloc[-20:].mean()) \
-                    if len(df) >= 20 else float(df["volume"].mean())
 
-                # 신규 metadata 키 계산
+                # Task 5b: 신규 metadata 키 계산
+                vol_ratio = vol_today / max(avg_vol_20, 1e-9)  # 메타 노출용
+                bars_since_trigger = 0  # Strategy Three은 즉시 신호
                 risk_pct = (entry - stop_loss) / entry * 100
                 reward_pct_t2 = (t2 - entry) / entry * 100
                 rr_ratio = 0.0 if risk_pct == 0 else reward_pct_t2 / risk_pct
@@ -222,6 +263,14 @@ class StrategyThreeTrendFollowing:
                         # PR-G: 목표가 산정 근거
                         "target_1_rationale": "1R 목표가 (진입-손절 × 1)",
                         "target_2_rationale": "Donchian 채널 폭 목표가",
+                        # Task 5b: Donchian 필터 정보 (메타 노출)
+                        "channel_width": channel_high - channel_low,
+                        "channel_width_pct": channel_width_pct,
+                        "vol_ratio": float(vol_ratio),
+                        "bars_since_trigger": bars_since_trigger,
+                        "per_ticker_regime": regime,
+                        "setup_score": setup_score,
+                        "setup_reasons": setup_reasons,
                     },
                 ))
             except Exception as e:

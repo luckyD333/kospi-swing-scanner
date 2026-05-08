@@ -53,7 +53,8 @@ async def test_signals_returns_200_when_file_exists(with_signals):
     async with _make_client() as c:
         r = await c.get("/api/signals")
     assert r.status_code == 200
-    assert r.json()["schema_version"] == "1.0"
+    # Task 8: catalog 응답은 schema_version 2.0
+    assert r.json()["schema_version"] == "2.0"
 
 
 async def test_signals_returns_503_when_file_missing(with_no_signals):
@@ -149,12 +150,13 @@ async def test_signals_ticker_uses_snapshot_rsi_by_tf_first(
         r = await c.get("/api/signals/006340")
     assert r.status_code == 200
     body = r.json()
-    tp = body["trade_plan"]
+    # schema 2.0: matches[0] 가 highest score base entry
+    tp = body["matches"][0]["trade_plan"]
     assert tp["rsi_1d"] == 60.0
     assert tp["rsi_1h"] == 50.0
     assert tp["rsi_30m"] == 45.0
     # base entry = highest score (1h, score 90.0)
-    assert body["strategy"]["timeframe"] == "1h"
+    assert body["matches"][0]["strategy"]["timeframe"] == "1h"
 
 
 async def test_signals_ticker_falls_back_to_entries_rsi(
@@ -165,7 +167,7 @@ async def test_signals_ticker_falls_back_to_entries_rsi(
     async with _make_client() as c:
         r = await c.get("/api/signals/006340")
     assert r.status_code == 200
-    tp = r.json()["trade_plan"]
+    tp = r.json()["matches"][0]["trade_plan"]
     assert tp["rsi_1d"] == 65.5
     assert tp["rsi_1h"] == 72.3
     assert tp["rsi_30m"] == 58.1
@@ -178,7 +180,7 @@ async def test_signals_ticker_snapshot_rsi_when_only_one_strategy_candidate(
     async with _make_client() as c:
         r = await c.get("/api/signals/006340")
     assert r.status_code == 200
-    tp = r.json()["trade_plan"]
+    tp = r.json()["matches"][0]["trade_plan"]
     # SAMPLE_SIGNALS 의 006340 는 1D strategy 1개만 후보. 그래도 snapshot 의
     # rsi_by_tf 가 1h/30m 채워줘야 함.
     assert tp["rsi_1d"] == 60.0

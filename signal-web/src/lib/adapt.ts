@@ -1,6 +1,54 @@
 import type { Signal, DecisionFactor, RegretFactor, SignalStatus } from '@/types/signal';
 import { formatStrategyLabel } from '@/lib/strategy';
 
+export interface MatchProps {
+  strategy: {
+    id: string;
+    label: string;
+    timeframe: string;
+  };
+  signalStrength: number | null;
+  opportunityScore: number | null;
+  opportunityFactors: RegretFactor[] | null;
+  entry: number;
+  stop: number;
+  target1: number | null;
+  target2: number | null;
+  rrRatio: number | null;
+  rrBand: string | null;
+}
+
+export interface DetailProps {
+  ticker: string;
+  name: string;
+  nameEn: string | null;
+  priceDisplay: string;
+  changeDisplay: string;
+  direction: 'up' | 'down' | 'flat';
+  per: number | null;
+  high52w: number | null;
+  low52w: number | null;
+  foreignRatioPct: number | null;
+  volumeDisplay: string;
+  marketCapDisplay: string | null;
+  currentPrice: number | null;
+  changePct: number | null;
+  naverUrl: string | null;
+  generatedAtDisplay: string;
+  signalDate: string | null;
+  potentialScore: number | null;
+  potentialFactors: DecisionFactor[] | null;
+  matches: MatchProps[];
+  marketCapDisplay_detail?: string | null;
+  rsi1d: number | null;
+  rsi1h: number | null;
+  rsi30m: number | null;
+  atr14: number | null;
+  confirmationLevel: string | null;
+  activeRegime: string | null;
+  tradabilityScore: number | null;
+}
+
 export interface CardProps {
   ticker: string;
   name: string;
@@ -64,6 +112,179 @@ export interface CardProps {
   // PR-H/PR-J: confirmation 등급 + 시장 국면
   confirmationLevel: string | null;
   activeRegime: string | null;
+}
+
+// Factor 라벨 매핑
+export function getFactorLabel(key: string): string {
+  const labelMap: Record<string, string> = {
+    // 잠재력 점수 factor
+    'momentum_3m': '가격 모멘텀 (3개월)',
+    'regime_score': '시장 국면',
+    'roe': 'ROE (수익성)',
+    'per': 'PER (저평가)',
+    'liquidity': '유동성',
+    // 기회 점수 factor
+    'bull_reward': '목표 수익',
+    'max_drawdown': '손절 위험 (역)',
+    'dist_to_stop': '손절까지 여유',
+    'signal_freshness': '신호 신선도',
+    // 기존 deprecated key (호환성)
+    'momentum_pct': '가격 모멘텀',
+    'rr_ratio': '손익비',
+    'ensemble_score': '다전략 합의도',
+    'ensemble': '다전략 합의도',
+    'breakout_strength': '돌파 강도',
+    'trend_consistency': '추세 일관성',
+  };
+  return labelMap[key] || key;
+}
+
+export function adaptDetailV2(raw: any): DetailProps {
+  const ticker = raw.ticker || '';
+  const name = raw.name || ticker;
+  const nameEn = raw.name_en || null;
+
+  const lq = raw.live_quote;
+  const d = lq?._display;
+  const cp = lq?.current_price ?? null;
+  const ch = lq?.change_pct ?? null;
+
+  const rawPrice = d?.current_price
+    ?? (cp != null ? cp.toLocaleString('ko-KR') : '—');
+  const priceDisplay = rawPrice.replace(/^₩\s*/, '');
+  const changeDisplay = d?.change
+    ?? (ch != null ? `${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%` : '—');
+  const direction = d?.direction ?? 'flat';
+
+  // matches 배열 처리
+  const matches = (raw.matches || []).map((m: any) => ({
+    strategy: {
+      id: m.strategy?.id || '',
+      label: m.strategy?.label || 'Unknown',
+      timeframe: m.strategy?.timeframe || '',
+    },
+    signalStrength: m.signal_strength ?? null,
+    opportunityScore: m.opportunity_score ?? null,
+    opportunityFactors: m.opportunity_factors ?
+      (m.opportunity_factors || []).map((f: any) => ({
+        ...f,
+        label: getFactorLabel(f.key),
+      }))
+      : null,
+    entry: m.trade_plan?.entry ?? 0,
+    stop: m.trade_plan?.stop ?? 0,
+    target1: m.trade_plan?.target_1 ?? null,
+    target2: m.trade_plan?.target_2 ?? null,
+    rrRatio: m.trade_plan?.rr_ratio ?? null,
+    rrBand: m.trade_plan?.rr_band ?? null,
+  }));
+
+  const potentialFactors = (raw.potential_factors || []).map((f: any) => ({
+    ...f,
+    label: getFactorLabel(f.key),
+  }));
+
+  return {
+    ticker,
+    name,
+    nameEn,
+    priceDisplay,
+    changeDisplay,
+    direction,
+    per: raw.fundamentals?.per ?? null,
+    high52w: raw.fundamentals?.high_52w ?? null,
+    low52w: raw.fundamentals?.low_52w ?? null,
+    foreignRatioPct: raw.flow?.foreign_ratio_pct ?? null,
+    volumeDisplay:
+      d?.volume ??
+      (lq?.volume != null ? lq.volume.toLocaleString('ko-KR') : '—'),
+    marketCapDisplay: d?.market_cap ?? null,
+    currentPrice: cp,
+    changePct: ch,
+    naverUrl: raw.external_links?.naver_finance ?? null,
+    generatedAtDisplay: raw.generated_at_display || '',
+    signalDate: raw.signal_date ?? null,
+    potentialScore: raw.potential_score ?? null,
+    potentialFactors,
+    matches,
+    rsi1d: raw.matches?.[0]?.trade_plan?.rsi_1d ?? null,
+    rsi1h: raw.matches?.[0]?.trade_plan?.rsi_1h ?? null,
+    rsi30m: raw.matches?.[0]?.trade_plan?.rsi_30m ?? null,
+    atr14: raw.matches?.[0]?.trade_plan?.atr_14 ?? null,
+    confirmationLevel: raw.confirmation_level ?? null,
+    activeRegime: raw.active_regime ?? null,
+    tradabilityScore: raw.tradability_score ?? null,
+  };
+}
+
+export function adaptDetailLegacy(raw: any): DetailProps {
+  // 기존 단일 entry 응답을 matches 배열로 wrap
+  const card = adaptSignal(raw, raw.generated_at_display || '');
+
+  const match: MatchProps = {
+    strategy: {
+      id: raw.strategy?.id || '',
+      label: card.strategyLabel,
+      timeframe: card.timeframe,
+    },
+    signalStrength: card.signalStrength,
+    opportunityScore: card.decisionRegretScore,
+    opportunityFactors: card.decisionRegretFactors ?
+      (card.decisionRegretFactors || []).map((f) => ({
+        ...f,
+        label: getFactorLabel(f.key),
+      }))
+      : null,
+    entry: card.entry,
+    stop: card.stop,
+    target1: card.target1,
+    target2: card.target2,
+    rrRatio: card.rrRatio,
+    rrBand: card.rrBand,
+  };
+
+  // 잠재력 factor는 기존 decisionFactors 사용
+  const potentialFactors = (card.decisionFactors || []).map((f) => ({
+    ...f,
+    label: getFactorLabel(f.key),
+  }));
+
+  return {
+    ticker: card.ticker,
+    name: card.name,
+    nameEn: card.nameEn,
+    priceDisplay: card.priceDisplay,
+    changeDisplay: card.changeDisplay,
+    direction: card.direction,
+    per: card.per,
+    high52w: card.high52w,
+    low52w: card.low52w,
+    foreignRatioPct: card.foreignRatioPct,
+    volumeDisplay: card.volumeDisplay,
+    marketCapDisplay: card.marketCapDisplay,
+    currentPrice: card.currentPrice,
+    changePct: card.changePct,
+    naverUrl: card.naverUrl,
+    generatedAtDisplay: card.generatedAtDisplay,
+    signalDate: card.signalDate,
+    potentialScore: card.decisionScore,
+    potentialFactors,
+    matches: [match],
+    rsi1d: card.rsi1d,
+    rsi1h: card.rsi1h,
+    rsi30m: card.rsi30m,
+    atr14: card.atr14,
+    confirmationLevel: card.confirmationLevel,
+    activeRegime: card.activeRegime,
+    tradabilityScore: card.tradabilityScore,
+  };
+}
+
+export function adaptDetailSignal(raw: any): DetailProps {
+  if (raw?.schema_version === "2.0") {
+    return adaptDetailV2(raw);
+  }
+  return adaptDetailLegacy(raw);
 }
 
 export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardProps {

@@ -43,7 +43,7 @@ def test_hmm_import_failure_logs_explicit_message(tmp_path: Path, monkeypatch) -
     weights_yml = tmp_path / "weights.yml"
     weights_yml.write_text(
         "priorities:\n"
-        "  - key: rr_ratio\n    weight: 100.0\n    direction: higher_better\n    label: RR\n"
+        "  - key: momentum_3m\n    weight: 100.0\n    direction: higher_better\n    label: 모멘텀\n"
         "must_have: []\n"
         "strategy_weights: {}\n"
     )
@@ -71,7 +71,7 @@ def test_hmm_value_error_logs_insufficient_data(tmp_path: Path, monkeypatch) -> 
     weights_yml = tmp_path / "weights.yml"
     weights_yml.write_text(
         "priorities:\n"
-        "  - key: rr_ratio\n    weight: 100.0\n    direction: higher_better\n    label: RR\n"
+        "  - key: momentum_3m\n    weight: 100.0\n    direction: higher_better\n    label: 모멘텀\n"
         "must_have: []\n"
         "strategy_weights: {}\n"
     )
