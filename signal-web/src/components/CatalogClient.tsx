@@ -12,8 +12,6 @@ import AboutOverlay from './AboutOverlay';
 
 interface Props {
   cards: CardProps[];
-  strategies: string[];
-  timeframes: string[];
   marketIndices: Record<string, MarketIndex>;
   generatedAtDisplay: string;
   targetDateDisplay?: string;
@@ -25,7 +23,7 @@ interface Props {
 
 
 
-export default function CatalogClient({ cards, strategies, timeframes, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
+export default function CatalogClient({ cards, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
   const router = useRouter();
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
@@ -39,6 +37,35 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
     setCoinFraction(Math.random());
     return () => clearInterval(id);
   }, []);
+
+  // 손절·만료 신호 제외 — 당일 재진입 기회 없음. strategies/timeframes 메뉴도 활성 카드 기준으로 계산해 0건 그룹 미노출.
+  const activeCards = useMemo(
+    () => cards.filter(c => c.signalStatus !== 'STOPPED_OUT' && c.signalStatus !== 'STALE'),
+    [cards],
+  );
+
+  const strategies = useMemo(() => {
+    const labels = new Set<string>();
+    for (const c of activeCards) {
+      if (c.strategyId !== 'all') labels.add(c.strategyLabel);
+    }
+    return ['ALL', ...Array.from(labels).sort()];
+  }, [activeCards]);
+
+  const timeframes = useMemo(() => {
+    const tfs = new Set<string>();
+    for (const c of activeCards) {
+      if (c.strategyId !== 'all') tfs.add(c.timeframe);
+    }
+    return ['ALL', ...Array.from(tfs).sort()];
+  }, [activeCards]);
+
+  useEffect(() => {
+    if (!strategies.includes(strategy)) setStrategy('ALL');
+  }, [strategies, strategy]);
+  useEffect(() => {
+    if (!timeframes.includes(timeframe)) setTimeframe('ALL');
+  }, [timeframes, timeframe]);
 
   const filtered = useMemo(() => {
     // 추천순: 가중 평균 (종합 50% + 기회 35% + 신호 15%).
@@ -71,9 +98,6 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       if (sortBy === 'price') return a.entry - b.entry;
       return 0;
     };
-
-    // 손절·만료 신호 제외 — 당일 재진입 기회 없음
-    const activeCards = cards.filter(c => c.signalStatus !== 'STOPPED_OUT' && c.signalStatus !== 'STALE');
 
     if (strategy === 'ALL') {
       // ticker별 그룹화 — 대표 카드(최고 rank)에 모든 전략+TF 태그 병합
@@ -111,7 +135,7 @@ export default function CatalogClient({ cards, strategies, timeframes, marketInd
       .filter(c => c.strategyId !== 'all' && c.strategyLabel === strategy)
       .filter(c => timeframe === 'ALL' || c.timeframe === timeframe)
       .sort(sortFn);
-  }, [cards, strategy, timeframe, sortBy]);
+  }, [activeCards, strategy, timeframe, sortBy]);
 
   const navigate = useCallback(
     (ticker: string) => router.push(`/signals/${ticker}`),
