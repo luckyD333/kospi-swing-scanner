@@ -83,9 +83,10 @@ def test_signal_date_mapped_from_candidate():
     """Candidate.signal_date(pd.Timestamp) → Signal.signal_date(ISO 8601)."""
     snap = _make_snapshot()
     cand = _make_candidate("sweet")
-    cand.signal_date = pd.Timestamp("2026-05-04 12:30:00", tz="Asia/Seoul")
+    ts = pd.Timestamp.now(tz="Asia/Seoul").replace(hour=12, minute=30, second=0, microsecond=0)
+    cand.signal_date = ts
     payload = build_signals_payload(snap, {"strategy_one_d_v2": [cand]})
-    assert payload.signals[0].signal_date == "2026-05-04T12:30:00+09:00"
+    assert payload.signals[0].signal_date == ts.isoformat()
 
 
 def test_signal_date_none_when_candidate_lacks_it():
@@ -139,7 +140,7 @@ def _make_cand_for(ticker, score=80.0):
         ticker=ticker,
         name=f"종목{ticker}",
         strategy="dummy",
-        signal_date=pd.Timestamp("2026-05-04"),
+        signal_date=pd.Timestamp.today(),
         score=score,
         entry_price=7000.0,
         stop_loss=6800.0,

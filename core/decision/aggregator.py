@@ -30,6 +30,10 @@ from core.strategy_base import Candidate
 
 from .config import WeightConfig, eval_must_have
 
+# DATA_MISSING 재정규화 배율 cap: 활성 가중치가 이 값 미만이면 이 값을 분모로 사용.
+# 예) active=15% → 최대 점수 = 15 × (100/40) = 37.5 (100 허위 고점 방지)
+_MIN_ACTIVE_WEIGHT: float = 40.0
+
 
 @dataclass
 class RankedCandidate:
@@ -170,10 +174,12 @@ def aggregate_candidates(
             if reason == "DATA_MISSING":
                 data_missing_weight += prio.weight
             total += contrib
-        # DATA_MISSING 가중치를 제외한 활성 가중치로 재정규화 (0~100 유지)
+        # DATA_MISSING 가중치를 제외한 활성 가중치로 재정규화 (0~100 유지).
+        # 활성 가중치가 _MIN_ACTIVE_WEIGHT 미만이면 배율을 cap해 허위 고점 방지.
         available_weight = 100.0 - data_missing_weight
         if 0.0 < available_weight < 100.0:
-            total = total * (100.0 / available_weight)
+            effective_weight = max(available_weight, _MIN_ACTIVE_WEIGHT)
+            total = total * (100.0 / effective_weight)
         # PR-B: 풀 미적용 priority 는 NOT_APPLICABLE
         for k in excluded_keys:
             contributions[k] = 0.0
