@@ -134,10 +134,11 @@ def test_active_priority_normalization_sums_to_100():
     # a 는 NOT_APPLICABLE, b+c 만 활성 (원래 30+40=70, 정규화 후 100)
     # X 는 b/c 모두 단일 후보 → rank 1.0 → contribution = 가중치 그대로
     # 정규화: b 30 → 30/70×100 ≈ 42.857, c 40 → 40/70×100 ≈ 57.143
+    # 단독 후보이므로 final_score 는 50.0 (허위 100 방지)
     assert rc.contributions["a"] == 0.0
     assert abs(rc.contributions["b"] - 42.857) < 0.01
     assert abs(rc.contributions["c"] - 57.143) < 0.01
-    assert abs(rc.final_score - 100.0) < 0.01
+    assert abs(rc.final_score - 50.0) < 0.01
 
 
 def test_pool_with_no_active_priorities_returns_empty():

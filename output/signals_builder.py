@@ -160,35 +160,14 @@ def compute_signal_strength_percentile(
     c,
     all_candidates: list,
 ) -> float:
-    """자산군 (asset_class) 내 cross-sectional percentile rank 를 0~100 으로.
+    """풀 내 c.score cross-sectional percentile (0~100).
 
-    같은 자산군 후보 풀에서 c.score 의 상대 위치를 측정.
-    풀 크기가 1 이하면 50.0 default (단독 종목은 중립).
-
-    Args:
-        c: Candidate 객체 (score, asset_class 속성)
-        all_candidates: 전체 Candidate 리스트
-
-    Returns:
-        0.0~100.0 범위 percentile rank (소수 첫째 자리까지)
+    풀 전체 기준 상대 위치. 단독이면 50.0 (중립).
     """
-    asset_class = getattr(c, "asset_class", None)
-    if not asset_class:
-        # 미분류 케이스 fallback: 기존 산식 유지
-        return round(c.score / 10.0, 1)
-
-    # 같은 자산군 필터링
-    same_class = [
-        x for x in all_candidates
-        if getattr(x, "asset_class", None) == asset_class
-    ]
-    if len(same_class) <= 1:
-        return 50.0  # 단독 자산군 중립
-
-    # cross-sectional percentile rank
-    # rank: c.score 보다 작은 후보 수
-    rank = sum(1 for x in same_class if x.score < c.score)
-    pct = rank / (len(same_class) - 1) * 100
+    if len(all_candidates) <= 1:
+        return 50.0
+    rank = sum(1 for x in all_candidates if x.score < c.score)
+    pct = rank / (len(all_candidates) - 1) * 100
     return round(pct, 1)
 
 
@@ -343,9 +322,15 @@ def build_signals_payload(
             weighted_scores = compute_weighted_ensemble_score(
                 filtered_candidates_by_strategy, weight_config.strategy_weights
             )
-            # ticker별 best-score 후보로 deduplicate
+            # ticker별 best-score 후보로 deduplicate (1D/1W 전략만)
+            # aggregator 팩터(fundamentals, momentum_3m, regime)가 1D 개념이라
+            # 1h/30m 후보를 섞으면 cross-sectional 비교 기준이 흐려짐.
+            # 1h/30m 신호는 Signal 카드로 출력되지만 ranking/잠재력 점수 없이 참고용.
+            _RANKING_TFS = {"1D", "1W"}
             best_per_ticker: dict[str, object] = {}
             for _sid, c in all_candidates:
+                if _infer_timeframe_from_id(_sid) not in _RANKING_TFS:
+                    continue
                 if c.ticker not in best_per_ticker or c.score > best_per_ticker[c.ticker].score:
                     best_per_ticker[c.ticker] = c
             # ensemble_score + regime_score 메타 주입

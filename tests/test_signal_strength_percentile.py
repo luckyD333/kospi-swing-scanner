@@ -73,39 +73,32 @@ class TestComputeSignalStrengthPercentile:
         # score=100 → score < 100 인 후보 0개 → rank=0, 0/(3-1)*100=0.0
         assert result1 == 0.0, f"Expected 0.0 (lowest tier), got {result1}"
 
-    def test_no_asset_class_fallback_to_legacy_formula(self):
-        """asset_class=None 케이스 → 기존 산식 (c.score / 10)."""
+    def test_no_asset_class_single_candidate_returns_neutral(self):
+        """asset_class 미설정 단독 후보 → 50.0 (중립)."""
         c = Mock()
         c.ticker = "001"
         c.score = 250
-        c.asset_class = None  # 명시적으로 None 설정 (Mock 자동 생성 방지)
-        candidates = [c]  # 풀 크기 무관 (fallback)
+        candidates = [c]
         result = compute_signal_strength_percentile(c, candidates)
-        expected = round(250 / 10.0, 1)  # 25.0
-        assert result == expected
+        assert result == 50.0
 
-    def test_mixed_asset_classes_separate_pools(self):
-        """STOCK 풀과 BOND_ETF 풀이 섞여 있을 때 같은 raw score 후보가 풀 크기 차이로 다른 percentile."""
-        # STOCK 풀: 3개 (100, 200, 300)
-        stock_1 = self._make_candidate("stock_1", 100, "STOCK")
-        stock_2 = self._make_candidate("stock_2", 200, "STOCK")
-        stock_3 = self._make_candidate("stock_3", 300, "STOCK")
-
-        # BOND_ETF 풀: 2개 (200, 300)
-        bond_1 = self._make_candidate("bond_1", 200, "BOND_ETF")
-        bond_2 = self._make_candidate("bond_2", 300, "BOND_ETF")
-
-        # 전체 풀 (섞임)
+    def test_mixed_score_pool_percentile(self):
+        """풀 전체(자산군 무관) 기준 cross-sectional percentile."""
+        # 전체 5개 후보 (score 100,200,300,200,300)
+        stock_1 = self._make_candidate("s1", 100, "STOCK")
+        stock_2 = self._make_candidate("s2", 200, "STOCK")
+        stock_3 = self._make_candidate("s3", 300, "STOCK")
+        bond_1 = self._make_candidate("b1", 200, "BOND_ETF")
+        bond_2 = self._make_candidate("b2", 300, "BOND_ETF")
         all_candidates = [stock_1, stock_2, stock_3, bond_1, bond_2]
 
-        # score=200 인 STOCK → STOCK 풀(100,200,300)에서 1 < 200, rank=1, 1/(3-1)*100 = 50.0
-        result_stock_200 = compute_signal_strength_percentile(stock_2, all_candidates)
-
-        # score=200 인 BOND_ETF → BOND_ETF 풀(200,300)에서 0 < 200, rank=0, 0/(2-1)*100 = 0.0
-        result_bond_200 = compute_signal_strength_percentile(bond_1, all_candidates)
-
-        assert result_stock_200 == 50.0, f"STOCK score=200 should be 50.0, got {result_stock_200}"
-        assert result_bond_200 == 0.0, f"BOND_ETF score=200 should be 0.0, got {result_bond_200}"
+        # score=100 → 0개 미만 → rank=0, 0/(5-1)*100=0.0
+        assert compute_signal_strength_percentile(stock_1, all_candidates) == 0.0
+        # score=200 → 1개 미만(100만) → rank=1, 1/4*100=25.0
+        assert compute_signal_strength_percentile(stock_2, all_candidates) == 25.0
+        assert compute_signal_strength_percentile(bond_1, all_candidates) == 25.0
+        # score=300 → 3개 미만(100,200,200) → rank=3, 3/4*100=75.0
+        assert compute_signal_strength_percentile(stock_3, all_candidates) == 75.0
 
     def test_four_candidates_quartile_boundaries(self):
         """4개 후보 → 분기점: 0%, 33.3%, 66.7%, 100%."""

@@ -186,6 +186,10 @@ def aggregate_candidates(
             normalized_metrics=norm_metrics,
         ))
 
+    # 단독 후보: cross-sectional percentile 이 무의미해 허위 100점 방지 → 중립 50점
+    if len(ranked) == 1:
+        ranked[0].final_score = 50.0
+
     # 4.5) tradability_score (PR-K): volume·stop_pct·atr_pct 백분위 합산 (0~100).
     #      final_score 와 독립된 거래 용이성 차원. final_score 미변경 (D2 결정).
     vol_raw  = [float(c.volume_20d_avg or 0.0) for c in survivors]
