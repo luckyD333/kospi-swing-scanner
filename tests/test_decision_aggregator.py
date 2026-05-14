@@ -288,3 +288,45 @@ def test_aggregate_must_have_excludes_by_source_strategy():
     tickers = [r.candidate.ticker for r in ranked]
     assert "A" in tickers
     assert "B" not in tickers
+
+
+# ---------------------------------------------------------------------------
+# DATA_MISSING 가중치 재분배 (fix: 0 패널티 → 가용 가중치 재정규화)
+# ---------------------------------------------------------------------------
+
+def test_data_missing_reweights_not_penalizes():
+    """DATA_MISSING 결측은 0 패널티가 아니라 가중치 재분배해야 함.
+
+    A: roe=0.8(best), momentum_3m=None(DATA_MISSING)
+      → roe만으로 재정규화: score = 1.0 * (100/40*40) = 100.0
+    B: roe=0.5, momentum_3m=0.5(best)
+      → score = 0.5*40 + 1.0*60 = 80.0
+    """
+    cfg = WeightConfig(
+        priorities=[
+            Priority("roe",         40.0, "higher_better", "ROE"),
+            Priority("momentum_3m", 60.0, "higher_better", "3M모멘텀"),
+        ],
+    )
+    cands = [
+        _make_cand("A", roe=0.8, momentum_3m=None),
+        _make_cand("B", roe=0.5, momentum_3m=0.5),
+    ]
+    results = {r.candidate.ticker: r for r in aggregate_candidates(cands, cfg)}
+    assert abs(results["A"].final_score - 100.0) < 0.1, f"got {results['A'].final_score}"
+    assert abs(results["B"].final_score - 80.0) < 0.1, f"got {results['B'].final_score}"
+
+
+def test_negative_earnings_stays_zero():
+    """NEGATIVE_EARNINGS 결측은 재분배 없이 0.0 패널티 유지."""
+    cfg = WeightConfig(
+        priorities=[
+            Priority("roe", 100.0, "higher_better", "ROE"),
+        ],
+    )
+    cands = [
+        _make_cand("A", roe=None, roe_negative=True),  # 적자
+        _make_cand("B", roe=0.5),
+    ]
+    results = {r.candidate.ticker: r for r in aggregate_candidates(cands, cfg)}
+    assert results["A"].final_score == 0.0, f"got {results['A'].final_score}"

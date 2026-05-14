@@ -154,6 +154,7 @@ def aggregate_candidates(
         norm_metrics: dict[str, float | int | str] = {}
         total = 0.0
         cand_meta = cand.metadata or {}
+        data_missing_weight = 0.0  # DATA_MISSING factor 제외 가중치 누적
         for prio in scaled:
             n = normalized[prio.key][i]
             contrib = n * prio.weight
@@ -165,7 +166,14 @@ def aggregate_candidates(
             reason = _classify_missing(value, negative_flag)
             if reason != "PRESENT":
                 norm_metrics[f"{prio.key}_missing_reason"] = reason
+            # DATA_MISSING만 재분배; NEGATIVE_EARNINGS는 0.0 패널티 유지
+            if reason == "DATA_MISSING":
+                data_missing_weight += prio.weight
             total += contrib
+        # DATA_MISSING 가중치를 제외한 활성 가중치로 재정규화 (0~100 유지)
+        available_weight = 100.0 - data_missing_weight
+        if 0.0 < available_weight < 100.0:
+            total = total * (100.0 / available_weight)
         # PR-B: 풀 미적용 priority 는 NOT_APPLICABLE
         for k in excluded_keys:
             contributions[k] = 0.0
