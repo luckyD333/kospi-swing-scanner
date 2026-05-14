@@ -2,11 +2,16 @@
 strategies/strategy_five_bull_flag.py — Strategy 5: Bull Flag 돌파 매매.
 
 진입 조건:
-  1. Flagpole: 최근 pole_lookback봉 시작→종가 +min_pole_pct% 이상 상승
-  2. Flag 거래량 수축: flag_bars 평균 거래량 < pole 평균 거래량 × vol_shrink_ratio
-  3. 가격 압축: flag_bars 내 고저 범위 < ATR × tight_range_mult
+  1. Flagpole: 최근 pole_lookback봉 시작→종가 +min_pole_pct% 이상 상승 (기본 7%)
+  2. Flag 거래량 수축: flag_bars 평균 거래량 < pole 평균 거래량 × vol_shrink_ratio (기본 0.9)
+  3. 가격 압축: flag_bars 내 고저 범위 < ATR × tight_range_mult (기본 2.5)
   4. 당일 돌파: close > flag_high (flag 기간 고가 최대값)
   5. 돌파 거래량: volume >= 20일 평균
+
+파라미터 조정 이력 (2026-05-14):
+  tight_range_mult: 1.5 → 2.5  (90일 그리드 서치, 승률 50%→80%, PF 0.81→4.57)
+  vol_shrink_ratio: 0.7 → 0.9  (신호 4건 → 35건으로 증가)
+  min_pole_pct:     0.08 → 0.07
 """
 from __future__ import annotations
 
@@ -38,10 +43,10 @@ _TF_NAMES: dict[str, str] = {
 @dataclass(frozen=True)
 class StrategyFiveConfig:
     pole_lookback: int = 15        # flagpole 탐색 기간
-    min_pole_pct: float = 0.08     # flagpole 최소 상승 +8%
+    min_pole_pct: float = 0.07     # flagpole 최소 상승 +7% (완화: 0.08→0.07)
     flag_bars: int = 7             # flag 압축 기간 (오늘 제외)
-    vol_shrink_ratio: float = 0.7  # flag 거래량 수축 비율
-    tight_range_mult: float = 1.5  # 가격 압축 판정 (ATR 배수)
+    vol_shrink_ratio: float = 0.9  # flag 거래량 수축 비율 (완화: 0.7→0.9)
+    tight_range_mult: float = 2.5  # 가격 압축 판정 (ATR 배수, 완화: 1.5→2.5)
     stop_loss_pct: float = 0.025
     min_bars: int = 35
     min_daily_volume: int = 100_000
