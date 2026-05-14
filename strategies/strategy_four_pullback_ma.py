@@ -36,9 +36,9 @@ _TF_NAMES: dict[str, str] = {
 
 @dataclass(frozen=True)
 class StrategyFourConfig:
-    ma_trend: int = 20          # 추세 확인 SMA
+    ma_trend: int = 30          # 추세 확인 SMA (2026-05-14: 20→30, WF 승률 44.9%→54.9%)
     ma_pullback: int = 5        # 눌림목/회복 SMA
-    pullback_lookback: int = 5  # 눌림목 감지 기간 (전일까지 N봉)
+    pullback_lookback: int = 3  # 눌림목 감지 기간 (전일까지 N봉) (2026-05-14: 5→3, WF avgPnL -0.07%→+0.51%)
     min_vol_ratio: float = 0.8  # 당일 거래량 / 20일 평균
     stop_loss_pct: float = 0.025
     target_1_pct: float = 0.03

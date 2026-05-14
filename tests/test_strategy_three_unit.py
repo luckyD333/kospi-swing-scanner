@@ -80,7 +80,7 @@ def test_breakout_emits_candidate():
     """직전 20봉 high 돌파 → 후보 진입."""
     df = _consolidation_then_breakout()
     ctx = _make_ctx({"BREAK": df})
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     cands = strat.scan(ctx, top_n=5)
     assert len(cands) == 1
     assert cands[0].ticker == "BREAK"
@@ -100,7 +100,7 @@ def test_within_channel_no_signal():
         breakout_close=109.5  # consolidation_high(110) 미만
     )
     ctx = _make_ctx({"INSIDE": df})
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     assert strat.scan(ctx, top_n=5) == []
 
 
@@ -112,13 +112,13 @@ def test_atr_filter_rejects_weak_breakout():
 
     # ATR multiplier 0 → 필터 없으니 통과
     strat_no_filter = StrategyThreeTrendFollowing(
-        StrategyThreeConfig(atr_filter_multiplier=0.0)
+        StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0)
     )
     cands_no = strat_no_filter.scan(ctx, top_n=5)
 
     # ATR multiplier 1.0 → 약한 돌파는 거부 (ATR 만큼은 돌파해야)
     strat_strict = StrategyThreeTrendFollowing(
-        StrategyThreeConfig(atr_filter_multiplier=1.0)
+        StrategyThreeConfig(lookback=20, atr_filter_multiplier=1.0)
     )
     cands_strict = strat_strict.scan(ctx, top_n=5)
 
@@ -131,7 +131,7 @@ def test_score_increases_with_breakout_strength():
     strong = _consolidation_then_breakout(breakout_close=120.0)  # +10
     universe = {"WEAK": weak, "STRONG": strong}
     ctx = _make_ctx(universe)
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     cands = strat.scan(ctx, top_n=5)
 
     # 모두 후보로 진입
@@ -148,7 +148,7 @@ def test_short_history_ticker_skipped():
     short_df = _consolidation_then_breakout(n_consolidation=5)  # 너무 짧음
     full_df = _consolidation_then_breakout()
     ctx = _make_ctx({"SHORT": short_df, "FULL": full_df})
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     cands = strat.scan(ctx, top_n=5)
     assert all(c.ticker != "SHORT" for c in cands)
 
@@ -156,7 +156,7 @@ def test_short_history_ticker_skipped():
 def test_pricing_invariants_hold():
     df = _consolidation_then_breakout(breakout_close=120.0)
     ctx = _make_ctx({"T1": df})
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     cands = strat.scan(ctx, top_n=5)
     for c in cands:
         assert c.stop_loss < c.entry_price < c.target_1 <= c.target_2
@@ -166,28 +166,28 @@ def test_pricing_invariants_hold():
 
 
 def test_stop_loss_uses_atr_formula():
-    """SL = max(entry-1.5×ATR, channel_low-0.5×ATR) — PR-F ATR 기반 손절."""
+    """SL = max(entry-2.5×ATR, channel_low-0.5×ATR) — PR-F ATR 기반 손절."""
     df = _consolidation_then_breakout(
         consolidation_low=80.0, consolidation_high=110.0, breakout_close=115.0,
     )
     ctx = _make_ctx({"DEEP": df})
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     cands = strat.scan(ctx, top_n=5)
     assert cands
     c = cands[0]
     atr = c.metadata["atr_14"]
     channel_low = c.metadata["channel_low"]
     assert atr is not None and atr > 0
-    stop_atr = c.entry_price - 1.5 * atr
+    stop_atr = c.entry_price - 2.5 * atr  # 기본값 atr_stop_mult=2.5 (2026-05-14 업데이트)
     stop_swing = channel_low - 0.5 * atr
     expected = max(stop_atr, stop_swing)
-    assert abs(c.stop_loss - expected) <= 10
+    assert abs(c.stop_loss - expected) <= 15
 
 
 def test_metadata_records_channel_values():
     df = _consolidation_then_breakout(breakout_close=120.0)
     ctx = _make_ctx({"T1": df})
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     cands = strat.scan(ctx, top_n=5)
     assert cands
     md = cands[0].metadata
@@ -203,7 +203,7 @@ def test_top_n_cut():
         for i in range(5)
     }
     ctx = _make_ctx(universe)
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     cands = strat.scan(ctx, top_n=2)
     assert len(cands) == 2
 
@@ -238,7 +238,7 @@ def test_candidate_metadata_has_bridge_keys():
         for i in range(3)
     }
     ctx = _make_ctx(universe)
-    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(atr_filter_multiplier=0.0))
+    strat = StrategyThreeTrendFollowing(StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0))
     candidates = strat.scan(ctx, top_n=10)
 
     assert len(candidates) > 0

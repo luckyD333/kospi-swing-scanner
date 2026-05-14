@@ -12,8 +12,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.strategy_base import ScanContext
-from strategies.strategy_four_pullback_ma import StrategyFourPullbackMa
+from strategies.strategy_four_pullback_ma import StrategyFourConfig, StrategyFourPullbackMa
 from strategies.price_utils import floor_to_tick
+
+# 25봉 fixture는 ma_trend=20 기준으로 설계됨 — 기본값 변경과 무관하게 로직 검증
+_CFG_MA20 = StrategyFourConfig(ma_trend=20, pullback_lookback=5)
 
 
 def _make_df(close_arr, vol_arr=None, base_vol=200_000):
@@ -52,7 +55,7 @@ def _pass_df():
 def test_pass_emits_candidate():
     df = _pass_df()
     ctx = _make_ctx({"TEST": df})
-    candidates = StrategyFourPullbackMa().scan(ctx, top_n=5)
+    candidates = StrategyFourPullbackMa(config=_CFG_MA20).scan(ctx, top_n=5)
     assert len(candidates) == 1
     assert candidates[0].ticker == "TEST"
 
@@ -109,7 +112,7 @@ def test_invariant_stop_entry_target():
     """stop_loss < entry_price < target_1 <= target_2 불변식."""
     df = _pass_df()
     ctx = _make_ctx({"TEST": df})
-    candidates = StrategyFourPullbackMa().scan(ctx, top_n=5)
+    candidates = StrategyFourPullbackMa(config=_CFG_MA20).scan(ctx, top_n=5)
     assert len(candidates) == 1
     c = candidates[0]
     assert c.stop_loss < c.entry_price < c.target_1 <= c.target_2
@@ -163,7 +166,7 @@ def test_stop_anchored_to_ma20():
     """MA20 이 -2.5% 보다 가까울 때 stop 이 MA20 기반으로 채택."""
     df = _pass_df_highprice()
     ctx = _make_ctx({"TEST": df})
-    candidates = StrategyFourPullbackMa().scan(ctx, top_n=5)
+    candidates = StrategyFourPullbackMa(config=_CFG_MA20).scan(ctx, top_n=5)
     assert len(candidates) == 1, "highprice fixture 가 신호를 생성해야 함"
     c = candidates[0]
     pct_based_stop = floor_to_tick(c.entry_price * 0.975)

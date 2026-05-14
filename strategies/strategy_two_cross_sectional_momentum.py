@@ -48,8 +48,8 @@ _TF_NAMES: dict[str, str] = {
 
 @dataclass(frozen=True)
 class StrategyTwoConfig:
-    lookback: int = 15                  # 모멘텀 산출 기간 (10~20일)
-    entry_percentile: float = 0.75      # 상위 25% 만 진입 (≥ 75 percentile)
+    lookback: int = 20                  # 모멘텀 산출 기간 (10~20일) — 2026-05-14 최적화: 15→20
+    entry_percentile: float = 0.80      # 상위 20% 만 진입 (≥ 80 percentile) — 2026-05-14 최적화: 0.75→0.80
     volume_filter_window: int = 20      # 거래량 평균 비교 윈도우
     require_volume_above_avg: bool = True  # 당일 거래량 > 평균 강제
     stop_loss_pct: float = 0.025        # -2.5%

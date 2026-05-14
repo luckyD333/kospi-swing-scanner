@@ -59,9 +59,11 @@ def test_default_cfg_keeps_legacy_behavior():
 
 
 def test_registry_strategy_two_has_overextension_guards_active():
-    """운영 registry 의 strategy_two 는 가드 활성 (rsi_max=80, percentile_max=0.95)."""
+    """운영 registry 의 strategy_two 는 percentile_max=0.95 활성. rsi_max는 2026-05-14 최적화로 비활성 (None)."""
     from strategies import REGISTRY
     factory = REGISTRY["strategy_two_cross_sectional_momentum"]
     strat = factory()
-    assert strat.config.rsi_max == 80.0
+    assert strat.config.rsi_max is None  # 그리드 서치 최적화: rsi_max 제거
     assert strat.config.percentile_max == 0.95
+    assert strat.config.lookback == 20  # 그리드 서치 최적화: 15→20
+    assert strat.config.entry_percentile == 0.80  # 그리드 서치 최적화: 0.75→0.80

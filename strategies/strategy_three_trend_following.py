@@ -51,15 +51,15 @@ _TF_NAMES: dict[str, str] = {
 
 @dataclass(frozen=True)
 class StrategyThreeConfig:
-    lookback: int = 20                  # Donchian 채널 봉 수
+    lookback: int = 30                  # Donchian 채널 봉 수 (2026-05-14: 20→30 그리드 서치 최적화)
     atr_period: int = 14                # ATR 계산 기간
-    atr_filter_multiplier: float = 0.5  # 돌파 폭 ≥ ATR × mult 만 진입 (0=비활성)
+    atr_filter_multiplier: float = 0.7  # 돌파 폭 ≥ ATR × mult 만 진입 (2026-05-14: 0.5→0.7)
     stop_loss_pct: float = 0.025        # ATR 결측 시 fallback (-2.5%)
-    atr_stop_mult: float = 1.5          # PR-F: stop = entry - mult×ATR(14)
+    atr_stop_mult: float = 2.5          # PR-F: stop = entry - mult×ATR(14) (2026-05-14: 1.5→2.5)
     atr_stop_swing_buffer: float = 0.5  # PR-F: channel_low - buffer×ATR(14)
     target_1_pct: float = 0.03          # +3%
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
-    atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
+    atr_target_mult: float = 2.5        # target_2 = entry + ATR×mult (2026-05-14: 3.0→2.5)
     score_scale: float = 20000.0        # breakout_pct × scale → score (0..1000 cap; 5% 돌파 = 1000점)
     use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
 

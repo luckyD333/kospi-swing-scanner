@@ -63,7 +63,7 @@ def test_pump_30pct_excluded_from_trend():
     """전일 +30% 이상 (breakout=130 vs prev=100) → 후보 미진입."""
     df = _consolidation_then_pump(breakout_close=135.0)  # +35%
     strat = StrategyThreeTrendFollowing(
-        config=StrategyThreeConfig(atr_filter_multiplier=0.0),
+        config=StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0),
     )
     cands = strat.scan(_ctx({"PUMP": df}), top_n=10)
     assert cands == []
@@ -73,7 +73,7 @@ def test_pump_exactly_30pct_excluded():
     """경계: 정확히 +30% (≥30) → 차단."""
     df = _consolidation_then_pump(breakout_close=130.0)  # +30%
     strat = StrategyThreeTrendFollowing(
-        config=StrategyThreeConfig(atr_filter_multiplier=0.0),
+        config=StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0),
     )
     cands = strat.scan(_ctx({"PUMP": df}), top_n=10)
     assert cands == []
@@ -87,7 +87,7 @@ def test_pump_20to30_half_penalty():
     """전일 +25% (breakout=125 vs prev=100) → score × 0.5, metadata pump_penalty=0.5."""
     df = _consolidation_then_pump(breakout_close=125.0)  # +25%
     strat = StrategyThreeTrendFollowing(
-        config=StrategyThreeConfig(atr_filter_multiplier=0.0),
+        config=StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0),
     )
     cands = strat.scan(_ctx({"PUMP": df}), top_n=10)
     assert len(cands) == 1
@@ -100,7 +100,7 @@ def test_pump_exactly_20pct_gets_penalty():
     """경계: 정확히 +20% → 페널티 적용 (≥20 AND <30)."""
     df = _consolidation_then_pump(breakout_close=120.0)
     strat = StrategyThreeTrendFollowing(
-        config=StrategyThreeConfig(atr_filter_multiplier=0.0),
+        config=StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0),
     )
     cands = strat.scan(_ctx({"PUMP": df}), top_n=10)
     assert len(cands) == 1
@@ -115,7 +115,7 @@ def test_normal_breakout_no_penalty():
     """전일 +15% (breakout=115 vs prev=100) → pump_penalty=1.0, score 그대로."""
     df = _consolidation_then_pump(breakout_close=115.0)  # +15%
     strat = StrategyThreeTrendFollowing(
-        config=StrategyThreeConfig(atr_filter_multiplier=0.0),
+        config=StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0),
     )
     cands = strat.scan(_ctx({"PUMP": df}), top_n=10)
     assert len(cands) == 1
@@ -133,7 +133,7 @@ def test_penalty_halves_score_compared_to_normal():
     df_pumped = _consolidation_then_pump(breakout_close=125.0)
     # 두 후보 모두 동일 cfg
     strat = StrategyThreeTrendFollowing(
-        config=StrategyThreeConfig(atr_filter_multiplier=0.0),
+        config=StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0),
     )
     normal_cands = strat.scan(_ctx({"NORMAL": df_normal}), top_n=10)
     pump_cands = strat.scan(_ctx({"PUMP": df_pumped}), top_n=10)
@@ -153,7 +153,7 @@ def test_metadata_always_includes_pump_fields():
     """모든 후보 metadata 에 prev_change_pct + pump_penalty 키 존재."""
     df = _consolidation_then_pump(breakout_close=110.0)  # +10%
     strat = StrategyThreeTrendFollowing(
-        config=StrategyThreeConfig(atr_filter_multiplier=0.0),
+        config=StrategyThreeConfig(lookback=20, atr_filter_multiplier=0.0),
     )
     cands = strat.scan(_ctx({"X": df}), top_n=10)
     assert len(cands) == 1

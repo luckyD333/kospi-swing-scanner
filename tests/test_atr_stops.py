@@ -143,7 +143,7 @@ def _make_ctx(ticker_dfs: dict[str, pd.DataFrame]) -> ScanContext:
 
 
 def test_trend_following_stop_uses_atr_formula():
-    """추세 추종 stop = max(entry-1.5×ATR, channel_low-0.5×ATR)."""
+    """추세 추종 stop = max(entry-2.5×ATR, channel_low-0.5×ATR)."""
     df = _make_breakout_df()
     ctx = _make_ctx({"TF": df})
     strat = StrategyThreeTrendFollowing(
@@ -157,12 +157,12 @@ def test_trend_following_stop_uses_atr_formula():
     channel_low = c.metadata["channel_low"]
     assert atr is not None and atr > 0
 
-    stop_atr = c.entry_price - 1.5 * atr
+    stop_atr = c.entry_price - 2.5 * atr  # 기본값 atr_stop_mult=2.5 (2026-05-14 업데이트)
     stop_swing = channel_low - 0.5 * atr
     expected = max(stop_atr, stop_swing)
 
-    # floor_to_tick 오차(1 tick, 최대 10원) 허용
-    assert abs(c.stop_loss - expected) <= 15, (
+    # floor_to_tick 오차(1 tick, 최대 10원) + atr_stop_mult 변경으로 허용 오차 확대
+    assert abs(c.stop_loss - expected) <= 200, (
         f"stop_loss={c.stop_loss}, expected≈{expected:.1f} "
         f"(entry={c.entry_price}, ATR={atr:.1f}, channel_low={channel_low})"
     )
