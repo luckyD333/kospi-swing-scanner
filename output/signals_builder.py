@@ -436,11 +436,17 @@ def build_signals_payload(
 
         rc = ticker_to_ranked.get(c.ticker)
         decision: DecisionMeta | None = None
-        # ranking 우선순위: regret_rank > fallback_rank
+        # ranking 우선순위: composite_rank > regret_rank > fallback_rank
         if rc is not None:
-            r_rank = int(rc.normalized_metrics.get("regret_rank", fallback_rank))
-            r_total = int(rc.normalized_metrics.get("regret_total", fallback_total))
-            r_score = float(rc.normalized_metrics.get("regret_score", c.score))
+            r_rank = int(rc.normalized_metrics.get(
+                "composite_rank", rc.normalized_metrics.get("regret_rank", fallback_rank)
+            ))
+            r_total = int(rc.normalized_metrics.get(
+                "composite_total", rc.normalized_metrics.get("regret_total", fallback_total)
+            ))
+            r_score = float(rc.normalized_metrics.get(
+                "composite_score", rc.normalized_metrics.get("regret_score", c.score)
+            ))
         else:
             r_rank = fallback_rank
             r_total = fallback_total
@@ -631,7 +637,9 @@ def build_signals_payload(
             )
             sig = _build_signal(
                 "all", "ALL", "MULTI", origin_tf, c,
-                fallback_rank=int(rc.normalized_metrics.get("regret_rank", 1)),
+                fallback_rank=int(rc.normalized_metrics.get(
+                    "composite_rank", rc.normalized_metrics.get("regret_rank", 1)
+                )),
                 fallback_total=n_all,
                 all_candidates_for_percentile=all_entry_candidates,
             )

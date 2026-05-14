@@ -72,6 +72,27 @@ class RegretWeights:
 
 DEFAULT_WEIGHTS = RegretWeights()
 
+# TF별 신호강도 가중치 배율 (1D 기준 1.0)
+_TF_SIGNAL_FACTOR: dict[str, float] = {
+    "1D": 1.0, "1W": 1.0, "1h": 0.7, "30m": 0.5,
+}
+# 3-Score 합성 기본 가중치
+_W_OPP: float = 0.50    # 기회 (regret_score)
+_W_POT: float = 0.30    # 잠재력 (final_score)
+_W_SIG_BASE: float = 0.20   # 신호 강도 (c.score percentile, TF 배율 적용)
+
+
+def _infer_tf(strategy_id: str) -> str:
+    """strategy_id 토큰으로 timeframe 추정 (signals_builder._infer_timeframe_from_id 동일 로직)."""
+    sid = (strategy_id or "").lower()
+    if "_30m" in sid:
+        return "30m"
+    if "_1h" in sid:
+        return "1h"
+    if "_w_v2" in sid or sid.endswith("_w") or "_1w" in sid:
+        return "1W"
+    return "1D"
+
 
 def _bull_reward(cand: Candidate) -> float | None:
     return cand.reward_pct_t2
@@ -168,11 +189,35 @@ def compute_regret_scores(
         rc.normalized_metrics["regret_signal_freshness"] = round(fresh_rank[i], 4)
         annotated.append((score, rc))
 
-    # regret_score 내림차순 → final_score 내림차순 → ticker 알파벳
+    # composite_score: 3-score 합성 + TF 배율 적용
+    raw_scores = [rc.candidate.score for rc in ranked]
+    signal_ranks = _avg_percentile_rank(raw_scores)   # c.score pool percentile (0~1)
+
+    for i, rc in enumerate(ranked):
+        tf = _infer_tf(rc.candidate.strategy)
+        tf_factor = _TF_SIGNAL_FACTOR.get(tf, 1.0)
+        w_sig = _W_SIG_BASE * tf_factor
+        scale = 1.0 / (_W_OPP + _W_POT + w_sig)
+        rs = rc.normalized_metrics.get("regret_score", 0.0)
+        composite = (
+            _W_OPP * rs / 100.0
+            + _W_POT * rc.final_score / 100.0
+            + w_sig * signal_ranks[i]
+        ) * scale * 100.0
+        rc.normalized_metrics["composite_score"] = round(composite, 4)
+        rc.normalized_metrics["signal_rank"] = round(signal_ranks[i], 4)
+
+    # composite_score 내림차순 → final_score → ticker (결정론)
     annotated.sort(
-        key=lambda t: (-t[0], -t[1].final_score, t[1].candidate.ticker)
+        key=lambda t: (
+            -t[1].normalized_metrics.get("composite_score", 0.0),
+            -t[1].final_score,
+            t[1].candidate.ticker,
+        )
     )
-    for rank_idx, (_score, rc) in enumerate(annotated, start=1):
-        rc.normalized_metrics["regret_rank"] = rank_idx
+    for rank_idx, (_, rc) in enumerate(annotated, start=1):
+        rc.normalized_metrics["composite_rank"] = rank_idx
+        rc.normalized_metrics["composite_total"] = len(annotated)
+        rc.normalized_metrics["regret_rank"] = rank_idx  # backward compat
 
     return [rc for _s, rc in annotated]

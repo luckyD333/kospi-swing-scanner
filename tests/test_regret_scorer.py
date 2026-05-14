@@ -227,3 +227,67 @@ def test_4_axis_sum_equals_regret_score():
             f"{rc.candidate.ticker}: recomputed={recomputed:.4f}, "
             f"stored={nm['regret_score']:.4f}"
         )
+
+
+# ---------------------------------------------------------------------------
+# composite_score: 3-score 합성 랭킹 + TF 배율
+# ---------------------------------------------------------------------------
+
+def _make_ranked_with_strategy(
+    ticker: str,
+    strategy_id: str,
+    *,
+    reward_pct_t2: float = 5.0,
+    risk_pct: float = 3.0,
+    final_score: float = 50.0,
+) -> RankedCandidate:
+    """timeframe 테스트용 — strategy_id 로 TF 배율 결정."""
+    entry = 100.0
+    stop_loss = entry - risk_pct
+    target_2 = entry + reward_pct_t2
+    target_1 = entry + reward_pct_t2 / 2
+    cand = Candidate(
+        ticker=ticker,
+        name=f"name_{ticker}",
+        strategy=strategy_id,
+        signal_date=pd.Timestamp("2026-05-04"),
+        score=500.0,
+        entry_price=entry,
+        stop_loss=stop_loss,
+        target_1=target_1,
+        target_2=target_2,
+        current_price=entry,
+        metadata={"bars_since_trigger": 0},
+    )
+    return RankedCandidate(candidate=cand, final_score=final_score)
+
+
+def test_composite_score_lower_for_intraday():
+    """1h 신호는 1D 신호보다 composite_score가 낮아야 함 (같은 조건에서 TF 배율 차이)."""
+    rc_1d = _make_ranked_with_strategy("A", "strategy_one_d_v2")
+    rc_1h = _make_ranked_with_strategy("B", "strategy_one_1h_v2")
+    results = {r.candidate.ticker: r for r in compute_regret_scores([rc_1d, rc_1h])}
+    score_1d = results["A"].normalized_metrics["composite_score"]
+    score_1h = results["B"].normalized_metrics["composite_score"]
+    assert score_1d > score_1h, f"1D({score_1d}) should > 1h({score_1h})"
+
+
+def test_composite_uses_all_three_scores():
+    """composite_score가 final_score를 반영해야 함 — 높은 final_score가 composite에서 우위.
+
+    A: reward 낮음(regret 낮음) + final_score=90
+    B: reward 높음(regret 높음) + final_score=10
+    → 30% final 가중치가 50% regret 가중치를 역전: A composite > B composite
+    """
+    rc_a = _make_ranked("A", reward_pct_t2=2.0, final_score=90.0)
+    rc_b = _make_ranked("B", reward_pct_t2=8.0, final_score=10.0)
+    results = {r.candidate.ticker: r for r in compute_regret_scores([rc_a, rc_b])}
+    assert "composite_score" in results["A"].normalized_metrics
+    assert "composite_score" in results["B"].normalized_metrics
+    assert (
+        results["A"].normalized_metrics["composite_score"]
+        > results["B"].normalized_metrics["composite_score"]
+    ), (
+        f"A({results['A'].normalized_metrics['composite_score']:.2f}) "
+        f"should > B({results['B'].normalized_metrics['composite_score']:.2f})"
+    )
