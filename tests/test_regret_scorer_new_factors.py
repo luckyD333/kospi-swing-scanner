@@ -52,15 +52,14 @@ def _make_ranked_with_metadata(
 def test_default_weights_has_four_factors_no_ensemble():
     """DEFAULT_WEIGHTS 는 4 factor: bull_reward / max_drawdown / dist_to_stop / signal_freshness.
 
-    rr_focus 설정 (OOS 검증 2026-04-15~05-07, scripts/backtest_ranking_oos.py):
-      signal_freshness=0.0 (live scan bars=0 고정 → 변별력 없음)
-      dist_to_stop=0.30 강화, bull_reward=0.55.
+    KOSDAQ Rank 1 설정 (OOS 검증 2026-05-15, scripts/optimize_market_separate.py):
+      max_drawdown=0.61 강조 (risk-averse), dist_to_stop=0.31, bull/freshness=0.04.
     """
     w = DEFAULT_WEIGHTS
-    assert w.bull_reward == 0.55
-    assert w.max_drawdown == 0.15
-    assert w.dist_to_stop == 0.30
-    assert w.signal_freshness == 0.00
+    assert w.bull_reward == 0.04
+    assert w.max_drawdown == 0.61
+    assert w.dist_to_stop == 0.31
+    assert w.signal_freshness == 0.04
     assert abs((w.bull_reward + w.max_drawdown + w.dist_to_stop + w.signal_freshness) - 1.0) < 0.001
 
 
@@ -83,10 +82,9 @@ def test_regret_scorer_no_ensemble_factor():
 
 
 def test_regret_score_with_signal_freshness():
-    """signal_freshness 가중치 0.0 → bars_since_trigger 값이 달라도 regret_score 동일.
+    """signal_freshness factor 가 점수 계산에 포함됨 (KOSDAQ Rank 1: 0.04 가중치).
 
-    rr_focus 에서 freshness 가중치를 0.0으로 낮춘 후 동작 확인.
-    다른 조건이 동일하면 FRESH/STALE 은 동점 (변별 불가 == 의도된 동작).
+    FRESH(bars=0) 와 STALE(bars=10) 의 regret_score 차이는 작지만 양의 값.
     """
     fresh = _make_ranked_with_metadata(
         "FRESH", reward_pct_t2=5.0, bars_since_trigger=0
@@ -95,11 +93,13 @@ def test_regret_score_with_signal_freshness():
         "STALE", reward_pct_t2=5.0, bars_since_trigger=10
     )
     out = compute_regret_scores([fresh, stale])
-    # freshness 가중치 0 → regret_score 동일 (변별력 없음)
-    assert abs(
+    # signal_freshness 가중치 0.04 → FRESH > STALE (작지만 양의 차이)
+    assert out[0].candidate.ticker == "FRESH"
+    assert out[1].candidate.ticker == "STALE"
+    assert (
         out[0].normalized_metrics["regret_score"]
-        - out[1].normalized_metrics["regret_score"]
-    ) < 0.01
+        > out[1].normalized_metrics["regret_score"]
+    )
 
 
 def test_signal_freshness_metric_is_in_range():

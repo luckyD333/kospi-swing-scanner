@@ -28,12 +28,43 @@ from output.models import (
 from output.signal_components import build_signal_components
 
 # 기회 점수(regret_score) 4축 breakdown 라벨/가중치 — DEFAULT_WEIGHTS 와 일치 (×100).
-# rr_focus: signal_freshness 0.0 (live scan bars=0 변별력 없음), dist_to_stop 강화.
+# KOSDAQ Rank 1 (OOS 2026-05-15): risk-averse, max_drawdown 강조.
 REGRET_FACTOR_LABELS: dict[str, tuple[str, float]] = {
-    "bull_reward":        ("목표 수익", 55.0),
-    "max_drawdown":       ("손절 위험(역)", 15.0),
-    "dist_to_stop":       ("손절까지 여유", 30.0),
-    "signal_freshness":   ("신호 신선도", 0.0),
+    "bull_reward":        ("목표 수익", 4.0),
+    "max_drawdown":       ("손절 위험(역)", 61.0),
+    "dist_to_stop":       ("손절까지 여유", 31.0),
+    "signal_freshness":   ("신호 신선도", 4.0),
+}
+
+# 앙상블 strategy score multiplier — KOSDAQ Rank 1 OOS validated.
+# 각 전략 candidate.score 에 곱해져 cross-strategy 우선순위 조절.
+# S3 (Trend Following) 가 양 시장 공통 최강 알파.
+# ⚠ KOSPI 적용은 forward-walk 30일 후 재검증 권장 (2026-06-14~).
+_STRATEGY_SCORE_WEIGHTS: dict[str, float] = {
+    "strategy_one_d_v2":      0.48,
+    "strategy_one_w_v2":      0.48,
+    "strategy_one_1h_v2":     0.48,
+    "strategy_one_30m_v2":    0.48,
+    "strategy_one_d_v2_r1":   0.48,
+    "strategy_one_d_v2_r2":   0.48,
+    "strategy_one_w_v2_r1":   0.48,
+    "strategy_one_w_v2_r2":   0.48,
+    "strategy_one_1h_v2_r1":  0.48,
+    "strategy_one_1h_v2_r2":  0.48,
+    "strategy_one_30m_v2_r1": 0.48,
+    "strategy_one_30m_v2_r2": 0.48,
+    "strategy_two_cross_sectional_momentum": 0.18,
+    "strategy_two_1h":  0.18,
+    "strategy_two_30m": 0.18,
+    "strategy_three_trend_following": 1.36,
+    "strategy_three_1h":  1.36,
+    "strategy_three_30m": 1.36,
+    "strategy_four_pullback_ma":     0.99,
+    "strategy_four_pullback_ma_1h":  0.99,
+    "strategy_four_pullback_ma_30m": 0.99,
+    "strategy_five_bull_flag":     0.27,
+    "strategy_five_bull_flag_1h":  0.27,
+    "strategy_five_bull_flag_30m": 0.27,
 }
 
 if TYPE_CHECKING:
@@ -210,6 +241,15 @@ def build_signals_payload(
 ) -> SignalsPayload:
     filtered_candidates_by_strategy = _dedup_raw_candidates(candidates_by_strategy)
 
+    # 앙상블 strategy score multiplier — KOSDAQ Rank 1 OOS validated.
+    # S3 (Trend Following) 가 양 시장 최강 알파 (×1.36), S2/S5 약화 (×0.18/0.27).
+    # 모든 ranking·display 가 score 기반이므로 단일 위치 곱셈으로 전체 적용.
+    for _sid, _cands in filtered_candidates_by_strategy.items():
+        _w = _STRATEGY_SCORE_WEIGHTS.get(_sid, 1.0)
+        if _w != 1.0:
+            for _c in _cands:
+                _c.score *= _w
+
     # PR-D: 거래가능성 hard filter — ranking 이전 차단 (default off, cli/runner 가 enable).
     # 통과 ticker 만 candidates_by_strategy 에 남김 → signals 리스트 + ranking 모두 영향.
     if tradability_filter:
@@ -373,11 +413,12 @@ def build_signals_payload(
                 )
             ranked = list(ranked_stock) + list(ranked_etn_etf)
 
-            # S4+S2/S3 confluence 페널티 (OOS 검증: PF +38%, scripts/backtest_ranking_oos.py)
-            # S4(pullback_ma)가 S2(momentum)/S3(trend)와 중복 시 composite_score × 0.75
+            # S4+S2/S3 confluence 페널티 (OOS 검증: KOSDAQ Rank 1, 2026-05-15)
+            # 시장 분리 최적화 결과 penalty=1.0 (페널티 없음) 이 최상위 → 효과적으로 비활성.
+            # 메커니즘은 보존 (factor=1.0 → no-op) 해 회귀 시 쉽게 재활성 가능.
             _S4_PREFIXES = ("strategy_four_pullback_ma",)
             _S2S3_PREFIXES = ("strategy_two", "strategy_three")
-            _CONFLUENCE_PENALTY = 0.75
+            _CONFLUENCE_PENALTY = 1.0
             s4_tickers = {
                 c.ticker
                 for sid, cs in filtered_candidates_by_strategy.items()
