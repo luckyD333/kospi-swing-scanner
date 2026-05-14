@@ -63,11 +63,17 @@ def _avg_percentile_rank(values: list[float | None]) -> list[float]:
 
 @dataclass(frozen=True)
 class RegretWeights:
-    """R:R 비대칭 + freshness 기반 기회 점수 가중치. 합 = 1.0."""
-    bull_reward: float = 0.40
-    max_drawdown: float = 0.20
-    dist_to_stop: float = 0.15
-    signal_freshness: float = 0.25
+    """R:R 비대칭 기반 기회 점수 가중치. 합 = 1.0.
+
+    rr_focus 설정 (OOS 검증 2026-04-15~05-07, scripts/backtest_ranking_oos.py):
+      signal_freshness=0.0: live scan bars=0 고정 → 변별력 없음, 완전 제거.
+      dist_to_stop=0.30: 손절까지 버퍼 큰 신호 우선 → 손절 노이즈 감소.
+      max_drawdown=0.15: 손절폭 기여도 축소 (dist_to_stop과 중복 신호).
+    """
+    bull_reward: float = 0.55
+    max_drawdown: float = 0.15
+    dist_to_stop: float = 0.30
+    signal_freshness: float = 0.00
 
 
 DEFAULT_WEIGHTS = RegretWeights()
@@ -76,10 +82,11 @@ DEFAULT_WEIGHTS = RegretWeights()
 _TF_SIGNAL_FACTOR: dict[str, float] = {
     "1D": 1.0, "1W": 1.0, "1h": 0.7, "30m": 0.5,
 }
-# 3-Score 합성 기본 가중치
-_W_OPP: float = 0.50    # 기회 (regret_score)
-_W_POT: float = 0.30    # 잠재력 (final_score)
-_W_SIG_BASE: float = 0.20   # 신호 강도 (c.score percentile, TF 배율 적용)
+# 3-Score 합성 기본 가중치 — opp_heavy (OOS 검증 2026-04-15~05-07, PF 7.64)
+# 기회 점수(R:R 비대칭) 비중 확대, 신호강도 비중 축소 → 노이즈 감소
+_W_OPP: float = 0.70    # 기회 (regret_score)
+_W_POT: float = 0.20    # 잠재력 (final_score)
+_W_SIG_BASE: float = 0.10   # 신호 강도 (c.score percentile, TF 배율 적용)
 
 
 def _infer_tf(strategy_id: str) -> str:

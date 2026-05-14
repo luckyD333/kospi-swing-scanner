@@ -150,11 +150,11 @@ def test_score_is_in_zero_to_hundred_range():
 # ---------------------------------------------------------------------------
 
 def test_default_weights_constants():
-    """신규 4 factor 가중치 (R:R 75% + freshness 25%)."""
-    assert DEFAULT_WEIGHTS.bull_reward == 0.40
-    assert DEFAULT_WEIGHTS.max_drawdown == 0.20
-    assert DEFAULT_WEIGHTS.dist_to_stop == 0.15
-    assert DEFAULT_WEIGHTS.signal_freshness == 0.25
+    """rr_focus 4 factor 가중치 (OOS 검증 2026-04-15~05-07, scripts/backtest_ranking_oos.py)."""
+    assert DEFAULT_WEIGHTS.bull_reward == 0.55
+    assert DEFAULT_WEIGHTS.max_drawdown == 0.15
+    assert DEFAULT_WEIGHTS.dist_to_stop == 0.30
+    assert DEFAULT_WEIGHTS.signal_freshness == 0.00
     # ensemble factor 는 없음
     assert not hasattr(DEFAULT_WEIGHTS, "ensemble")
 
@@ -273,21 +273,23 @@ def test_composite_score_lower_for_intraday():
 
 
 def test_composite_uses_all_three_scores():
-    """composite_score가 final_score를 반영해야 함 — 높은 final_score가 composite에서 우위.
+    """composite_score 가 regret_score + final_score + signal_rank 모두 반영함.
 
+    opp_heavy 설정 (opp=0.70, pot=0.20): reward 차이가 클 때 high-reward 후보 우선.
     A: reward 낮음(regret 낮음) + final_score=90
     B: reward 높음(regret 높음) + final_score=10
-    → 30% final 가중치가 50% regret 가중치를 역전: A composite > B composite
+    → opp 70% 가중치 하에서 high-reward B 가 low-final_score 에도 불구하고 우선.
     """
     rc_a = _make_ranked("A", reward_pct_t2=2.0, final_score=90.0)
     rc_b = _make_ranked("B", reward_pct_t2=8.0, final_score=10.0)
     results = {r.candidate.ticker: r for r in compute_regret_scores([rc_a, rc_b])}
     assert "composite_score" in results["A"].normalized_metrics
     assert "composite_score" in results["B"].normalized_metrics
+    # opp_heavy: reward 차이(70% 가중치)가 final_score 차이(20% 가중치)를 압도 → B > A
     assert (
-        results["A"].normalized_metrics["composite_score"]
-        > results["B"].normalized_metrics["composite_score"]
+        results["B"].normalized_metrics["composite_score"]
+        > results["A"].normalized_metrics["composite_score"]
     ), (
-        f"A({results['A'].normalized_metrics['composite_score']:.2f}) "
-        f"should > B({results['B'].normalized_metrics['composite_score']:.2f})"
+        f"B({results['B'].normalized_metrics['composite_score']:.2f}) "
+        f"should > A({results['A'].normalized_metrics['composite_score']:.2f})"
     )

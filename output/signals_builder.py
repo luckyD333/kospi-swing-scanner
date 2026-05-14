@@ -28,11 +28,12 @@ from output.models import (
 from output.signal_components import build_signal_components
 
 # 기회 점수(regret_score) 4축 breakdown 라벨/가중치 — DEFAULT_WEIGHTS 와 일치 (×100).
+# rr_focus: signal_freshness 0.0 (live scan bars=0 변별력 없음), dist_to_stop 강화.
 REGRET_FACTOR_LABELS: dict[str, tuple[str, float]] = {
-    "bull_reward":        ("목표 수익", 40.0),
-    "max_drawdown":       ("손절 위험(역)", 20.0),
-    "dist_to_stop":       ("손절까지 여유", 15.0),
-    "signal_freshness":   ("신호 신선도", 25.0),
+    "bull_reward":        ("목표 수익", 55.0),
+    "max_drawdown":       ("손절 위험(역)", 15.0),
+    "dist_to_stop":       ("손절까지 여유", 30.0),
+    "signal_freshness":   ("신호 신선도", 0.0),
 }
 
 if TYPE_CHECKING:
@@ -371,6 +372,40 @@ def build_signals_payload(
                     ranked_etn_etf, ensemble_scores=weighted_scores,
                 )
             ranked = list(ranked_stock) + list(ranked_etn_etf)
+
+            # S4+S2/S3 confluence 페널티 (OOS 검증: PF +38%, scripts/backtest_ranking_oos.py)
+            # S4(pullback_ma)가 S2(momentum)/S3(trend)와 중복 시 composite_score × 0.75
+            _S4_PREFIXES = ("strategy_four_pullback_ma",)
+            _S2S3_PREFIXES = ("strategy_two", "strategy_three")
+            _CONFLUENCE_PENALTY = 0.75
+            s4_tickers = {
+                c.ticker
+                for sid, cs in filtered_candidates_by_strategy.items()
+                if any(sid.startswith(p) for p in _S4_PREFIXES)
+                for c in cs
+            }
+            s2s3_tickers = {
+                c.ticker
+                for sid, cs in filtered_candidates_by_strategy.items()
+                if any(sid.startswith(p) for p in _S2S3_PREFIXES)
+                for c in cs
+            }
+            penalized_tickers = s4_tickers & s2s3_tickers
+            if penalized_tickers:
+                for rc in ranked:
+                    if rc.candidate.ticker in penalized_tickers:
+                        old_cs = rc.normalized_metrics.get("composite_score", 0.0)
+                        rc.normalized_metrics["composite_score"] = round(old_cs * _CONFLUENCE_PENALTY, 4)
+                        rc.normalized_metrics["confluence_penalty"] = True
+                ranked.sort(key=lambda r: (
+                    -r.normalized_metrics.get("composite_score", 0.0),
+                    -r.final_score,
+                    r.candidate.ticker,
+                ))
+                for _i, rc in enumerate(ranked, start=1):
+                    rc.normalized_metrics["composite_rank"] = _i
+                    rc.normalized_metrics["regret_rank"] = _i
+
             ranked_for_all = ranked
             ticker_to_ranked = {rc.candidate.ticker: rc for rc in ranked}
         except Exception as e:
