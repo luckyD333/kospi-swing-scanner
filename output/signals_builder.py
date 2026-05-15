@@ -27,45 +27,107 @@ from output.models import (
 )
 from output.signal_components import build_signal_components
 
-# 기회 점수(regret_score) 4축 breakdown 라벨/가중치 — DEFAULT_WEIGHTS 와 일치 (×100).
-# KOSDAQ Rank 1 (OOS 2026-05-15): risk-averse, max_drawdown 강조.
-REGRET_FACTOR_LABELS: dict[str, tuple[str, float]] = {
-    "bull_reward":        ("목표 수익", 4.0),
-    "max_drawdown":       ("손절 위험(역)", 61.0),
-    "dist_to_stop":       ("손절까지 여유", 31.0),
-    "signal_freshness":   ("신호 신선도", 4.0),
+# 기회 점수(regret_score) 4축 breakdown — UI 표시용 라벨 (시장 무관).
+REGRET_FACTOR_LABELS: dict[str, str] = {
+    "bull_reward":      "목표 수익",
+    "max_drawdown":     "손절 위험(역)",
+    "dist_to_stop":     "손절까지 여유",
+    "signal_freshness": "신호 신선도",
 }
 
-# 앙상블 strategy score multiplier — KOSDAQ Rank 1 OOS validated.
-# 각 전략 candidate.score 에 곱해져 cross-strategy 우선순위 조절.
-# S3 (Trend Following) 가 양 시장 공통 최강 알파.
-# ⚠ KOSPI 적용은 forward-walk 30일 후 재검증 권장 (2026-06-14~).
-_STRATEGY_SCORE_WEIGHTS: dict[str, float] = {
-    "strategy_one_d_v2":      0.48,
-    "strategy_one_w_v2":      0.48,
-    "strategy_one_1h_v2":     0.48,
-    "strategy_one_30m_v2":    0.48,
-    "strategy_one_d_v2_r1":   0.48,
-    "strategy_one_d_v2_r2":   0.48,
-    "strategy_one_w_v2_r1":   0.48,
-    "strategy_one_w_v2_r2":   0.48,
-    "strategy_one_1h_v2_r1":  0.48,
-    "strategy_one_1h_v2_r2":  0.48,
-    "strategy_one_30m_v2_r1": 0.48,
-    "strategy_one_30m_v2_r2": 0.48,
-    "strategy_two_cross_sectional_momentum": 0.18,
-    "strategy_two_1h":  0.18,
-    "strategy_two_30m": 0.18,
-    "strategy_three_trend_following": 1.36,
-    "strategy_three_1h":  1.36,
-    "strategy_three_30m": 1.36,
-    "strategy_four_pullback_ma":     0.99,
-    "strategy_four_pullback_ma_1h":  0.99,
-    "strategy_four_pullback_ma_30m": 0.99,
-    "strategy_five_bull_flag":     0.27,
-    "strategy_five_bull_flag_1h":  0.27,
-    "strategy_five_bull_flag_30m": 0.27,
-}
+# ─────────────────────────────────────────────────────────────────────
+# 시장별 최적화 파라미터 (OOS 검증 2026-05-15, scripts/optimize_market_separate.py)
+#
+# KOSPI: Rank 2 (PF 4.62, win 79%, DD 17%, DSR 7.75)
+#   ⚠ OOS = bb54d17 윈도우와 동일 → forward-walk 30일 재검증 권장 (2026-06-14~)
+# KOSDAQ: Rank 1 (PF 3.50, win 58%, DD 22%, DSR 4.64)  — fresh OOS validated
+# ─────────────────────────────────────────────────────────────────────
+
+from dataclasses import dataclass as _dataclass
+
+
+@_dataclass(frozen=True)
+class MarketRankingConfig:
+    """시장별 ranking pipeline 파라미터 묶음.
+
+    - regret_weights: RegretWeights — 기회 점수 4축 가중치 (합=1.0)
+    - composite_weights: (opp, pot, sig) — 3-score 합성 가중치 (합=1.0)
+    - confluence_penalty: float — S4+S2/S3 중복 시 composite_score 배수 (1.0=no-op)
+    - strategy_score_weights: base strategy name → score multiplier (앙상블)
+    - factor_label_weights: factor key → UI 표시 가중치 (×100, 합=100)
+    """
+    regret_weights: "RegretWeights"
+    composite_weights: tuple[float, float, float]
+    confluence_penalty: float
+    strategy_score_weights: dict[str, float]
+    factor_label_weights: dict[str, float]
+
+
+def _base_strategy(sid: str) -> str:
+    """strategy id prefix → base name 매핑 (S1~S5)."""
+    for base in ("strategy_one", "strategy_two", "strategy_three", "strategy_four", "strategy_five"):
+        if sid.startswith(base):
+            return base
+    return sid
+
+
+def _build_market_configs() -> dict[str, MarketRankingConfig]:
+    """RegretWeights import 시점 지연 — 모듈 import cycle 회피."""
+    from core.decision.regret_scorer import RegretWeights
+    return {
+        "KOSPI": MarketRankingConfig(
+            regret_weights=RegretWeights(
+                bull_reward=0.22, max_drawdown=0.13, dist_to_stop=0.32, signal_freshness=0.33,
+            ),
+            composite_weights=(0.24, 0.61, 0.15),
+            confluence_penalty=1.0,
+            strategy_score_weights={
+                "strategy_one":   0.88,
+                "strategy_two":   0.46,
+                "strategy_three": 1.03,
+                "strategy_four":  0.56,
+                "strategy_five":  0.30,
+            },
+            factor_label_weights={
+                "bull_reward": 22.0, "max_drawdown": 13.0,
+                "dist_to_stop": 32.0, "signal_freshness": 33.0,
+            },
+        ),
+        "KOSDAQ": MarketRankingConfig(
+            regret_weights=RegretWeights(
+                bull_reward=0.04, max_drawdown=0.61, dist_to_stop=0.31, signal_freshness=0.04,
+            ),
+            composite_weights=(0.20, 0.23, 0.57),
+            confluence_penalty=1.0,
+            strategy_score_weights={
+                "strategy_one":   0.48,
+                "strategy_two":   0.18,
+                "strategy_three": 1.36,
+                "strategy_four":  0.99,
+                "strategy_five":  0.27,
+            },
+            factor_label_weights={
+                "bull_reward":  4.0, "max_drawdown": 61.0,
+                "dist_to_stop": 31.0, "signal_freshness":  4.0,
+            },
+        ),
+    }
+
+
+# Default market = KOSPI (디폴트로 KOSPI 친화 설정 활성)
+DEFAULT_MARKET = "KOSPI"
+_MARKET_CONFIGS: dict[str, MarketRankingConfig] | None = None
+
+
+def _market_config(market: str | None) -> MarketRankingConfig:
+    """market name → MarketRankingConfig. Unknown 시장은 DEFAULT_MARKET fallback."""
+    global _MARKET_CONFIGS
+    if _MARKET_CONFIGS is None:
+        _MARKET_CONFIGS = _build_market_configs()
+    m = (market or DEFAULT_MARKET).upper()
+    if m not in _MARKET_CONFIGS:
+        m = DEFAULT_MARKET
+    return _MARKET_CONFIGS[m]
 
 if TYPE_CHECKING:
     from core.decision.config import WeightConfig
@@ -238,14 +300,18 @@ def build_signals_payload(
     tradability_filter: bool = False,
     tradability_thresholds: FilterThresholds | None = None,
     rejection_log_path: str | None = None,
+    market: str | None = None,
 ) -> SignalsPayload:
     filtered_candidates_by_strategy = _dedup_raw_candidates(candidates_by_strategy)
 
-    # 앙상블 strategy score multiplier — KOSDAQ Rank 1 OOS validated.
-    # S3 (Trend Following) 가 양 시장 최강 알파 (×1.36), S2/S5 약화 (×0.18/0.27).
+    # 시장별 최적 파라미터 dispatch (KOSPI Rank 2 / KOSDAQ Rank 1 OOS validated)
+    _mcfg = _market_config(market)
+    _factor_labels = _mcfg.factor_label_weights  # _build_signal 에서 사용
+
+    # 앙상블 strategy score multiplier — 시장별 가중치 적용.
     # 모든 ranking·display 가 score 기반이므로 단일 위치 곱셈으로 전체 적용.
     for _sid, _cands in filtered_candidates_by_strategy.items():
-        _w = _STRATEGY_SCORE_WEIGHTS.get(_sid, 1.0)
+        _w = _mcfg.strategy_score_weights.get(_base_strategy(_sid), 1.0)
         if _w != 1.0:
             for _c in _cands:
                 _c.score *= _w
@@ -402,23 +468,25 @@ def build_signals_payload(
                 # 그 외 (REIT/SPAC/UNKNOWN) → ranking 미진입
             ranked_stock = aggregate_candidates(stock_cands, weight_config, pool="STOCK")
             ranked_etn_etf = aggregate_candidates(etn_etf_cands, weight_config, pool="ETN_ETF")
-            # 풀별 regret 도 독립 산출 (풀 내 비교가 의미 있음)
+            # 풀별 regret 도 독립 산출 — 시장별 RegretWeights + composite_weights 주입
             if ranked_stock:
                 ranked_stock = compute_regret_scores(
                     ranked_stock, ensemble_scores=weighted_scores,
+                    weights=_mcfg.regret_weights,
+                    composite_weights=_mcfg.composite_weights,
                 )
             if ranked_etn_etf:
                 ranked_etn_etf = compute_regret_scores(
                     ranked_etn_etf, ensemble_scores=weighted_scores,
+                    weights=_mcfg.regret_weights,
+                    composite_weights=_mcfg.composite_weights,
                 )
             ranked = list(ranked_stock) + list(ranked_etn_etf)
 
-            # S4+S2/S3 confluence 페널티 (OOS 검증: KOSDAQ Rank 1, 2026-05-15)
-            # 시장 분리 최적화 결과 penalty=1.0 (페널티 없음) 이 최상위 → 효과적으로 비활성.
-            # 메커니즘은 보존 (factor=1.0 → no-op) 해 회귀 시 쉽게 재활성 가능.
+            # S4+S2/S3 confluence 페널티 — 시장별 penalty (현재 KOSPI/KOSDAQ 모두 1.0)
             _S4_PREFIXES = ("strategy_four_pullback_ma",)
             _S2S3_PREFIXES = ("strategy_two", "strategy_three")
-            _CONFLUENCE_PENALTY = 1.0
+            _CONFLUENCE_PENALTY = _mcfg.confluence_penalty
             s4_tickers = {
                 c.ticker
                 for sid, cs in filtered_candidates_by_strategy.items()
@@ -532,16 +600,16 @@ def build_signals_payload(
             regret_factors_list: list[RegretFactor] | None = [
                 RegretFactor(
                     key=k,
-                    label=REGRET_FACTOR_LABELS[k][0],
-                    weight=REGRET_FACTOR_LABELS[k][1],
+                    label=REGRET_FACTOR_LABELS[k],
+                    weight=_factor_labels[k],
                     normalized=float(rc.normalized_metrics[f"regret_{k}"]),
                     contribution=round(
-                        REGRET_FACTOR_LABELS[k][1]
+                        _factor_labels[k]
                         * float(rc.normalized_metrics[f"regret_{k}"]),
                         4,
                     ),
                 )
-                for k in REGRET_FACTOR_LABELS
+                for k in _factor_labels
                 if f"regret_{k}" in rc.normalized_metrics
             ] or None
             decision = DecisionMeta(

@@ -444,6 +444,7 @@ def _handle_signals_ui_format(args, result) -> int:
         snapshot, candidates_for_signals,
         market_regime=regime, weight_config=weight_config,
         target_date=result.target_date,
+        market=args.market,
     )
 
     data_dir = Path(args.output_dir or "data")

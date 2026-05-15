@@ -133,6 +133,7 @@ def compute_regret_scores(
     ranked: list[RankedCandidate],
     ensemble_scores: dict[str, float] | None = None,
     weights: RegretWeights | None = None,
+    composite_weights: tuple[float, float, float] | None = None,
 ) -> list[RankedCandidate]:
     """R:R 비대칭 + freshness 기반 기회 점수 + rank 부여 후 정렬된 리스트 반환.
 
@@ -141,16 +142,16 @@ def compute_regret_scores(
       regret_rank   (int,   1-based)
       regret_total  (int,   전체 수)
 
-    4 factor (신규):
-      - bull_reward (40%): Candidate.reward_pct_t2
-      - max_drawdown (20%): Candidate.risk_pct (lower_better)
-      - dist_to_stop (15%): (current - stop)/current
-      - signal_freshness (25%): metadata['bars_since_trigger'] 기반 exponential decay
-
     - ensemble_scores: 이제 사용하지 않음 (하위호환 위해 매개변수만 유지)
     - weights: None 이면 DEFAULT_WEIGHTS.
+    - composite_weights: (opp, pot, sig) 튜플. None 이면 모듈 상수 (_W_OPP, _W_POT, _W_SIG_BASE).
+      시장별 분기 호출 시 KOSPI/KOSDAQ 다른 가중치 주입 가능.
     """
     w = weights or DEFAULT_WEIGHTS
+    if composite_weights is not None:
+        w_opp, w_pot, w_sig_base = composite_weights
+    else:
+        w_opp, w_pot, w_sig_base = _W_OPP, _W_POT, _W_SIG_BASE
 
     n = len(ranked)
     if n == 0:
@@ -205,12 +206,12 @@ def compute_regret_scores(
     for i, rc in enumerate(ranked):
         tf = _infer_tf(rc.candidate.strategy)
         tf_factor = _TF_SIGNAL_FACTOR.get(tf, 1.0)
-        w_sig = _W_SIG_BASE * tf_factor
-        scale = 1.0 / (_W_OPP + _W_POT + w_sig)
+        w_sig = w_sig_base * tf_factor
+        scale = 1.0 / (w_opp + w_pot + w_sig)
         rs = rc.normalized_metrics.get("regret_score", 0.0)
         composite = (
-            _W_OPP * rs / 100.0
-            + _W_POT * rc.final_score / 100.0
+            w_opp * rs / 100.0
+            + w_pot * rc.final_score / 100.0
             + w_sig * signal_ranks[i]
         ) * scale * 100.0
         rc.normalized_metrics["composite_score"] = round(composite, 4)
