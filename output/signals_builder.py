@@ -1,9 +1,15 @@
 # output/signals_builder.py
 from __future__ import annotations
+
+from dataclasses import dataclass
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+
+if TYPE_CHECKING:
+    # type-check 전용 import (런타임 import cycle 회피)
+    from core.decision.regret_scorer import RegretWeights
 
 from core.decision.order_type_classifier import (
     OrderTypeIntent,
@@ -42,11 +48,7 @@ REGRET_FACTOR_LABELS: dict[str, str] = {
 #   ⚠ OOS = bb54d17 윈도우와 동일 → forward-walk 30일 재검증 권장 (2026-06-14~)
 # KOSDAQ: Rank 1 (PF 3.50, win 58%, DD 22%, DSR 4.64)  — fresh OOS validated
 # ─────────────────────────────────────────────────────────────────────
-
-from dataclasses import dataclass as _dataclass
-
-
-@_dataclass(frozen=True)
+@dataclass(frozen=True)
 class MarketRankingConfig:
     """시장별 ranking pipeline 파라미터 묶음.
 
@@ -56,7 +58,7 @@ class MarketRankingConfig:
     - strategy_score_weights: base strategy name → score multiplier (앙상블)
     - factor_label_weights: factor key → UI 표시 가중치 (×100, 합=100)
     """
-    regret_weights: "RegretWeights"
+    regret_weights: RegretWeights
     composite_weights: tuple[float, float, float]
     confluence_penalty: float
     strategy_score_weights: dict[str, float]
@@ -443,9 +445,14 @@ def build_signals_payload(
             # ensemble_score + regime_score 메타 주입
             # regime_score: weights.yml 10% 항목 — market_regime["1d"]["score"] 에서 추출.
             # runner.py 는 --decide 모드에서만 주입하므로 일반 스캔 흐름에서 별도 주입 필요.
-            _regime_score_val: int | None = (
-                int((market_regime or {}).get("1d", {}).get("score", 0)) or None
-            )
+            _regime_score_val: int | None = None
+            try:
+                _raw = (market_regime or {}).get("1d", {}).get("score")
+                if _raw is not None:
+                    # 표시용 score 가 소수로 내려올 수 있으므로 round 로 정규화 (내림 왜곡 방지).
+                    _regime_score_val = int(round(float(_raw)))
+            except (TypeError, ValueError):
+                _regime_score_val = None
             for ticker, cand in best_per_ticker.items():
                 ws = weighted_scores.get(ticker, 1.0)
                 meta_patch: dict = {

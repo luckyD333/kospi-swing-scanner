@@ -427,7 +427,13 @@ def _handle_signals_ui_format(args, result) -> int:
     if weight_config is not None and regime is not None:
         try:
             from core.decision.market_regime import apply_regime_overlay
-            _score_1d = int(regime.get("1d", {}).get("score", 50))
+            # regime score 는 표시 포화를 피하려고 소수로 내려올 수 있다.
+            # overlay 분기(>=70/<30)는 정수 기준이므로 round 로 정규화.
+            _raw_score_1d = (regime.get("1d") or {}).get("score")
+            try:
+                _score_1d = int(round(float(_raw_score_1d))) if _raw_score_1d is not None else 50
+            except (TypeError, ValueError):
+                _score_1d = 50
             weight_config = apply_regime_overlay(weight_config, _score_1d)
             logger.info(f"[cli] regime overlay 적용: 1D score={_score_1d}")
         except Exception as _e:

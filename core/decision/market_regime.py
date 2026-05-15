@@ -21,21 +21,40 @@ from core.decision.config import Priority, WeightConfig
 
 logger = logging.getLogger(__name__)
 
+_HMM_SCORE_WEIGHT = 0.45
+_MARKET_HEALTH_SCORE_WEIGHT = 0.55
+
+
+def _market_cap_for_sort(meta: dict) -> float:
+    """manifest meta 의 market_cap_bil 을 정렬 가능한 숫자로 정규화."""
+    value = meta.get("market_cap_bil", 0) if isinstance(meta, dict) else 0
+    try:
+        return float(value) if value is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
 
 @dataclass
 class RegimePoint:
     """단일 시점의 국면 분석."""
     date: str
-    score: int              # 1~100 (P(BULL) × 100)
+    # 1~100 calibrated regime strength. HMM posterior 단독은 0.99대 포화가 잦아
+    # market_health_score 를 함께 반영한다.
+    score: float
     log_return: float
     volatility: float
     prob_bull: float
+    hmm_score: float | None = None
+    market_health_score: float | None = None
+    trend_score: float | None = None
+    impulse_score: float | None = None
+    volatility_score: float | None = None
 
 
 @dataclass
 class RegimeAnalysis:
     """시장 국면 분석 결과."""
-    current_score: int              # 1~100
+    current_score: float            # 1~100 calibrated regime strength
     history: list[RegimePoint]
     bull_state_mean_return: float
     bear_state_mean_return: float
@@ -85,7 +104,7 @@ def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame
     # 시가총액 내림차순 정렬 → 상위 max_tickers개
     sorted_tickers = sorted(
         tickers_meta.items(),
-        key=lambda x: x[1].get("market_cap_bil", 0),
+        key=lambda x: _market_cap_for_sort(x[1]),
         reverse=True,
     )
     selected = sorted_tickers[:max_tickers]
@@ -134,8 +153,75 @@ def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame
     return proxy
 
 
-def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[int, float, float, list[dict], float, list, list]:
-    """GaussianHMM 학습 (multi-init best-likelihood) → score + 디버그 메타."""
+def _expanding_percentile_score(
+    series: pd.Series,
+    *,
+    min_periods: int,
+    default: float = 50.0,
+) -> pd.Series:
+    """각 시점 값을 그 시점까지의 과거 분포 percentile(0~100)로 변환.
+
+    미래 데이터를 쓰지 않는 expanding 방식이라 realtime 계산과 backfill 계산이 일치한다.
+    """
+    out: list[float] = []
+    values: list[float] = []
+    for value in series:
+        if pd.isna(value):
+            out.append(default)
+            continue
+        x = float(value)
+        values.append(x)
+        if len(values) < min_periods:
+            out.append(default)
+            continue
+        arr = np.asarray(values, dtype=float)
+        out.append(float((arr <= x).sum()) / len(arr) * 100.0)
+    return pd.Series(out, index=series.index)
+
+
+def _compute_market_health_scores(proxy: pd.DataFrame) -> pd.DataFrame:
+    """HMM posterior 포화를 보완하는 연속형 market health score 계산.
+
+    구성:
+      - trend_score: 20봉 누적 시장 log-return 의 expanding percentile
+      - impulse_score: 5봉 누적 시장 log-return 의 expanding percentile
+      - volatility_score: 현재 변동성 percentile 의 역방향 점수 (낮은 변동성 = 높은 점수)
+
+    이 값은 시장 상태의 확률이 아니라, 현재 시장 체력의 상대 위치다.
+    """
+    returns = proxy["mean_return"]
+    volatility = proxy["rolling_std"]
+
+    impulse_return = returns.rolling(5, min_periods=3).sum()
+    trend_return = returns.rolling(20, min_periods=10).sum()
+
+    trend_score = _expanding_percentile_score(trend_return, min_periods=10)
+    impulse_score = _expanding_percentile_score(impulse_return, min_periods=10)
+    volatility_score = 100.0 - _expanding_percentile_score(
+        volatility, min_periods=20,
+    )
+
+    market_health = (
+        trend_score * 0.55
+        + impulse_score * 0.25
+        + volatility_score * 0.20
+    ).clip(1.0, 100.0)
+
+    return pd.DataFrame({
+        "market_health_score": market_health.round(1),
+        "trend_score": trend_score.round(1),
+        "impulse_score": impulse_score.round(1),
+        "volatility_score": volatility_score.round(1),
+    }, index=proxy.index)
+
+
+def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[float, float, float, list[dict], float, list, list]:
+    """GaussianHMM 학습 (multi-init best-likelihood) → calibrated score + 디버그 메타.
+
+    NOTE:
+      prob_bull 은 상태 분류 posterior 라서 강한 한쪽 상태에서는 0.99대 포화가 정상적이다.
+      따라서 표시/가중치용 score 는 HMM score 와 market health score 를 혼합해 산출한다.
+    """
     X = proxy.values
     best_model, best_ll = None, float("-inf")
     for seed in (42, 7, 13, 21, 99):
@@ -143,7 +229,15 @@ def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[int, float, float, list[dict], 
             n_components=2, covariance_type="diag",
             n_iter=200, random_state=seed,
         )
-        m.fit(X)
+        # hmmlearn 이 일부 seed 에서 최종 likelihood 미세 감소를 WARNING 으로 직접 출력한다.
+        # multi-init 중 더 좋은 모델을 고르는 구조라 해당 seed 경고는 운영 로그 노이즈다.
+        hmm_logger = logging.getLogger("hmmlearn.base")
+        prev_level = hmm_logger.level
+        hmm_logger.setLevel(logging.ERROR)
+        try:
+            m.fit(X)
+        finally:
+            hmm_logger.setLevel(prev_level)
         ll = m.score(X)
         if ll > best_ll:
             best_ll, best_model = ll, m
@@ -152,19 +246,36 @@ def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[int, float, float, list[dict], 
     bull_idx = int(np.argmax(mean_returns))
     bear_idx = 1 - bull_idx
     prob_bull = model.predict_proba(X)[:, bull_idx]
-    scores = np.clip(np.round(prob_bull * 100), 1, 100).astype(int)
+    hmm_scores = np.clip(np.round(prob_bull * 100, 1), 1.0, 100.0)
+    health = _compute_market_health_scores(proxy)
+    health_scores = health["market_health_score"].to_numpy(dtype=float)
+    scores = np.clip(
+        np.round(
+            hmm_scores * _HMM_SCORE_WEIGHT
+            + health_scores * _MARKET_HEALTH_SCORE_WEIGHT,
+            1,
+        ),
+        1.0,
+        100.0,
+    )
     history = []
     for i, (date_idx, row) in enumerate(proxy.iterrows()):
         date_str = str(date_idx.date()) if hasattr(date_idx, "date") else str(date_idx)
+        health_row = health.iloc[i]
         history.append({
             "date": date_str,
-            "score": int(scores[i]),
+            "score": float(scores[i]),
             "log_return": float(row["mean_return"]),
             "volatility": float(row["rolling_std"]),
             "prob_bull": float(prob_bull[i]),
+            "hmm_score": float(hmm_scores[i]),
+            "market_health_score": float(health_row["market_health_score"]),
+            "trend_score": float(health_row["trend_score"]),
+            "impulse_score": float(health_row["impulse_score"]),
+            "volatility_score": float(health_row["volatility_score"]),
         })
     return (
-        int(scores[-1]),
+        float(scores[-1]),
         float(model.means_[bull_idx, 0]),
         float(model.means_[bear_idx, 0]),
         history,
@@ -188,7 +299,7 @@ def _build_proxy_1h(cache_root: Path, max_tickers: int = 30) -> pd.DataFrame:
 
     sorted_tickers = sorted(
         tickers_meta.items(),
-        key=lambda x: x[1].get("market_cap_bil", 0),
+        key=lambda x: _market_cap_for_sort(x[1]),
         reverse=True,
     )
     selected = sorted_tickers[:max_tickers]
@@ -267,6 +378,11 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
         RegimePoint(
             date=h["date"], score=h["score"], log_return=h["log_return"],
             volatility=h["volatility"], prob_bull=h["prob_bull"],
+            hmm_score=h.get("hmm_score"),
+            market_health_score=h.get("market_health_score"),
+            trend_score=h.get("trend_score"),
+            impulse_score=h.get("impulse_score"),
+            volatility_score=h.get("volatility_score"),
         )
         for h in history_dicts
     ]
@@ -289,7 +405,7 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
 
 def apply_regime_overlay(
     base_config: WeightConfig,
-    regime_score: int,
+    regime_score: float,
 ) -> WeightConfig:
     """국면 점수 기반 priority weight 조정.
 
@@ -342,7 +458,7 @@ def apply_regime_overlay(
     )
 
 
-def get_regime_label(score: int) -> str:
+def get_regime_label(score: float) -> str:
     """score(1~100) → BULL / NEUTRAL / BEAR 라벨."""
     if score >= 70:
         return "BULL"
@@ -354,7 +470,7 @@ def get_regime_label(score: int) -> str:
 def _window_avg(history: list[dict], n: int) -> dict:
     """history 마지막 n개의 평균 score → {score, regime, n_days}."""
     recent = history[-n:] if len(history) >= n else history
-    avg = round(sum(p["score"] for p in recent) / len(recent)) if recent else 50
+    avg = round(sum(float(p["score"]) for p in recent) / len(recent), 1) if recent else 50.0
     return {"score": avg, "regime": get_regime_label(avg), "n_days": len(recent)}
 
 
@@ -368,6 +484,11 @@ def save_regime_analysis(cache_root: Path) -> None:
             "log_return": p.log_return,
             "volatility": p.volatility,
             "prob_bull": p.prob_bull,
+            "hmm_score": p.hmm_score,
+            "market_health_score": p.market_health_score,
+            "trend_score": p.trend_score,
+            "impulse_score": p.impulse_score,
+            "volatility_score": p.volatility_score,
         }
         for p in analysis.history
     ]

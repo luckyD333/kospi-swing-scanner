@@ -140,7 +140,13 @@ def _build_unique_pool(
     if regime is not None:
         score = regime.get("current_score")
         if score is not None:
-            score_int = int(score)
+            # current_score 가 소수로 내려올 수 있으므로 round 로 정규화 (내림 왜곡 방지).
+            try:
+                score_int = int(round(float(score)))
+            except (TypeError, ValueError):
+                score_int = None
+            if score_int is None:
+                score_int = 50
             regime_meta["regime_score"] = score_int
             regime_meta["regime_label"] = (
                 regime.get("current_regime") or get_regime_label(score_int)

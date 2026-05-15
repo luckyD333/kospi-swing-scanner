@@ -16,6 +16,7 @@ import pytest
 from core.decision.config import Priority, WeightConfig
 from core.decision.market_regime import (
     RegimeAnalysis,
+    _compute_market_health_scores,
     apply_regime_overlay,
     analyze_regime,
     build_market_proxy,
@@ -160,6 +161,20 @@ def test_build_market_proxy_selects_top_by_market_cap(mock_cache_cls, tmp_path):
 
 
 @patch("core.decision.market_regime.OhlcvDiskCache")
+def test_build_market_proxy_handles_none_market_cap(mock_cache_cls, tmp_path):
+    """market_cap_bil=None 이어도 정렬 실패 없이 proxy 계산."""
+    mock_disk = MagicMock()
+    mock_cache_cls.return_value = mock_disk
+    mock_disk.read.return_value = _make_ohlcv(60)
+
+    tickers_meta = {f"00{i:04d}": {"market_cap_bil": None} for i in range(20)}
+    _make_manifest(tmp_path, tickers_meta)
+
+    result = build_market_proxy(tmp_path, max_tickers=10)
+    assert not result.empty
+
+
+@patch("core.decision.market_regime.OhlcvDiskCache")
 def test_build_market_proxy_no_manifest_returns_empty(mock_cache_cls, tmp_path):
     """manifest.json 없음 → 빈 DataFrame."""
     result = build_market_proxy(tmp_path, max_tickers=10)
@@ -229,6 +244,24 @@ def test_analyze_regime_bull_bear_state_means(mock_cache_cls, tmp_path):
     result = analyze_regime(tmp_path)
     assert isinstance(result.bull_state_mean_return, float)
     assert isinstance(result.bear_state_mean_return, float)
+
+
+def test_market_health_score_expands_variation_inside_bull_state():
+    """HMM posterior 가 포화돼도 trend/impulse 약화는 health score 에 반영된다."""
+    dates = pd.date_range("2026-01-01", periods=50, freq="B")
+    returns = [0.01] * 30 + [-0.004] * 10 + [0.002] * 10
+    volatility = [0.02] * 30 + [0.03] * 10 + [0.018] * 10
+    proxy = pd.DataFrame(
+        {"mean_return": returns, "rolling_std": volatility},
+        index=dates,
+    )
+
+    scores = _compute_market_health_scores(proxy)
+
+    strong_score = float(scores["market_health_score"].iloc[29])
+    weak_score = float(scores["market_health_score"].iloc[39])
+    assert weak_score < strong_score - 10.0
+    assert 1.0 <= float(scores["market_health_score"].iloc[-1]) <= 100.0
 
 
 # ---------------------------------------------------------------------------
