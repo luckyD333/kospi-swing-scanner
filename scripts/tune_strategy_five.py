@@ -326,10 +326,10 @@ def print_results(results: list[RunResult], top_n: int) -> None:
             f"  {r.profit_factor:>5.2f}"
             f"  {r.avg_win:>+7.2f}%"
             f"  {r.avg_loss:>+7.2f}%"
-        )
+    )
 
     # 현재 기본값 결과 표시
-    print(f"\n  ── 현재 기본값 (pole=8%, shrink=0.7, tight=1.5, vol=1.0) ──")
+    print("\n  ── 현재 기본값 (pole=8%, shrink=0.7, tight=1.5, vol=1.0) ──")
     baseline = next(
         (r for r in results
          if abs(r.params["min_pole_pct"] - 0.08) < 0.001
@@ -357,7 +357,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
     best = valid[0] if valid else None
     if best:
         p = best.params
-        print(f"\n  ★ 추천 조합:")
+        print("\n  ★ 추천 조합:")
         print(f"    min_pole_pct    = {p['min_pole_pct']:.2f}  ({p['min_pole_pct']*100:.0f}%)")
         print(f"    vol_shrink_ratio = {p['vol_shrink_ratio']:.2f}")
         print(f"    tight_range_mult = {p['tight_range_mult']:.1f}")

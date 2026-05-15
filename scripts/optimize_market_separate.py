@@ -24,10 +24,10 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.optimize_full import (
-    Config, sample_config, make_default_config,
+    sample_config, make_default_config,
     evaluate_config, load_data,
     compute_pbo, deflated_sharpe,
-    MIN_BARS, RUN_DIR_ROOT,
+    RUN_DIR_ROOT,
 )
 
 # 시장 분리 전용 설정
@@ -172,7 +172,8 @@ def write_report(run_dir: Path, kospi: dict, kosdaq: dict):
         lines.append("| Rank | top_n | penalty | s1 | s2 | s3 | s4 | s5 | PF | win% | DD | DSR | 게이트 |")
         lines.append("|------|-------|---------|----|----|----|----|----|-----|------|-----|-----|--------|")
         for r in s["top5"]:
-            c = r["config"]; m = r["oos_metrics"]
+            c = r["config"]
+            m = r["oos_metrics"]
             gate = "✓" if r["gate"]["passed"] else "✗"
             lines.append(f"| {r['rank']} | {c['top_n']} | {c['confluence_penalty']:.2f} | "
                          f"{c['w_s1']:.1f} | {c['w_s2']:.1f} | {c['w_s3']:.1f} | {c['w_s4']:.1f} | {c['w_s5']:.1f} | "
@@ -180,7 +181,7 @@ def write_report(run_dir: Path, kospi: dict, kosdaq: dict):
         # 전략 가중치 평균
         ws_avg = {k: sum(r["config"][k] for r in s["top5"]) / len(s["top5"])
                   for k in ["w_s1", "w_s2", "w_s3", "w_s4", "w_s5"]}
-        lines.append(f"\n### 평균 strategy weights\n")
+        lines.append("\n### 평균 strategy weights\n")
         lines.append(f"- s1={ws_avg['w_s1']:.2f}, s2={ws_avg['w_s2']:.2f}, "
                      f"s3={ws_avg['w_s3']:.2f}, s4={ws_avg['w_s4']:.2f}, s5={ws_avg['w_s5']:.2f}")
         accepted = sum(1 for r in s["top5"] if r["gate"]["passed"])

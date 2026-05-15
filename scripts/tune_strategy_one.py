@@ -211,7 +211,6 @@ def run_grid(
 
         pnls: list[float] = []
         tickers = list(all_data.keys())
-        names = {t: t for t in tickers}
         market_caps = {t: meta.get(t, {}).get("market_cap_bil", 0.0) or 0.0 for t in tickers}
         strategy = StrategyOneDv2(config=cfg)
 
@@ -317,7 +316,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
         )
 
     # 현재 기본값 결과 표시
-    print(f"\n  ── 현재 기본값 (strict=True, fresh=2, tol=0.03, detector=simple) ──")
+    print("\n  ── 현재 기본값 (strict=True, fresh=2, tol=0.03, detector=simple) ──")
     baseline = next(
         (r for r in results
          if r.params["engulf_strict"] is True
@@ -346,7 +345,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
     best = valid[0] if valid else None
     if best:
         p = best.params
-        print(f"\n  ★ 추천 조합:")
+        print("\n  ★ 추천 조합:")
         print(f"    engulf_strict      = {p['engulf_strict']}")
         print(f"    db_freshness       = {p['db_freshness']}")
         print(f"    db_price_tolerance = {p['db_price_tolerance']:.2f}")

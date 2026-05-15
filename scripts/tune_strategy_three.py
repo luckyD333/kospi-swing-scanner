@@ -249,7 +249,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
         )
 
     # 현재 기본값 결과 표시
-    print(f"\n  ── 현재 기본값 (lookback=20, atr_filt=0.5, atr_stop=1.5, atr_targ=3.0) ──")
+    print("\n  ── 현재 기본값 (lookback=20, atr_filt=0.5, atr_stop=1.5, atr_targ=3.0) ──")
     baseline = next(
         (r for r in results
          if int(r.params["lookback"]) == 20
@@ -277,7 +277,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
     best = valid[0] if valid else None
     if best:
         p = best.params
-        print(f"\n  ★ 추천 조합:")
+        print("\n  ★ 추천 조합:")
         print(f"    lookback            = {int(p['lookback'])}")
         print(f"    atr_filter_multiplier = {p['atr_filter_multiplier']:.1f}")
         print(f"    atr_stop_mult        = {p['atr_stop_mult']:.1f}")

@@ -250,7 +250,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
         )
 
     # 현재 기본값 결과 표시
-    print(f"\n  ── 현재 기본값 (lookback=15, percentile=0.75, rsi_max=80, vol_req=Y) ──")
+    print("\n  ── 현재 기본값 (lookback=15, percentile=0.75, rsi_max=80, vol_req=Y) ──")
     baseline = next(
         (r for r in results
          if r.params["lookback"] == 15
@@ -284,7 +284,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
         p = best.params
         rsi_str = f"{p['rsi_max']:.0f}" if p['rsi_max'] is not None else "None"
         vol_str = "Y" if p['require_volume_above_avg'] else "N"
-        print(f"\n  ★ 추천 조합:")
+        print("\n  ★ 추천 조합:")
         print(f"    lookback            = {p['lookback']}")
         print(f"    entry_percentile    = {p['entry_percentile']:.2f}")
         print(f"    rsi_max             = {rsi_str}")

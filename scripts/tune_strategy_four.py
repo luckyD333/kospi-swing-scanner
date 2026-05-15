@@ -316,7 +316,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
         )
 
     # 현재 기본값 결과 표시
-    print(f"\n  ── 현재 기본값 (ma20=20, ma5=5, lb=5, vol=0.8) ──")
+    print("\n  ── 현재 기본값 (ma20=20, ma5=5, lb=5, vol=0.8) ──")
     baseline = next(
         (r for r in results
          if r.params["ma_trend"] == 20
@@ -344,7 +344,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
     best = valid[0] if valid else None
     if best:
         p = best.params
-        print(f"\n  ★ 추천 조합:")
+        print("\n  ★ 추천 조합:")
         print(f"    ma_trend         = {p['ma_trend']}")
         print(f"    ma_pullback      = {p['ma_pullback']}")
         print(f"    pullback_lookback = {p['pullback_lookback']}")

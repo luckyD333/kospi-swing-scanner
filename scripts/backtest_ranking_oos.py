@@ -11,7 +11,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import mean, stdev
+from statistics import mean
 
 import pandas as pd
 
@@ -402,7 +402,7 @@ def main() -> None:
 
     if results:
         top_result = results[0]
-        print(f"\n최고 성과 조합:")
+        print("\n최고 성과 조합:")
         print(f"  RegretWeights: {top_result.rw_name}")
         print(f"  Composite:     {top_result.composite_name}")
         print(f"  Penalty:       {top_result.penalty_factor:.2f}")
@@ -417,7 +417,7 @@ def main() -> None:
             no_penalty_pf = mean([r.pf for r in no_penalty_results])
             with_penalty_pf = mean([r.pf for r in with_penalty_results])
             penalty_impact = (with_penalty_pf - no_penalty_pf) / no_penalty_pf * 100 if no_penalty_pf > 0 else 0
-            print(f"\nPenalty 효과 (0.75 vs 1.0):")
+            print("\nPenalty 효과 (0.75 vs 1.0):")
             print(f"  No penalty (avg PF):    {no_penalty_pf:.2f}")
             print(f"  With penalty (avg PF):  {with_penalty_pf:.2f}")
             print(f"  변화:                   {penalty_impact:+.1f}%")
@@ -430,7 +430,7 @@ def main() -> None:
             top5_pf = mean([r.pf for r in top5_results])
             top10_pf = mean([r.pf for r in top10_results])
             topn_impact = (top10_pf - top5_pf) / top5_pf * 100 if top5_pf > 0 else 0
-            print(f"\nTop-N 효과 (5 vs 10):")
+            print("\nTop-N 효과 (5 vs 10):")
             print(f"  Top-5 (avg PF):  {top5_pf:.2f}")
             print(f"  Top-10 (avg PF): {top10_pf:.2f}")
             print(f"  변화:            {topn_impact:+.1f}%")

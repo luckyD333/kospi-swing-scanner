@@ -160,7 +160,7 @@ def run_walk_forward(
         for strat_key, strategy in strategies.items():
             try:
                 candidates: list[Candidate] = strategy.scan(ctx, top_n=top_n)
-            except Exception as e:
+            except Exception:
                 continue
 
             for cand in candidates:

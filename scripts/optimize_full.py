@@ -398,7 +398,9 @@ def compute_metrics(trades: list[dict]) -> dict:
     sd = stdev(pnls) if len(pnls) > 1 else 1e-6
     sharpe = (avg / sd) * (252 ** 0.5) if sd > 0 else 0.0
     # max DD on cumulative
-    cum = 0.0; peak = 0.0; max_dd = 0.0
+    cum = 0.0
+    peak = 0.0
+    max_dd = 0.0
     for p in pnls:
         cum += p
         peak = max(peak, cum)
