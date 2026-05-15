@@ -421,8 +421,7 @@ def build_signals_payload(
 
     # 의사결정 스코어 계산 (weight_config 제공 시)
     ticker_to_ranked: dict = {}
-    ranked_for_all: list = []
-    _all_ranked_pools: list = []
+    ranked: list = []
     if weight_config is not None:
         try:
             from core.decision.aggregator import aggregate_candidates
@@ -443,7 +442,8 @@ def build_signals_payload(
                     continue
                 if c.ticker not in best_per_ticker or c.score > best_per_ticker[c.ticker].score:
                     best_per_ticker[c.ticker] = c
-            # Intraday 풀: 1D 랭킹 우선 — 이미 1D 풀에 있는 ticker 는 제외
+            # 인트라데이 전용 종목: 1D 풀에 합류 (1D 신호 있는 ticker 우선 유지)
+            # runner.py 에서 momentum_3m/liquidity 가 이미 주입됐으므로 1D 기준으로 공정 비교.
             best_per_ticker_it: dict[str, object] = {}
             for _sid, c in all_candidates:
                 if _infer_timeframe_from_id(_sid) not in _INTRADAY_TFS:
@@ -452,8 +452,10 @@ def build_signals_payload(
                     continue
                 if c.ticker not in best_per_ticker_it or c.score > best_per_ticker_it[c.ticker].score:
                     best_per_ticker_it[c.ticker] = c
-            # ensemble_score + regime_score 메타 주입 (두 풀 모두)
-            # regime_score: weights.yml 10% 항목 — market_regime["1d"]["score"] 에서 추출.
+            for ticker, cand in best_per_ticker_it.items():
+                best_per_ticker[ticker] = cand
+            # ensemble_score + regime_score 메타 주입 (통합 풀)
+            # regime_score: weights.yml 15% 항목 — market_regime["1d"]["score"] 에서 추출.
             # runner.py 는 --decide 모드에서만 주입하므로 일반 스캔 흐름에서 별도 주입 필요.
             _regime_score_val: int | None = None
             try:
@@ -463,7 +465,7 @@ def build_signals_payload(
                     _regime_score_val = int(round(float(_raw)))
             except (TypeError, ValueError):
                 _regime_score_val = None
-            for ticker, cand in {**best_per_ticker, **best_per_ticker_it}.items():
+            for ticker, cand in best_per_ticker.items():
                 ws = weighted_scores.get(ticker, 1.0)
                 meta_patch: dict = {
                     "ensemble_score": ws,
@@ -532,34 +534,7 @@ def build_signals_payload(
                     rc.normalized_metrics["composite_rank"] = _i
                     rc.normalized_metrics["regret_rank"] = _i
 
-            # Intraday 풀 독립 ranking (1D 풀과 cross-sectional 분리)
-            stock_cands_it, etn_etf_cands_it = [], []
-            for cand in best_per_ticker_it.values():
-                pt = (getattr(cand, "metadata", None) or {}).get("product_type", "UNKNOWN")
-                if pt == "STOCK":
-                    stock_cands_it.append(cand)
-                elif pt in ("ETN", "ETF"):
-                    etn_etf_cands_it.append(cand)
-            ranked_stock_it = aggregate_candidates(stock_cands_it, weight_config, pool="STOCK") if stock_cands_it else []
-            ranked_etn_etf_it = aggregate_candidates(etn_etf_cands_it, weight_config, pool="ETN_ETF") if etn_etf_cands_it else []
-            if ranked_stock_it:
-                ranked_stock_it = compute_regret_scores(
-                    ranked_stock_it, ensemble_scores=weighted_scores,
-                    weights=_mcfg.regret_weights,
-                    composite_weights=_mcfg.composite_weights,
-                )
-            if ranked_etn_etf_it:
-                ranked_etn_etf_it = compute_regret_scores(
-                    ranked_etn_etf_it, ensemble_scores=weighted_scores,
-                    weights=_mcfg.regret_weights,
-                    composite_weights=_mcfg.composite_weights,
-                )
-            ranked_intraday = list(ranked_stock_it) + list(ranked_etn_etf_it)
-
-            # 풀 목록 — "all" entry 생성 시 풀별 독립 크기/candidates 유지
-            _all_ranked_pools = [p for p in [ranked, ranked_intraday] if p]
-            ranked_for_all = ranked + ranked_intraday
-            ticker_to_ranked = {rc.candidate.ticker: rc for rc in ranked_for_all}
+            ticker_to_ranked = {rc.candidate.ticker: rc for rc in ranked}
         except Exception as e:
             logger.warning(f"의사결정 스코어 계산 실패 (생략): {e}")
 
@@ -797,11 +772,11 @@ def build_signals_payload(
         if _is_actionable(sig):
             signals.append(sig)
 
-    # 'all' 통합 entry — 풀별 독립 크기로 생성 (1D 풀 / Intraday 풀 분리)
-    for _pool in _all_ranked_pools:
-        n_pool = len(_pool)
-        pool_candidates = [rc.candidate for rc in _pool]
-        for rc in _pool:
+    # 'all' 통합 entry — 단일 1D 풀 기준 (인트라데이 포함)
+    if ranked:
+        n_ranked = len(ranked)
+        all_pool_candidates = [rc.candidate for rc in ranked]
+        for rc in ranked:
             c = rc.candidate
             origin_tf = getattr(c, "timeframe", None) or _infer_timeframe_from_id(
                 getattr(c, "strategy", "") or "",
@@ -811,8 +786,8 @@ def build_signals_payload(
                 fallback_rank=int(rc.normalized_metrics.get(
                     "composite_rank", rc.normalized_metrics.get("regret_rank", 1)
                 )),
-                fallback_total=n_pool,
-                all_candidates_for_percentile=pool_candidates,
+                fallback_total=n_ranked,
+                all_candidates_for_percentile=all_pool_candidates,
             )
             if _is_actionable(sig):
                 signals.append(sig)

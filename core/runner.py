@@ -30,6 +30,8 @@ from .cache.ohlcv_disk import OhlcvDiskCache
 from .cache.resampler import resample_to
 from .data_fetch import DataClient, OhlcvCache
 from .data_sources.naver import naver_detail_url
+from .decision.factors.liquidity import compute_liquidity_score as _compute_liquidity_score
+from .decision.factors.momentum_3m import compute_momentum_3m as _compute_momentum_3m
 from .decision.product_type import ProductType
 from .decision.tradability_filter import enrich_metadata as _enrich_tradability
 from .strategy_base import Candidate, ScanContext, Strategy
@@ -284,9 +286,15 @@ class ScanRunner:
                         cand.ticker, ProductType.UNKNOWN,
                     ).value
                     # PR-D: 거래가능성 메타 주입 — 1D OHLCV 에서 거래대금·일중변동폭 계산
-                    _enrich_tradability(
-                        cand, ohlcv_by_tf.get("1D", {}).get(cand.ticker),
-                    )
+                    _ohlcv_1d = ohlcv_by_tf.get("1D", {}).get(cand.ticker)
+                    _enrich_tradability(cand, _ohlcv_1d)
+                    # 랭킹 factor 주입 — 모든 TF 후보에 1D 기준 momentum_3m + liquidity 계산.
+                    # 인트라데이 후보도 1D 풀에서 공정 비교 가능하도록 동일 메트릭 사용.
+                    cand.metadata["momentum_3m"] = _compute_momentum_3m(_ohlcv_1d)
+                    _mkt = (cand.market_cap_bil or 0.0) * 1e9
+                    _vol = cand.metadata.get("value_traded_20d_avg")
+                    if _mkt and _vol:
+                        cand.metadata["liquidity"] = _compute_liquidity_score(_mkt, _vol)
                 result.candidates_by_strategy_tf[(strat.name, tf)] = candidates
                 # legacy 1D alias
                 if tf == "1D":
@@ -304,6 +312,8 @@ class ScanRunner:
                                     "per": None, "roe": None, "foreign_pct": None,
                                     "naver_url": naver_detail_url(cand.ticker),
                                 }))
+                                _fb_ohlcv_1d = ohlcv_by_tf.get("1D", {}).get(cand.ticker)
+                                cand.metadata["momentum_3m"] = _compute_momentum_3m(_fb_ohlcv_1d)
                             result.candidates_by_strategy_tf[(fb_strat.name, fb_tf)] = fb_candidates
                             if fb_tf == "1D":
                                 result.candidates_by_strategy[fb_strat.name] = fb_candidates
