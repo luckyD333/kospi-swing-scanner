@@ -9,11 +9,9 @@ interface Props {
 }
 
 const STEPS = [
-  { num: '01', title: '장 열기 전 확인', desc: '전날 종가 기준으로 뽑은 후보 목록입니다. 장 시작 전 미리 검토하세요.' },
-  { num: '02', title: '오전 중 진입', desc: '시초가 전후 오전 시간대가 진입에 유리합니다. 이미 크게 오른 상태라면 넘기세요.' },
-  { num: '03', title: '손절가 먼저 확인', desc: '진입 전 손절가 위치를 확인하고, 감당 가능한 손실인지 먼저 따져보세요.' },
-  { num: '04', title: '1~3일 안에 정리', desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. 보유가 길어질수록 유리함이 줄어들 수 있어요.' },
-  { num: '05', title: '전략 성격 파악', desc: '하단 전략별 참고사항을 보고, 어떤 상황에서 뽑힌 종목인지 확인하세요.' },
+  { num: '01', title: '장 열기 전 확인', desc: '전날 종가 기준으로 뽑은 후보 목록입니다. 장 시작 전 미리 검토하세요.', accent: '#4A9EFF' },
+  { num: '02', title: '오전 중 진입', desc: '시초가 전후 오전 시간대가 진입에 유리합니다. 이미 크게 오른 상태라면 넘기세요.', accent: '#5FD4A8' },
+  { num: '03', title: '1~3일 안에 정리', desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. 보유가 길어질수록 유리함이 줄어들 수 있어요.', accent: '#D4A017' },
 ] as const;
 
 const STRATEGIES = [
@@ -130,13 +128,10 @@ export default function AboutOverlay({ open, onClose }: Props) {
         <div style={{ marginBottom: '80px' }}>
           <p style={{
             ...ts('body-md', 'var(--body)'),
-            maxWidth: '640px',
             margin: 0,
             lineHeight: 1.7,
           }}>
-            매일 장 마감 후 KOSPI/KOSDAQ 전 종목을 분석해 다음 날 주목할 만한 종목 후보를 정리합니다.
-            5가지 전략이 각자의 기준으로 신호를 포착하고, 점수·손익비 순으로 정렬합니다.
-            매수 추천이 아닌 관찰 명세서입니다. 최종 판단은 직접 하세요.
+            매일 장 마감 후 KOSPI/KOSDAQ 전 종목을 분석해 다음 날 주목할 만한 종목 후보를 정리합니다. 5가지 전략이 각자의 기준으로 신호를 포착하고, 점수·손익비 순으로 정렬합니다. 매수 추천이 아닌 관찰 명세서입니다. 최종 판단은 직접 하세요.
           </p>
         </div>
 
@@ -153,11 +148,11 @@ export default function AboutOverlay({ open, onClose }: Props) {
             border: '1px solid var(--hairline)',
           }}>
             {STEPS.map(s => (
-              <div key={s.num} style={{ background: 'var(--canvas)', padding: '40px 32px' }}>
+              <div key={s.num} style={{ background: 'var(--canvas)', padding: '40px 32px', borderTop: `3px solid ${s.accent}` }}>
                 <div style={{
                   fontFamily: 'var(--f-mono-stack)',
                   fontSize: '11px',
-                  color: 'var(--muted-soft)',
+                  color: s.accent,
                   letterSpacing: '0.1em',
                   marginBottom: '16px',
                 }}>
