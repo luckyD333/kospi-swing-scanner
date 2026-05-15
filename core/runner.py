@@ -313,7 +313,12 @@ class ScanRunner:
                                     "naver_url": naver_detail_url(cand.ticker),
                                 }))
                                 _fb_ohlcv_1d = ohlcv_by_tf.get("1D", {}).get(cand.ticker)
+                                _enrich_tradability(cand, _fb_ohlcv_1d)
                                 cand.metadata["momentum_3m"] = _compute_momentum_3m(_fb_ohlcv_1d)
+                                _fb_mkt = (cand.market_cap_bil or 0.0) * 1e9
+                                _fb_vol = cand.metadata.get("value_traded_20d_avg")
+                                if _fb_mkt and _fb_vol:
+                                    cand.metadata["liquidity"] = _compute_liquidity_score(_fb_mkt, _fb_vol)
                             result.candidates_by_strategy_tf[(fb_strat.name, fb_tf)] = fb_candidates
                             if fb_tf == "1D":
                                 result.candidates_by_strategy[fb_strat.name] = fb_candidates

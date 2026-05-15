@@ -421,7 +421,7 @@ def build_signals_payload(
 
     # 의사결정 스코어 계산 (weight_config 제공 시)
     ticker_to_ranked: dict = {}
-    ranked: list = []
+    ranked: list = []  # weight_config=None 시 "all" entry 루프 skip 용 빈 리스트
     if weight_config is not None:
         try:
             from core.decision.aggregator import aggregate_candidates
