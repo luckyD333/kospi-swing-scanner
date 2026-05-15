@@ -9,27 +9,19 @@ interface Props {
 }
 
 const STEPS = [
-  {
-    num: '01',
-    title: '목록 확인',
-    desc: '전날 종가로 뽑아둔 후보 목록입니다. 장 열리기 전에 확인하세요.',
-  },
-  {
-    num: '02',
-    title: '매수 시점',
-    desc: '진입가 근처에서 시초가~오전 중 매수합니다. 이미 많이 오른 상태라면 넘기세요.',
-  },
-  {
-    num: '03',
-    title: '매도 시점',
-    desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. 1~3일 안에 정리합니다.',
-  },
+  { num: '01', title: '장 열기 전 확인', desc: '전날 종가 기준으로 뽑은 후보 목록입니다. 장 시작 전 미리 검토하세요.' },
+  { num: '02', title: '오전 중 진입', desc: '시초가 전후 오전 시간대가 진입에 유리합니다. 이미 크게 오른 상태라면 넘기세요.' },
+  { num: '03', title: '손절가 먼저 확인', desc: '진입 전 손절가 위치를 확인하고, 감당 가능한 손실인지 먼저 따져보세요.' },
+  { num: '04', title: '1~3일 안에 정리', desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. 보유가 길어질수록 유리함이 줄어들 수 있어요.' },
+  { num: '05', title: '전략 성격 파악', desc: '하단 전략별 참고사항을 보고, 어떤 상황에서 뽑힌 종목인지 확인하세요.' },
 ] as const;
 
-const COLORS = [
-  { label: '진입가', swatch: 'var(--warning)', desc: '알고리즘 추산 진입 기준가 (Gold)' },
-  { label: '손절가', swatch: 'var(--loss)', desc: '최대 손실 제한선 (Blue)' },
-  { label: '목표가', swatch: 'var(--gain)', desc: '1차 수익 실현 목표 (Red)' },
+const STRATEGIES = [
+  { num: '01', title: '전략 1', focus: '단기 과매도 후 반등', tip: '패턴이 형성된 당일 빠르게 진입하는 편이 유리해요.' },
+  { num: '02', title: '전략 2', focus: '시장 대비 상대 강도 상위', tip: '추세가 살아있는 동안 짧게 탄다는 느낌으로 접근하세요.' },
+  { num: '03', title: '전략 3', focus: '가격 범위 상향 돌파', tip: '돌파 직후 진입이 핵심. 다음 날 이상 끌면 의미가 옅어져요.' },
+  { num: '04', title: '전략 4', focus: '추세 중 눌림목 회복', tip: '추세가 살아있는지 먼저 확인하세요. 추세가 꺾인 종목엔 해당 없어요.' },
+  { num: '05', title: '전략 5', focus: '단기 급등 후 재상승', tip: '오전 거래량을 함께 보세요. 거래량 없이 오르면 허수 가능성 있어요.' },
 ] as const;
 
 const TERMS = [
@@ -142,10 +134,9 @@ export default function AboutOverlay({ open, onClose }: Props) {
             margin: 0,
             lineHeight: 1.7,
           }}>
-            매일 장 마감 후 KOSPI/KOSDAQ 전 종목을 스크리닝합니다.
-            추세·변동성·손익비(RR)를 종합해 점수를 매긴 뒤 후보를 추려둡니다.
-            다음 날 장 열리기 전에 꺼내보고, 살지 말지는 직접 판단하세요.
-            매수 추천이 아닌 관찰 명세서입니다.
+            매일 장 마감 후 KOSPI/KOSDAQ 전 종목을 분석해 다음 날 주목할 만한 종목 후보를 정리합니다.
+            5가지 전략이 각자의 기준으로 신호를 포착하고, 점수·손익비 순으로 정렬합니다.
+            매수 추천이 아닌 관찰 명세서입니다. 최종 판단은 직접 하세요.
           </p>
         </div>
 
@@ -183,59 +174,71 @@ export default function AboutOverlay({ open, onClose }: Props) {
           </div>
         </div>
 
-        {/* 색 읽는 법 + 약어 사전 (2단) */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '40px',
-          marginBottom: '60px',
-        }}>
-          <div>
-            <p style={{ ...ts('caption', 'var(--muted)'), letterSpacing: '0.1em', marginBottom: '24px' }}>
-              색 읽는 법
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {COLORS.map(c => (
-                <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <span style={{
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    background: c.swatch,
-                    flexShrink: 0,
-                  }} />
-                  <span style={{ ...ts('caption', 'var(--body)') }}>
-                    <strong style={{ color: 'var(--ink)' }}>{c.label}</strong> — {c.desc}
-                  </span>
+        {/* 전략별 참고사항 */}
+        <div style={{ marginBottom: '80px' }}>
+          <p style={{ ...ts('caption', 'var(--muted)'), letterSpacing: '0.1em', marginBottom: '32px' }}>
+            전략별 참고사항
+          </p>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '1px',
+            background: 'var(--hairline)',
+            border: '1px solid var(--hairline)',
+          }}>
+            {STRATEGIES.map(s => (
+              <div key={s.num} style={{ background: 'var(--canvas)', padding: '40px 32px' }}>
+                <div style={{
+                  fontFamily: 'var(--f-mono-stack)',
+                  fontSize: '11px',
+                  color: 'var(--muted-soft)',
+                  letterSpacing: '0.1em',
+                  marginBottom: '16px',
+                }}>
+                  {s.num}
                 </div>
-              ))}
-            </div>
+                <div style={{ ...ts('title-md', 'var(--ink)'), marginBottom: '8px' }}>
+                  {s.title}
+                </div>
+                <div style={{ ...ts('caption', 'var(--warning)'), marginBottom: '12px' }}>
+                  {s.focus}
+                </div>
+                <div style={{ ...ts('body-md', 'var(--body)'), lineHeight: 1.6 }}>
+                  {s.tip}
+                </div>
+              </div>
+            ))}
           </div>
+        </div>
 
-          <div>
-            <p style={{ ...ts('caption', 'var(--muted)'), letterSpacing: '0.1em', marginBottom: '24px' }}>
-              약어 사전
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {TERMS.map(t => (
-                <div key={t.term} style={{ display: 'flex', gap: '12px' }}>
-                  <span style={{
-                    fontFamily: 'var(--f-mono-stack)',
-                    fontSize: '11px',
-                    color: 'var(--warning)',
-                    letterSpacing: '0.08em',
-                    minWidth: '36px',
-                    flexShrink: 0,
-                    paddingTop: '1px',
-                  }}>
-                    {t.term}
-                  </span>
-                  <span style={{ ...ts('caption', 'var(--body)'), lineHeight: 1.5 }}>
-                    {t.def}
-                  </span>
-                </div>
-              ))}
-            </div>
+        {/* 약어 사전 (full-width 2-column grid) */}
+        <div style={{ marginBottom: '60px' }}>
+          <p style={{ ...ts('caption', 'var(--muted)'), letterSpacing: '0.1em', marginBottom: '24px' }}>
+            약어 사전
+          </p>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '12px 40px',
+          }}>
+            {TERMS.map(t => (
+              <div key={t.term} style={{ display: 'flex', gap: '12px' }}>
+                <span style={{
+                  fontFamily: 'var(--f-mono-stack)',
+                  fontSize: '11px',
+                  color: 'var(--warning)',
+                  letterSpacing: '0.08em',
+                  minWidth: '36px',
+                  flexShrink: 0,
+                  paddingTop: '1px',
+                }}>
+                  {t.term}
+                </span>
+                <span style={{ ...ts('caption', 'var(--body)'), lineHeight: 1.5 }}>
+                  {t.def}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
