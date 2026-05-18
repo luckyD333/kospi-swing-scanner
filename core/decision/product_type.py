@@ -84,13 +84,12 @@ def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> Produc
     # 3) 정형 주식 코드 → STOCK
     if len(ticker) == 6 and ticker.isdigit():
         if ticker.startswith("7"):
-            # ETN 키워드를 Step 1이 아닌 여기서 체크하는 이유:
-            # ETF API 명단에 있는 5xxxxx 종목도 이름에 "ETN"이 붙을 수 있어서
-            # Step 1에 올리면 API 명단 우선 원칙(Step 2)이 깨짐.
-            # 7xxxxx + API 명단 미포함인 경우에만 이름 키워드로 ETN 판정.
             if any(kw in name for kw in _ETN_KEYWORDS):
                 return ProductType.ETN
             return ProductType.UNKNOWN  # D2 안전 분리
+        # 5xxxxx 등 비-7 코드 ETN: etfItemList 미등록이어도 이름으로 판정
+        if any(kw in name for kw in _ETN_KEYWORDS):
+            return ProductType.ETN
         return ProductType.STOCK
 
     # 4) 신형 우선주 코드 (5자리 숫자 + 1 알파벳, 예: 02826K = 삼성물산우B) → STOCK

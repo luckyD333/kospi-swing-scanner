@@ -53,6 +53,12 @@ def test_classify_etn_5_prefix_in_etf_list():
     assert classify("530031", "KODEX 200", etf_list={"530031"}) == ProductType.ETF
 
 
+def test_classify_etn_5_prefix_not_in_etf_list():
+    """etfItemList 미등록 5xxxxx ETN → 이름 키워드로 ETN 판정 (550082 실사례)."""
+    assert classify("550082", "N2 KIS CD금리투자 ETN") == ProductType.ETN
+    assert classify("530031", "KODEX 200") == ProductType.STOCK
+
+
 # ---------------------------------------------------------------------------
 # 정형 주식 코드 → STOCK
 # ---------------------------------------------------------------------------
