@@ -20,6 +20,18 @@ _FAKE_ETF_RESPONSE = {
     },
 }
 
+_FAKE_ETF_WITH_ETN_RESPONSE = {
+    "resultCode": "success",
+    "result": {
+        "etfItemList": [
+            {"itemcode": "069500", "itemname": "KODEX 200", "marketSum": 10000, "quant": 500},
+            {"itemcode": "700020", "itemname": "삼성 레버리지 ETN", "marketSum": 2000, "quant": 800},
+            {"itemcode": "360750", "itemname": "TIGER 미국S&P500", "marketSum": 5000, "quant": 3000},
+            {"itemcode": "590010", "itemname": "신한 ETN 원유", "marketSum": 1000, "quant": 200},
+        ]
+    },
+}
+
 
 def _make_json_response(data: dict) -> MagicMock:
     fake = MagicMock()
@@ -106,3 +118,32 @@ def test_get_tickers_etf_top200_limit():
 
     assert len(tickers) == 200
     assert tickers[0] == "000000"  # quant 최대값
+
+
+def test_get_tickers_etf_excludes_etn():
+    """get_tickers('ETF')는 ETN(코드 7xxxxx 또는 종목명 'ETN' 포함)을 제외한다."""
+    src = NaverSource()
+    with patch(
+        "core.data_sources.naver.requests.get",
+        return_value=_make_json_response(_FAKE_ETF_WITH_ETN_RESPONSE),
+    ):
+        tickers = src.get_tickers("ETF", "20260503")
+
+    assert "700020" not in tickers  # 코드 7xxxxx → ETN 제외
+    assert "590010" not in tickers  # 종목명 'ETN' 포함 → 제외
+    assert "360750" in tickers
+    assert "069500" in tickers
+
+
+def test_get_etf_list_excludes_etn():
+    """get_etf_list()도 ETN을 제외한 명단을 반환한다."""
+    src = NaverSource()
+    with patch(
+        "core.data_sources.naver.requests.get",
+        return_value=_make_json_response(_FAKE_ETF_WITH_ETN_RESPONSE),
+    ):
+        etf_set = src.get_etf_list("20260503")
+
+    assert "700020" not in etf_set
+    assert "590010" not in etf_set
+    assert "360750" in etf_set

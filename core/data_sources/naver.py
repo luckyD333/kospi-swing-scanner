@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def naver_detail_url(ticker: str) -> str:
     """ticker → 네이버 종목 상세 페이지 URL (UI 클릭 이동용)."""
-    return f"https://finance.naver.com/item/main.naver?code={ticker}"
+    return f"https://stock.naver.com/domestic/stock/{ticker}/price"
 
 
 def _to_optional_float(value) -> float | None:
@@ -125,7 +125,7 @@ class NaverSource(DailyDataSource):
     def _get_etf_tickers(
         self, top_n: int | None = None, sort_by: str = "marketSum"
     ) -> list[str]:
-        """네이버 ETF 목록 API에서 itemcode 추출.
+        """네이버 ETF 목록 API에서 itemcode 추출. ETN(코드 7xxxxx 또는 종목명 'ETN' 포함) 제외.
 
         sort_by: 정렬 기준 필드 (기본 'marketSum', 거래량 기준 시 'quant')
         top_n: 상위 N개만 반환 (None이면 전체)
@@ -138,6 +138,11 @@ class NaverSource(DailyDataSource):
         )
         r.raise_for_status()
         items = r.json()["result"]["etfItemList"]
+        items = [
+            item for item in items
+            if not item["itemcode"].startswith("7")
+            and "ETN" not in item.get("itemname", "")
+        ]
         items = sorted(items, key=lambda x: x.get(sort_by) or 0, reverse=True)
         if top_n is not None:
             items = items[:top_n]

@@ -57,9 +57,9 @@ def _patch_one_page(html: str):
 # ---------------------------------------------------------------------------
 
 def test_naver_detail_url_pattern():
-    """ticker → finance.naver.com/item/main.naver?code={ticker} 패턴."""
-    assert naver_detail_url("005930") == "https://finance.naver.com/item/main.naver?code=005930"
-    assert naver_detail_url("003550") == "https://finance.naver.com/item/main.naver?code=003550"
+    """ticker → stock.naver.com/domestic/stock/{ticker}/price 패턴."""
+    assert naver_detail_url("005930") == "https://stock.naver.com/domestic/stock/005930/price"
+    assert naver_detail_url("003550") == "https://stock.naver.com/domestic/stock/003550/price"
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ def test_get_fundamentals_returns_dataframe():
     # 값 검증
     assert df.loc["005930", "per"] == 33.59
     assert df.loc["005930", "roe"] == 10.85
-    assert df.loc["005930", "naver_url"] == "https://finance.naver.com/item/main.naver?code=005930"
+    assert df.loc["005930", "naver_url"] == "https://stock.naver.com/domestic/stock/005930/price"
 
     # 결측 None 으로 노출 (DataFrame 에서는 None 또는 NaN — to_dict 후에도 호환되어야)
     samsung_pref = df.loc["005935"].to_dict()
