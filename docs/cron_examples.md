@@ -203,7 +203,39 @@ Logrotate 설정 (선택):
 
 ---
 
-## 6. 트러블슈팅
+## 6. STALE 정책 강화 (2026-05-18)
+
+### 배경
+
+- `STALE_THRESHOLD_1D` **3 → 1** 거래일로 축소 (`core/decision/signal_status.py`)
+- 근거: `data/stale_drift_report.md` 에서 horizon=1 |drift|≥5% 비율 **43.7%** (cutoff 30% 초과)
+- 1거래일 경과 신호는 라이브 진입 시 setup 무의미
+
+### 운영 영향
+
+**매일 평일 수집-스캔 사이클 강제 필수:**
+- Job A (16:10): `collect.py` 실행
+- Job B (16:40): `cli.py --strategy all` 실행
+
+**cron miss 시 다음날 전체 1D 신호 STALE 마킹:**
+- signal-api 응답 root `scan_freshness_warning: true` 반환
+- signal-web catalog가 신호 list 대신 **"데이터 갱신 중"** 안내 페이지 표시 (stale 정보 노출 금지 정책)
+
+### 수동 확인
+
+```bash
+# scan_freshness_warning 상태 확인
+curl localhost:8000/api/signals | jq .scan_freshness_warning
+
+# generated_at 시각 확인 (STALE_THRESHOLD 판정 기준)
+curl localhost:8000/api/signals | jq .generated_at
+```
+
+수집 실패 시 운영자 개입 필요. 로그 확인: `/opt/apps/logs/kospi-scanner/collect.log`, `signals.log`
+
+---
+
+## 7. 트러블슈팅
 
 ### 수집 실패 시
 
@@ -264,7 +296,7 @@ journalctl -u cron --since "1 hour ago"
 
 ---
 
-## 7. 참고
+## 8. 참고
 
 - **전략 상세**: [`docs/strategy_d_v2_spec.md`](./strategy_d_v2_spec.md)
 - **데이터 소스**: [`docs/korean_stock_data_sources_guide.md`](./korean_stock_data_sources_guide.md)

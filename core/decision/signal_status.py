@@ -11,6 +11,13 @@ from core.dates import is_same_trading_day, trading_days_since
 
 _KST = ZoneInfo("Asia/Seoul")
 
+# 1D 신호 STALE 임계 (거래일). signal_date 후 이 거래일 수 초과 시 STALE.
+# Step 2 audit(scripts/stale_drift_audit.py, 2026-05-18) 결과 채택:
+#   horizon=1 |drift|≥5% 비율 43.7% (cutoff 30% 초과) — 487 종목 / 14,986 신호.
+#   즉 다음 거래일이면 이미 40%+ 종목이 5%+ 표류 → expired 판정.
+# 운영 1주 후 walk-forward 데이터로 재검증 예정 (~2026-05-25).
+STALE_THRESHOLD_1D: int = 1
+
 
 def compute_signal_status(
     current_price: float | None,
@@ -47,7 +54,7 @@ def compute_signal_status(
             return "STALE"
         if not is_same_trading_day(sd, today):
             # current_price 가 전일 종가일 가능성 → cp 비교 의미 없음
-            if trading_days_since(sd, today) > 3:
+            if trading_days_since(sd, today) > STALE_THRESHOLD_1D:
                 return "STALE"
             return "VALID"
 
