@@ -10,7 +10,7 @@
 전략별 base k/r 은 STRATEGY_PARAMS 단일 module constant 에서 lookup. r1/r2/_d_v2/_1h/_30m
 등 variant 는 resolve_base_strategy_id() 의 regex 로 base 5 키에 매핑.
 
-운영 retune: scripts/tune_trade_plan.py 가 STRATEGY_PARAMS dict 한 줄만 갱신 (Step 6).
+운영 retune: STRATEGY_PARAMS 의 base_k_stop 값을 walk-forward 결과로 직접 수정.
 """
 from __future__ import annotations
 
@@ -42,8 +42,8 @@ class TradePlanResult:
     atr_14: float
 
 
-# 단일 위치 base k/r 테이블 — Step 6 retune 결과 갱신은 여기 5 줄만.
-# timing-study 백테스트 초기값 (2026-05-18). 운영 1주 후 walk-forward retune 예정.
+# 단일 위치 base k/r 테이블 — retune 시 여기 5 줄만 수정.
+# base_k_stop 은 경험치 초기값 (백테스트 근거 없음). 운영 1주 후 walk-forward retune 예정.
 STRATEGY_PARAMS: dict[str, TradePlanParams] = {
     "strategy_five":  TradePlanParams(base_k_stop=1.5, r_target_1=1.0, r_target_2=3.0),
     "strategy_three": TradePlanParams(base_k_stop=1.8, r_target_1=1.0, r_target_2=2.5),
