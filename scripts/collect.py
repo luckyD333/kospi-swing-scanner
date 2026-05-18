@@ -94,14 +94,23 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     cached = uc.load(cfg.market, target_date)
     if cached and len(cached["tickers"]) >= cfg.max_universe_size:
         from core.universe import UniverseResult
+        from core.decision.product_type import classify, ProductType
         logger.info(
             f"유니버스 캐시 히트: {len(cached['tickers'])}종목 → "
             f"상위 {cfg.max_universe_size}개 사용 (크롤 skip)"
         )
+        # 캐시 생성 시점 코드와 현재 ETN 분류 로직 차이 방어 — 이름 키워드로 재필터
+        _name_lkp = cached["name_lookup"]
+        _etn_filtered = [
+            t for t in cached["tickers"]
+            if classify(t, _name_lkp.get(t, "")) != ProductType.ETN
+        ]
+        if len(_etn_filtered) < len(cached["tickers"]):
+            logger.info(f"  캐시 ETN 재필터: {len(cached['tickers']) - len(_etn_filtered)}건 제외")
         univ = UniverseResult(
-            tickers=cached["tickers"][:cfg.max_universe_size],
+            tickers=_etn_filtered[:cfg.max_universe_size],
             cap_lookup=cached["cap_lookup"],
-            name_lookup=cached["name_lookup"],
+            name_lookup=_name_lkp,
         )
     else:
         univ = build_universe(

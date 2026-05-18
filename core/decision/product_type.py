@@ -5,9 +5,9 @@ PR-B (P0-2): ETN/ETF/REIT/SPAC 가 STOCK 풀에서 PER/ROE 가산 받는 결함 
 
 분류 우선순위 (가장 정확한 신호 우선):
   1. 명자 키워드: '스팩' / '기업인수목적' → SPAC
-  2. 명자 키워드: '리츠' → REIT
-  3. ETF API 명단 hit → ETN (7xxxxx) 또는 ETF (그 외)
-  4. 정형 주식 코드 (6자리, 7로 시작 안 함) → STOCK
+  2. 종목명이 '리츠'로 끝남 → REIT  (endswith: "메리츠금융지주" 등 사명에 "리츠" 포함된 오탐 차단)
+  3. ETF API 명단 hit → ETN (7xxxxx 또는 이름에 'ETN') 또는 ETF (그 외)
+  4. 정형 주식 코드 (6자리 순수 숫자, 7로 시작 안 함) → ETN(이름 키워드) or STOCK
   5. 신형 우선주 코드 (5자리 숫자 + 1 알파벳, 예: 02826K) → STOCK
   6. 그 외 (7xxxxx 비-ETF 등) → UNKNOWN (D2: STOCK 폴백 대신 안전 분리)
 
@@ -48,7 +48,6 @@ class Pool(str, Enum):
 
 
 _SPAC_KEYWORDS = ("스팩", "기업인수목적")
-_REIT_KEYWORDS = ("리츠",)
 _ETN_KEYWORDS = ("ETN",)
 
 # Task 1: 채권 ETF 감지 키워드 (정확히 이 7개만)
@@ -69,9 +68,10 @@ def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> Produc
     etf_list = etf_list or set()
 
     # 1) 명자 키워드 — 가장 강한 신호
+    #    REIT: endswith("리츠") — "메리츠금융지주" 등 사명에 "리츠" 포함된 일반 주식 오분류 방지
     if any(kw in name for kw in _SPAC_KEYWORDS):
         return ProductType.SPAC
-    if any(kw in name for kw in _REIT_KEYWORDS):
+    if name.endswith("리츠"):
         return ProductType.REIT
 
     # 2) ETF API 명단 — ETF 와 ETN 통합 source
