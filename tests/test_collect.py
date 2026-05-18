@@ -42,7 +42,7 @@ def _make_mock_client(tickers=("005930", "000660"), with_fundamentals=True):
                 "per": 33.59 + i,
                 "roe": 10.85 + i,
                 "foreign_pct": 49.27 + i,
-                "naver_url": f"https://finance.naver.com/item/main.naver?code={t}",
+                "naver_url": f"https://stock.naver.com/domestic/stock/{t}/price",
             }
         client.get_fundamentals.return_value = pd.DataFrame(funda).T
     else:
@@ -210,7 +210,7 @@ def test_manifest_includes_fundamentals_in_tickers_meta(tmp_path):
     assert meta["005930"]["roe"] == 10.85
     assert meta["005930"]["foreign_pct"] == 49.27
     assert meta["005930"]["naver_url"] == \
-        "https://finance.naver.com/item/main.naver?code=005930"
+        "https://stock.naver.com/domestic/stock/005930/price"
 
 
 def test_manifest_naver_url_present_even_without_fundamentals(tmp_path):
@@ -234,7 +234,7 @@ def test_manifest_naver_url_present_even_without_fundamentals(tmp_path):
     meta = data["tickers_meta"]
     for ticker, m in meta.items():
         assert m["naver_url"] == \
-            f"https://finance.naver.com/item/main.naver?code={ticker}"
+            f"https://stock.naver.com/domestic/stock/{ticker}/price"
         # 결측은 None (JSON null)
         assert m["per"] is None
         assert m["roe"] is None

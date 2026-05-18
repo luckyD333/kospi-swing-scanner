@@ -121,7 +121,7 @@ def test_get_tickers_etf_top200_limit():
 
 
 def test_get_tickers_etf_excludes_etn():
-    """get_tickers('ETF')는 ETN(코드 7xxxxx 또는 종목명 'ETN' 포함)을 제외한다."""
+    """get_tickers('ETF')는 코드 7xxxxx ETN을 제외한다. KRX ETN은 항상 7xxxxx 코드."""
     src = NaverSource()
     with patch(
         "core.data_sources.naver.requests.get",
@@ -130,13 +130,12 @@ def test_get_tickers_etf_excludes_etn():
         tickers = src.get_tickers("ETF", "20260503")
 
     assert "700020" not in tickers  # 코드 7xxxxx → ETN 제외
-    assert "590010" not in tickers  # 종목명 'ETN' 포함 → 제외
     assert "360750" in tickers
     assert "069500" in tickers
 
 
-def test_get_etf_list_excludes_etn():
-    """get_etf_list()도 ETN을 제외한 명단을 반환한다."""
+def test_get_etf_list_includes_etn():
+    """get_etf_list()는 PR-B 분류기용으로 ETN을 포함한 전체 명단을 반환한다."""
     src = NaverSource()
     with patch(
         "core.data_sources.naver.requests.get",
@@ -144,6 +143,5 @@ def test_get_etf_list_excludes_etn():
     ):
         etf_set = src.get_etf_list("20260503")
 
-    assert "700020" not in etf_set
-    assert "590010" not in etf_set
+    assert "700020" in etf_set  # ETN 포함 — classify()가 정확히 분류하려면 필요
     assert "360750" in etf_set

@@ -156,11 +156,11 @@ def test_runner_injects_fundamentals_into_candidate_metadata():
     assert by_ticker["005930"].metadata["roe"] == 10.85
     assert by_ticker["005930"].metadata["foreign_pct"] == 49.27
     assert by_ticker["005930"].metadata["naver_url"] == \
-        "https://finance.naver.com/item/main.naver?code=005930"
+        "https://stock.naver.com/domestic/stock/005930/price"
 
     assert by_ticker["000660"].metadata["per"] == 21.81
     assert by_ticker["000660"].metadata["naver_url"] == \
-        "https://finance.naver.com/item/main.naver?code=000660"
+        "https://stock.naver.com/domestic/stock/000660/price"
 
 
 def test_runner_injects_naver_url_even_when_fundamentals_empty():
@@ -176,7 +176,7 @@ def test_runner_injects_naver_url_even_when_fundamentals_empty():
 
     cand = result.candidates_by_strategy["dummy_alpha"][0]
     assert cand.metadata["naver_url"] == \
-        "https://finance.naver.com/item/main.naver?code=005930"
+        "https://stock.naver.com/domestic/stock/005930/price"
     # per/roe/foreign_pct 키도 일관성 위해 존재해야 함 (값은 None)
     assert "per" in cand.metadata
     assert "roe" in cand.metadata
@@ -233,7 +233,7 @@ def test_data_client_delegates_get_fundamentals():
     assert "per" in df.columns
     assert df.loc["005930", "per"] == 33.59
     assert df.loc["005930", "naver_url"] == \
-        "https://finance.naver.com/item/main.naver?code=005930"
+        "https://stock.naver.com/domestic/stock/005930/price"
 
 
 def test_data_client_get_fundamentals_empty_when_source_lacks():

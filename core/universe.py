@@ -115,8 +115,13 @@ def build_universe(
     if unknown_count:
         logger.info(f"  ProductType UNKNOWN 분류: {unknown_count}건 (D2 안전 분리)")
 
+    # 6) ETN 제외 — KOSPI/KOSDAQ 크롤 결과에 ETN(7xxxxx)이 포함될 수 있음
+    etn_excluded = [t for t in filtered_final if product_type_lookup.get(t) != ProductType.ETN]
+    if len(etn_excluded) < len(filtered_final):
+        logger.info(f"  ETN 제외: {len(filtered_final) - len(etn_excluded)}건")
+
     return UniverseResult(
-        tickers=filtered_final,
+        tickers=etn_excluded,
         cap_lookup=cap_lookup,
         name_lookup=name_lookup,
         pre_cap_limit_size=pre_limit,

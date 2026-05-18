@@ -106,7 +106,8 @@ class NaverSource(DailyDataSource):
         결과는 _ticker_cache에 저장하여 시총/이름 조회에 재사용.
         """
         if market == "ETF":
-            return self._get_etf_tickers(top_n=200, sort_by="quant")
+            # ETN은 KRX에서 항상 7xxxxx 코드 — 유니버스 수집 시 제외
+            return [t for t in self._get_etf_tickers(top_n=200, sort_by="quant") if not t.startswith("7")]
         self._crawl_market_sum(market)
         return [t for t, info in self._ticker_cache.items() if info["market"] == market]
 
@@ -125,7 +126,7 @@ class NaverSource(DailyDataSource):
     def _get_etf_tickers(
         self, top_n: int | None = None, sort_by: str = "marketSum"
     ) -> list[str]:
-        """네이버 ETF 목록 API에서 itemcode 추출. ETN(코드 7xxxxx 또는 종목명 'ETN' 포함) 제외.
+        """네이버 ETF 목록 API에서 itemcode 추출 (ETN 포함 원본 반환).
 
         sort_by: 정렬 기준 필드 (기본 'marketSum', 거래량 기준 시 'quant')
         top_n: 상위 N개만 반환 (None이면 전체)
@@ -138,11 +139,6 @@ class NaverSource(DailyDataSource):
         )
         r.raise_for_status()
         items = r.json()["result"]["etfItemList"]
-        items = [
-            item for item in items
-            if not item["itemcode"].startswith("7")
-            and "ETN" not in item.get("itemname", "")
-        ]
         items = sorted(items, key=lambda x: x.get(sort_by) or 0, reverse=True)
         if top_n is not None:
             items = items[:top_n]

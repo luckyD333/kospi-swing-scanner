@@ -245,7 +245,7 @@ kospi-swing-scanner/
 │   ├── test_ocp.py
 │   └── test_integration.py
 │
-├── weights.yml                       # Phase 2 다축 가중치 (--decide 의존)
+├── weights.yml                       # Phase 2 다축 가중치 (--interview 생성)
 │
 └── docs/
     ├── strategy_d_v2_spec.md
@@ -286,20 +286,11 @@ python cli.py --strategy all --format markdown
 python cli.py --strategy all --format json --output-dir scan_results
 ```
 
-### Phase 2 — 의사결정 모드
+### Phase 2 — 가중치 인터뷰
 
 ```bash
-# 1) 가중치 인터뷰 (최초 1회) → weights.yml
+# 가중치 인터뷰 (최초 1회) → weights.yml
 python cli.py --interview
-
-# 2) 후보 ranking + Decision Top-N 마크다운 생성
-python cli.py --decide --top-n 5
-
-# 3) 특정 종목 Decision Journal 생성 (메모 첨부)
-python cli.py --decide --select 005930,000660 --notes "FOMC 전 관망"
-
-# 동적 가중치 (.cache/dynamic_weights.json) 우선 사용
-python cli.py --decide --dynamic-weights
 ```
 
 `weights.yml`은 ranking factor breakdown(`ensemble_score`, `momentum_pct`, `rr_ratio`, `roe`, `per`, `regime_score`)의 가중치를 정의해요. signals.json 의 `ranking.decision` 필드는 이 weights 로드 성공 시에만 채워져요.
