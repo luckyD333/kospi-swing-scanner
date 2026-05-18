@@ -108,6 +108,74 @@ def test_empty_input_returns_empty():
     assert compute_regret_scores([]) == []
 
 
+# ---------------------------------------------------------------------------
+# 4축 composite (timing-study confluence 반영, 2026-05-18)
+# ---------------------------------------------------------------------------
+
+
+def _with_ens(rc: RankedCandidate, ens_score: float) -> RankedCandidate:
+    """RankedCandidate.candidate.metadata 에 ensemble_score 주입."""
+    md = dict(rc.candidate.metadata) if rc.candidate.metadata else {}
+    md["ensemble_score"] = ens_score
+    rc.candidate.metadata = md
+    return rc
+
+
+def test_composite_includes_ensemble_axis():
+    """동일 score/regret/final 일 때 ensemble_score 높은 후보가 composite ↑."""
+    a = _with_ens(_make_ranked("A", reward_pct_t2=5.0, final_score=50.0), 2.5)
+    b = _with_ens(_make_ranked("B", reward_pct_t2=5.0, final_score=50.0), 1.0)
+    out = {r.candidate.ticker: r for r in compute_regret_scores([a, b])}
+    sa = out["A"].normalized_metrics["composite_score"]
+    sb = out["B"].normalized_metrics["composite_score"]
+    assert sa > sb, f"A({sa}) should > B({sb}) via ensemble axis"
+    # 신규 키 노출
+    assert "ensemble_rank_pct" in out["A"].normalized_metrics
+
+
+def test_strategy_weight_affects_ranking_via_ensemble():
+    """strategy_weights 차이가 ensemble_score 를 통해 composite 에 반영.
+
+    실제 라이브에서는 signals_builder 가 weighted_ensemble_score 를 미리 metadata 에
+    주입한다. 본 테스트는 동일 시뮬레이션 — strategy_five(1.4) vs strategy_two(0.8).
+    """
+    five = _with_ens(
+        _make_ranked("FIVE", reward_pct_t2=5.0, final_score=50.0),
+        ens_score=1.4,
+    )
+    two = _with_ens(
+        _make_ranked("TWO", reward_pct_t2=5.0, final_score=50.0),
+        ens_score=0.8,
+    )
+    out = {r.candidate.ticker: r for r in compute_regret_scores([five, two])}
+    assert (
+        out["FIVE"].normalized_metrics["composite_score"]
+        > out["TWO"].normalized_metrics["composite_score"]
+    )
+
+
+def test_composite_weights_sum_to_one():
+    """4축 모듈 상수 합 = 1.0 정확 검증."""
+    from core.decision.regret_scorer import _W_ENS, _W_OPP, _W_POT, _W_SIG_BASE
+    total = _W_OPP + _W_POT + _W_SIG_BASE + _W_ENS
+    assert abs(total - 1.0) < 1e-9, f"sum={total}"
+
+
+def test_backward_compat_3_tuple_composite_weights():
+    """3-튜플 입력 시 ens=0.0 으로 처리 — 기존 호출자 호환."""
+    a = _with_ens(_make_ranked("A", reward_pct_t2=5.0, final_score=50.0), 5.0)
+    b = _with_ens(_make_ranked("B", reward_pct_t2=5.0, final_score=50.0), 1.0)
+    # 3-튜플 → ens=0 → ensemble 차이 무시 → composite 동일
+    out = {
+        r.candidate.ticker: r
+        for r in compute_regret_scores([a, b], composite_weights=(0.2, 0.3, 0.5))
+    }
+    assert (
+        out["A"].normalized_metrics["composite_score"]
+        == out["B"].normalized_metrics["composite_score"]
+    )
+
+
 def test_tie_breaks_by_final_score_then_ticker():
     """regret_score 동률 시 final_score 큰 순, 그 후 ticker 알파벳."""
     a = _make_ranked("B", reward_pct_t2=5.0, risk_pct=3.0, final_score=80.0)

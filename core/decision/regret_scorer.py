@@ -83,12 +83,14 @@ DEFAULT_WEIGHTS = RegretWeights()
 _TF_SIGNAL_FACTOR: dict[str, float] = {
     "1D": 1.0, "1W": 1.0, "1h": 0.7, "30m": 0.5,
 }
-# 3-Score 합성 기본 가중치 — KOSDAQ Rank 1 (OOS 검증 2026-05-15, PF 3.50)
-# sig_heavy 로 전환: 신호 강도 비중 0.10→0.57, 기회 점수 0.70→0.20
-# 해석: KOSDAQ 환경에서는 strategy 자체 score 가 가장 강한 알파
-_W_OPP: float = 0.20    # 기회 (regret_score)
-_W_POT: float = 0.23    # 잠재력 (final_score)
-_W_SIG_BASE: float = 0.57   # 신호 강도 (c.score percentile, TF 배율 적용)
+# 4-Score 합성 기본 가중치 — timing-study confluence 반영 (2026-05-18)
+# 직전(KOSDAQ Rank 1 sig_heavy): opp=0.20, pot=0.23, sig=0.57
+# 신규: ensemble 축(0.20) 도입 — strategy_weights × confluence cardinality 가 랭킹 반영
+#   opp 0.20→0.15 (-0.05), pot 0.23→0.20 (-0.03), sig 0.57→0.45 (-0.12) → ens=0.20
+_W_OPP: float = 0.15        # 기회 (regret_score)
+_W_POT: float = 0.20        # 잠재력 (final_score)
+_W_SIG_BASE: float = 0.45   # 신호 강도 (c.score percentile, TF 배율 적용)
+_W_ENS: float = 0.20        # ensemble (weighted strategy confluence)
 
 
 def _infer_tf(strategy_id: str) -> str:
@@ -133,7 +135,7 @@ def compute_regret_scores(
     ranked: list[RankedCandidate],
     ensemble_scores: dict[str, float] | None = None,
     weights: RegretWeights | None = None,
-    composite_weights: tuple[float, float, float] | None = None,
+    composite_weights: tuple[float, ...] | None = None,
 ) -> list[RankedCandidate]:
     """R:R 비대칭 + freshness 기반 기회 점수 + rank 부여 후 정렬된 리스트 반환.
 
@@ -142,16 +144,26 @@ def compute_regret_scores(
       regret_rank   (int,   1-based)
       regret_total  (int,   전체 수)
 
-    - ensemble_scores: 이제 사용하지 않음 (하위호환 위해 매개변수만 유지)
+    - ensemble_scores: 이제 사용하지 않음 (하위호환 위해 매개변수만 유지). composite
+      산식의 ens 축은 candidate.metadata["ensemble_score"] 를 직접 읽는다.
     - weights: None 이면 DEFAULT_WEIGHTS.
-    - composite_weights: (opp, pot, sig) 튜플. None 이면 모듈 상수 (_W_OPP, _W_POT, _W_SIG_BASE).
-      시장별 분기 호출 시 KOSPI/KOSDAQ 다른 가중치 주입 가능.
+    - composite_weights: (opp, pot, sig) 또는 (opp, pot, sig, ens) 튜플.
+      None 이면 모듈 상수 (_W_OPP, _W_POT, _W_SIG_BASE, _W_ENS).
+      3-튜플 입력 시 ens=0.0 으로 처리 (backward-compat).
     """
     w = weights or DEFAULT_WEIGHTS
     if composite_weights is not None:
-        w_opp, w_pot, w_sig_base = composite_weights
+        if len(composite_weights) == 3:
+            w_opp, w_pot, w_sig_base = composite_weights
+            w_ens = 0.0
+        elif len(composite_weights) == 4:
+            w_opp, w_pot, w_sig_base, w_ens = composite_weights
+        else:
+            raise ValueError(
+                f"composite_weights must be 3 or 4 tuple, got {len(composite_weights)}"
+            )
     else:
-        w_opp, w_pot, w_sig_base = _W_OPP, _W_POT, _W_SIG_BASE
+        w_opp, w_pot, w_sig_base, w_ens = _W_OPP, _W_POT, _W_SIG_BASE, _W_ENS
 
     n = len(ranked)
     if n == 0:
@@ -199,23 +211,37 @@ def compute_regret_scores(
         rc.normalized_metrics["regret_signal_freshness"] = round(fresh_rank[i], 4)
         annotated.append((score, rc))
 
-    # composite_score: 3-score 합성 + TF 배율 적용
+    # composite_score: 4-score 합성 + TF 배율 적용
     raw_scores = [rc.candidate.score for rc in ranked]
     signal_ranks = _avg_percentile_rank(raw_scores)   # c.score pool percentile (0~1)
+
+    # ensemble_score (= Σ strategy_weights[전략명]) 의 cross-sectional percentile.
+    # confluence 가 크고 strategy tier 가 높을수록 ens_rank ↑ → composite ↑.
+    ens_values: list[float | None] = [
+        (
+            rc.candidate.metadata.get("ensemble_score")
+            if rc.candidate.metadata is not None
+            else None
+        )
+        for rc in ranked
+    ]
+    ens_ranks = _avg_percentile_rank(ens_values)
 
     for i, rc in enumerate(ranked):
         tf = _infer_tf(rc.candidate.strategy)
         tf_factor = _TF_SIGNAL_FACTOR.get(tf, 1.0)
         w_sig = w_sig_base * tf_factor
-        scale = 1.0 / (w_opp + w_pot + w_sig)
+        scale = 1.0 / (w_opp + w_pot + w_sig + w_ens)
         rs = rc.normalized_metrics.get("regret_score", 0.0)
         composite = (
             w_opp * rs / 100.0
             + w_pot * rc.final_score / 100.0
             + w_sig * signal_ranks[i]
+            + w_ens * ens_ranks[i]
         ) * scale * 100.0
         rc.normalized_metrics["composite_score"] = round(composite, 4)
         rc.normalized_metrics["signal_rank"] = round(signal_ranks[i], 4)
+        rc.normalized_metrics["ensemble_rank_pct"] = round(ens_ranks[i], 4)
 
     # composite_score 내림차순 → final_score → ticker (결정론)
     annotated.sort(
