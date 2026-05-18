@@ -19,11 +19,13 @@ interface Props {
   marketBreadth?: Record<string, BreadthScore> | null;
   marketAxes?: Record<string, AxesScore> | null;
   fearGreed?: FearGreedSnapshot | null;
+  scanFreshnessWarning?: boolean;
+  generatedAt?: string;
 }
 
 
 
-export default function CatalogClient({ cards, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
+export default function CatalogClient({ cards, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, scanFreshnessWarning, generatedAt }: Props) {
   const router = useRouter();
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
@@ -137,10 +139,74 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
       .sort(sortFn);
   }, [activeCards, strategy, timeframe, sortBy]);
 
+  // Hide stale/expired signals: plan_expired 또는 price_drift >= target
+  const isHidden = (card: CardProps): boolean => {
+    const fr = card.signalFreshness;
+    if (!fr) return false;
+    if (fr.plan_expired) return true;
+    const drift = fr.price_drift_pct;
+    const target = card.reward1Pct;
+    if (drift != null && target != null && drift >= target) return true;
+    return false;
+  };
+
+  const visible = filtered.filter(c => !isHidden(c));
+  const hidden = filtered.filter(isHidden);
+
   const navigate = useCallback(
     (ticker: string) => router.push(`/signals/${ticker}`),
     [router]
   );
+
+  if (scanFreshnessWarning === true) {
+    return (
+      <div style={{ background: 'var(--canvas)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <TopNav
+          marketIndices={marketIndices}
+          generatedAtDisplay={generatedAtDisplay}
+          targetDateDisplay={targetDateDisplay}
+          marketRegime={marketRegime}
+          marketBreadth={marketBreadth}
+          marketAxes={marketAxes}
+          fearGreed={fearGreed}
+          onHome={() => router.push('/')}
+          onOpenAbout={() => setAboutOpen(true)}
+        />
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '40px 20px', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: '600', marginBottom: '20px', color: 'var(--text-primary)' }}>
+            데이터 갱신 중
+          </h1>
+          <p style={{ fontSize: '16px', color: 'var(--text-secondary)', marginBottom: '30px', maxWidth: '500px', lineHeight: '1.6' }}>
+            가장 최근 스캔이 지연되어 신호를 표시할 수 없습니다. 신호 데이터의 정확성을 위해 갱신 후 다시 시도해주세요.
+          </p>
+          {generatedAt && (
+            <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '30px' }}>
+              마지막 스캔: {generatedAt}
+            </p>
+          )}
+          <button
+            onClick={() => router.refresh()}
+            style={{
+              padding: '10px 24px',
+              fontSize: '14px',
+              fontWeight: '500',
+              backgroundColor: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}
+          >
+            새로고침
+          </button>
+        </div>
+
+        <Footer />
+        <AboutOverlay open={aboutOpen} onClose={onCloseAbout} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: 'var(--canvas)', minHeight: '100vh' }}>
@@ -167,6 +233,19 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
         onSort={setSortBy}
       />
 
+      {/* 투명성 라벨 */}
+      {hidden.length > 0 && (
+        <div style={{
+          padding: '12px 20px',
+          fontSize: '12px',
+          color: 'var(--text-tertiary)',
+          background: 'var(--canvas)',
+          borderTop: '1px solid var(--hairline)',
+        }}>
+          신호 {filtered.length}개 중 {visible.length}개 표시 ({hidden.length}개는 만료되거나 진입 시점 지남)
+        </div>
+      )}
+
       {/* 카드 그리드 */}
       <div style={{
         display: 'grid',
@@ -177,7 +256,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
         borderLeft: '1px solid var(--hairline)',
       }}>
         {(() => {
-          const coinIndex = Math.floor(coinFraction * (filtered.length + 1));
+          const coinIndex = Math.floor(coinFraction * (visible.length + 1));
 
           const coinCell = (
             <div key="__coin__" style={{
@@ -197,7 +276,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
             </div>
           );
 
-          const cardCells = filtered.map((card, i) => (
+          const cardCells = visible.map((card, i) => (
             <div key={`${card.ticker}-${card.strategyId}`} style={{
               background: 'var(--canvas)',
               borderRight: '1px solid var(--hairline)',
@@ -211,7 +290,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
             </div>
           ));
 
-          if (filtered.length < 13) return cardCells;
+          if (visible.length < 13) return cardCells;
           return [
             ...cardCells.slice(0, coinIndex),
             coinCell,

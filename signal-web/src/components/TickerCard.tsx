@@ -38,7 +38,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     entry, stop, target1,
     signalStrength, decisionScore, decisionRegretScore,
     strategyLabel, timeframe, rank, allStrategyTags,
-    signalStatus,
+    signalStatus, signalFreshness,
     productType, confirmationLevel, strategyId } = card;
 
   const statusBadge = (() => {
@@ -53,7 +53,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         return null;
     }
   })();
-  const cardOpacity = signalStatus === 'VALID' ? 1 : 0.55;
+  const cardOpacity = (signalStatus === 'VALID' && !signalFreshness?.plan_expired) ? 1 : 0.55;
 
   // 한국 주식 관례: 상승=빨강 / 하락=파랑 / 보합=화이트
   const dirGlyph = direction === 'up' ? '▲' : direction === 'down' ? '▼' : '─';
@@ -113,6 +113,24 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         </span>
       )}
 
+      {/* 신호 만료 배지 */}
+      {signalFreshness?.plan_expired && (
+        <span style={{
+          position: 'absolute',
+          top: '16px',
+          right: statusBadge ? '80px' : '16px',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          background: 'rgba(255,183,77,0.12)',
+          color: '#ffb74d',
+          fontSize: '10px',
+          fontWeight: 600,
+          letterSpacing: '0',
+        }}>
+          신호 만료
+        </span>
+      )}
+
 
       {/* 종목명 — 시선 앵커 1: 100% ink */}
       <div style={{
@@ -167,6 +185,15 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         }}>
           {dirGlyph} {changeDisplay}
         </span>
+        {signalFreshness?.price_drift_pct != null && Math.abs(signalFreshness.price_drift_pct) >= 5 && (
+          <span style={{
+            ...ts('caption-sm', signalFreshness.price_drift_pct >= 0 ? 'var(--gain)' : 'var(--loss)'),
+            fontSize: '11px',
+            fontWeight: 500,
+          }}>
+            {signalFreshness.price_drift_pct >= 0 ? '▲' : '▼'} {Math.abs(signalFreshness.price_drift_pct).toFixed(1)}%
+          </span>
+        )}
       </div>
 
       {/* 하단 고정 영역 */}

@@ -16,6 +16,8 @@ export default async function Page() {
       marketBreadth={data.market_breadth}
       marketAxes={data.market_axes}
       fearGreed={data.fear_greed ?? null}
+      scanFreshnessWarning={data.scan_freshness_warning}
+      generatedAt={data.generated_at}
     />
   );
 }

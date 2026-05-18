@@ -1,4 +1,4 @@
-import type { Signal, DecisionFactor, RegretFactor, SignalStatus } from '@/types/signal';
+import type { Signal, DecisionFactor, RegretFactor, SignalStatus, SignalFreshness } from '@/types/signal';
 import { formatStrategyLabel } from '@/lib/strategy';
 
 export type SignalComponentStatus = 'ok' | 'warn' | 'miss';
@@ -21,6 +21,7 @@ export interface MatchProps {
   opportunityFactors: RegretFactor[] | null;
   signalComponents: SignalComponent[];
   signalStatus: SignalStatus;  // VALID | TARGET_REACHED | STOPPED_OUT | STALE
+  signalFreshness?: SignalFreshness;
 }
 
 export interface DetailProps {
@@ -128,6 +129,7 @@ export interface CardProps {
   // PR-H/PR-J: confirmation 등급 + 시장 국면
   confirmationLevel: string | null;
   activeRegime: string | null;
+  signalFreshness?: SignalFreshness;
 }
 
 // Factor 라벨 매핑
@@ -200,6 +202,7 @@ export function adaptDetailV2(raw: any): DetailProps {
           }))
       : [],
     signalStatus: (m.signal_status ?? 'VALID') as SignalStatus,
+    signalFreshness: m.signal_freshness ?? undefined,
   }));
 
   const firstMatch = raw.matches?.[0];
@@ -463,5 +466,6 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     tradabilityScore: signal.tradability_score ?? null,
     confirmationLevel: signal.confirmation_level ?? null,
     activeRegime: signal.active_regime ?? null,
+    signalFreshness: signal.signal_freshness ?? undefined,
   };
 }

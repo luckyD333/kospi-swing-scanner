@@ -106,6 +106,12 @@ export interface ExternalLinks {
 
 export type SignalStatus = 'VALID' | 'TARGET_REACHED' | 'STOPPED_OUT' | 'STALE';
 
+export interface SignalFreshness {
+  bars_since_trigger: number | null;
+  price_drift_pct: number | null;
+  plan_expired: boolean;
+}
+
 export interface Signal {
   ticker: string;
   name: string | null;
@@ -127,6 +133,8 @@ export interface Signal {
   // PR-H/PR-J (P2-3, P3-2): confirmation 등급 + 시장 국면
   confirmation_level?: string | null;  // STRONG/MEDIUM/WEAK
   active_regime?: string | null;       // BULL/NEUTRAL/BEAR
+  // 신호 신선도 메타
+  signal_freshness?: SignalFreshness;
 }
 
 export interface MarketIndex {
@@ -205,4 +213,5 @@ export interface SignalsResponse {
   filters: Filters;
   signals: Signal[];
   stats: Stats;
+  scan_freshness_warning?: boolean;
 }

@@ -173,6 +173,9 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
   const rrRatio = topTradePlan?.rrRatio ?? null;
   const rrBand = topTradePlan?.rrBand ?? null;
 
+  // 신호 신선도 (matches[0] 기반)
+  const signalFreshness = matches?.[0]?.signalFreshness;
+
   // 대표 match에서 risk/reward 계산
   const riskPerShare = entry > 0 && stop > 0 ? entry - stop : null;
   const riskPct = riskPerShare != null && entry > 0
@@ -286,8 +289,30 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
           매매 파라미터
         </div>
 
+        {/* Expired 배너 */}
+        {signalFreshness?.plan_expired && (
+          <div style={{
+            border: '1px solid var(--muted-soft)',
+            background: '#fef3c7',
+            color: '#92400e',
+            padding: '12px 16px',
+            borderRadius: '4px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '14px',
+          }}>
+            <span>⚠</span>
+            <span>STALE — 신호 만료{signalFreshness.bars_since_trigger != null ? ` (${signalFreshness.bars_since_trigger}봉 경과)` : ''}</span>
+          </div>
+        )}
+
         {/* 진입 / 손절 / 목표1 / 목표2 */}
-        <div className="params-grid" style={{ borderBottom: '1px solid var(--hairline)' }}>
+        <div className="params-grid" style={{
+          borderBottom: '1px solid var(--hairline)',
+          opacity: signalFreshness?.plan_expired ? 0.6 : 1,
+        }}>
           {[
             {
               label: '진입가',
@@ -308,6 +333,20 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
               <div style={{ ...LABEL, marginBottom: '12px' }}>
                 {label}
               </div>
+              {i === 0 && signalFreshness?.price_drift_pct != null && Math.abs(signalFreshness.price_drift_pct) >= 5 && (
+                <div style={{
+                  display: 'inline-block',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  marginBottom: '8px',
+                  backgroundColor: Math.abs(signalFreshness.price_drift_pct) >= 10 ? '#fee2e2' : '#fef3c7',
+                  color: Math.abs(signalFreshness.price_drift_pct) >= 10 ? '#dc2626' : '#b45309',
+                }}>
+                  {signalFreshness.price_drift_pct >= 0 ? '+' : ''}{signalFreshness.price_drift_pct.toFixed(1)}% 진행
+                </div>
+              )}
               {val != null ? (
                 <PriceScramble
                   priceDisplay={val.toLocaleString('ko-KR')}
