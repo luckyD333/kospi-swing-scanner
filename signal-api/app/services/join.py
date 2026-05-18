@@ -12,17 +12,93 @@ from __future__ import annotations
 import os
 import sys
 from copy import deepcopy
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 # signal-api/app/services/join.py → 레포 루트는 3단계 위
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from core.decision.signal_status import compute_signal_status  # noqa: E402
+from core.dates import trading_days_since  # noqa: E402
+from core.decision.signal_status import (  # noqa: E402
+    STALE_THRESHOLD_1D,
+    compute_signal_status,
+)
 
 # UI catalog 카드용 timeframe 라벨 (signal-web/src/types/signal.ts 와 매칭)
 _TIMEFRAME_KEYS = {"1D": "rsi_1d", "1h": "rsi_1h", "30m": "rsi_30m"}
+_KST = ZoneInfo("Asia/Seoul")
+
+
+def compute_freshness_meta(
+    signal_date_str: str | None,
+    current_price: float | None,
+    entry_price: float | None,
+    timeframe: str | None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """응답 시점의 신호 신선도 메타 (UI 표시·필터용).
+
+    keys:
+      bars_since_trigger: 신호 발생일 이후 경과 봉 수 (1D=거래일, 1h=거래일×6, 30m×13)
+      price_drift_pct: (current - entry) / entry × 100, current 없으면 None
+      plan_expired: bars_since_trigger > timeframe별 STALE 임계
+    """
+    now = now or datetime.now(tz=_KST)
+    today = now.astimezone(_KST).date()
+    bars: int | None = None
+    if signal_date_str:
+        try:
+            sd_dt = datetime.fromisoformat(signal_date_str)
+            if sd_dt.tzinfo is None:
+                sd_dt = sd_dt.replace(tzinfo=_KST)
+            sd = sd_dt.astimezone(_KST).date()
+            elapsed_days = trading_days_since(sd, today)
+            if timeframe == "1h":
+                bars = elapsed_days * 6  # 한국 장중 6.5h ≈ 6봉
+            elif timeframe == "30m":
+                bars = elapsed_days * 13
+            else:
+                bars = elapsed_days  # 1D / 1W 등 거래일 기준
+        except ValueError:
+            bars = None
+
+    drift_pct: float | None = None
+    if current_price is not None and entry_price:
+        drift_pct = round((current_price - entry_price) / entry_price * 100, 4)
+
+    # plan_expired 는 timeframe별 STALE 임계 초과 여부
+    threshold = STALE_THRESHOLD_1D if timeframe in (None, "1D", "1W") else 2
+    plan_expired = bars is not None and bars > threshold
+
+    return {
+        "bars_since_trigger": bars,
+        "price_drift_pct": drift_pct,
+        "plan_expired": plan_expired,
+    }
+
+
+def compute_scan_freshness_warning(
+    generated_at: str | None,
+    now: datetime | None = None,
+) -> bool:
+    """signals.json 의 generated_at 이 STALE_THRESHOLD_1D + 1 거래일 이상 전이면 True.
+
+    cron miss 등으로 스캔 데이터가 오래된 경우 UI 에 grace period 배너 노출용.
+    """
+    if not generated_at:
+        return False
+    try:
+        gen_dt = datetime.fromisoformat(generated_at)
+        if gen_dt.tzinfo is None:
+            gen_dt = gen_dt.replace(tzinfo=_KST)
+    except ValueError:
+        return False
+    now = now or datetime.now(tz=_KST)
+    elapsed = trading_days_since(gen_dt.astimezone(_KST).date(), now.astimezone(_KST).date())
+    return elapsed > STALE_THRESHOLD_1D
 
 
 def apply_snapshot_overlay(
@@ -78,6 +154,13 @@ def apply_snapshot_overlay(
         signal_date_str=out.get("signal_date"),
         timeframe=tf,
     )
+    # 응답 시점 동적 신선도 메타 (UI 표시·필터용)
+    out["signal_freshness"] = compute_freshness_meta(
+        signal_date_str=out.get("signal_date"),
+        current_price=cp_for_compare,
+        entry_price=tp.get("entry"),
+        timeframe=tf,
+    )
     return out
 
 
@@ -131,6 +214,7 @@ def aggregate_entries_for_ticker(
     entries: list[dict[str, Any]],
     ticker: str,
     snapshot_ticker: dict[str, Any] | None = None,
+    generated_at: str | None = None,
 ) -> dict[str, Any]:
     """Multi-strategy aggregate response (schema_version 2.0).
 
@@ -192,6 +276,12 @@ def aggregate_entries_for_ticker(
             signal_date_str=e.get("signal_date"),
             timeframe=strategy.get("timeframe"),
         )
+        match_freshness = compute_freshness_meta(
+            signal_date_str=e.get("signal_date"),
+            current_price=base_cp,
+            entry_price=trade_plan.get("entry"),
+            timeframe=strategy.get("timeframe"),
+        )
 
         match = {
             "strategy": strategy,
@@ -200,6 +290,7 @@ def aggregate_entries_for_ticker(
             "opportunity_factors": decision.get("regret_factors", []),
             "trade_plan": trade_plan,
             "signal_status": match_status,
+            "signal_freshness": match_freshness,
             "setup_score": e.get("setup_score"),
             "setup_reasons": e.get("setup_reasons"),
             "signal_components": e.get("signal_components") or [],
@@ -229,6 +320,8 @@ def aggregate_entries_for_ticker(
         # 호환 필드 (signal_date, active_regime, signal_status, tradability_score 등)
         "signal_date": base_meta.get("signal_date"),
         "signal_status": base_meta.get("signal_status"),
+        "signal_freshness": base_meta.get("signal_freshness"),
+        "scan_freshness_warning": compute_scan_freshness_warning(generated_at),
         "active_regime": base_meta.get("active_regime"),
         "tradability_score": base_meta.get("tradability_score"),
         "product_type": base_meta.get("product_type"),

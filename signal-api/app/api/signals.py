@@ -9,6 +9,7 @@ from ..services.signal_loader import SignalLoader
 from ..services.market_loader import MarketLoader
 from ..services.join import (
     aggregate_entries_for_ticker,
+    compute_scan_freshness_warning,
     overlay_signals_list,
 )
 
@@ -64,6 +65,8 @@ async def get_signals(strategy: str | None = None):
     body = overlay_signals_list(loaded.raw, tickers) if tickers else dict(loaded.raw)
     # Task 8: schema_version 필드 추가 (카탈로그는 2.0으로 고정)
     body["schema_version"] = "2.0"
+    # scan_freshness_warning: cron miss 등으로 generated_at 이 STALE 임계 초과 시 true
+    body["scan_freshness_warning"] = compute_scan_freshness_warning(loaded.raw.get("generated_at"))
     if market and market.regime:
         body["market_regime"] = market.regime
     if market and market.breadth:
@@ -93,5 +96,8 @@ async def get_signal(ticker: str):
     # Task 8: multi-strategy aggregate 응답 (schema_version 2.0)
     market = _market_loader.load()
     snapshot_ticker = market.tickers.get(ticker) if market else None
-    body = aggregate_entries_for_ticker(entries, ticker, snapshot_ticker)
+    body = aggregate_entries_for_ticker(
+        entries, ticker, snapshot_ticker,
+        generated_at=loaded.raw.get("generated_at"),
+    )
     return JSONResponse(content=body, headers={"Cache-Control": "no-cache"})
