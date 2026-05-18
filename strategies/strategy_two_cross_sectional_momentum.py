@@ -35,6 +35,7 @@ from core.decision.setup_quality import (
 from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from ._trade_plan_apply import apply_dynamic_trade_plan
 from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
 
 logger = logging.getLogger(__name__)
@@ -261,6 +262,7 @@ class StrategyTwoCrossSectionalMomentum:
                     "rr_ratio": rr_ratio,
                     "rr_band": rr_band,
                     "atr_14": atr_14,
+                    "trade_plan_support_floor": None,
                     "rsi_14": rsi_14_val,
                     # Task 5a: entry gate
                     "per_ticker_regime": regime,
@@ -274,4 +276,5 @@ class StrategyTwoCrossSectionalMomentum:
 
         # 4) score 내림차순 (안정 정렬: 동률 시 universe 입력 순서 유지)
         candidates.sort(key=lambda c: c.score, reverse=True)
+        apply_dynamic_trade_plan(candidates, self.name)
         return candidates[:top_n]

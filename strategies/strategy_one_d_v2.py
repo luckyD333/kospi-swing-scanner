@@ -262,6 +262,7 @@ class StrategyOneDv2:
                         "rr_ratio": rr_ratio,
                         "rr_band": rr_band,
                         "atr_14": atr_14,
+                        "trade_plan_support_floor": prev_support,
                         "rsi_14": rsi_14_val,
                         "prev_support": prev_support,
                         # PR-G: 목표가 산정 근거
@@ -289,4 +290,7 @@ class StrategyOneDv2:
 
         # confidence 내림차순 (Python 안정 정렬 → 동일 score 의 입력 순서 유지)
         candidates.sort(key=lambda c: c.score, reverse=True)
+        # strategy_one (mean reversion) 은 helper 미적용 — target_2 = 20MA + 1σ 의
+        # 의미적 anchor 보존. audit (Step 4.5) 결과도 σ=0 으로 dynamic 효과 0.
+        # 다른 4 전략 (two/three/four/five) 만 ATR 기반 helper 사용.
         return candidates[:top_n]

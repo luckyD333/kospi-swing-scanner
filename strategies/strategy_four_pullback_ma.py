@@ -23,6 +23,7 @@ from core.decision.setup_quality import (
 from core.indicators import calc_atr, latest_rsi_or_none, moving_average
 from core.strategy_base import Candidate, ScanContext
 
+from ._trade_plan_apply import apply_dynamic_trade_plan
 from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
 
 logger = logging.getLogger(__name__)
@@ -204,10 +205,14 @@ class StrategyFourPullbackMa:
                         "setup_score": setup_score,
                         "setup_reasons": setup_reasons,
                         "bars_since_trigger": 0,
+                        # Phase 2: ATR 기반 trade_plan helper 의 support_floor
+                        "trade_plan_support_floor": ma20_now * 0.995,
                     },
                 ))
             except Exception as e:
                 logger.debug(f"  {ticker} pullback 계산 실패: {e}")
 
         candidates.sort(key=lambda c: c.score, reverse=True)
+        # Phase 2: intra-strategy score percentile 로 trade_plan 재산정 (ATR 기반)
+        apply_dynamic_trade_plan(candidates, self.name)
         return candidates[:top_n]

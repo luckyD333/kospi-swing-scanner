@@ -38,6 +38,7 @@ from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
 from ._atr_stop import compute_atr_stop
+from ._trade_plan_apply import apply_dynamic_trade_plan
 from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
 
 logger = logging.getLogger(__name__)
@@ -262,6 +263,7 @@ class StrategyThreeTrendFollowing:
                         "rr_ratio": rr_ratio,
                         "rr_band": rr_band,
                         "atr_14": atr_14,
+                        "trade_plan_support_floor": float(channel_low) if channel_low is not None else None,
                         "rsi_14": rsi_14_val,
                         # PR-E: 단일일 급등 추적 (≥30% 는 이미 차단)
                         "prev_change_pct": prev_change_pct,
@@ -284,4 +286,5 @@ class StrategyThreeTrendFollowing:
                 continue
 
         candidates.sort(key=lambda c: c.score, reverse=True)
+        apply_dynamic_trade_plan(candidates, self.name)
         return candidates[:top_n]

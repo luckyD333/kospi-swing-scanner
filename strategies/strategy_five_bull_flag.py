@@ -29,6 +29,7 @@ from core.decision.setup_quality import (
 from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
+from ._trade_plan_apply import apply_dynamic_trade_plan
 from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
 
 logger = logging.getLogger(__name__)
@@ -214,6 +215,7 @@ class StrategyFiveBullFlag:
                         "pole_height": float(pole_height),
                         "flag_high": flag_high,
                         "flag_low": flag_low,
+                        "trade_plan_support_floor": float(flag_low),
                         "flag_vol_ratio": float(flag_vol / pole_vol),
                         "breakout_pct": float((close_now - flag_high) / flag_high * 100),
                         "vol_ratio": float(vol_ratio),
@@ -233,4 +235,5 @@ class StrategyFiveBullFlag:
                 logger.debug(f"  {ticker} bull flag 계산 실패: {e}")
 
         candidates.sort(key=lambda c: c.score, reverse=True)
+        apply_dynamic_trade_plan(candidates, self.name)
         return candidates[:top_n]
