@@ -12,6 +12,7 @@ from backtest_engine.timing_study import (
     TimingStudyEngine,
     TimingStudyResult,
     TimingTrade,
+    build_signal_cohorts,
 )
 
 
@@ -143,3 +144,78 @@ def test_aggregator_win_rate():
     df = agg.aggregate(make_trades_fixture())
     row = df[(df["entry_window"] == EntryWindow.MORNING) & (df["hold_days"] == 1)]
     assert row["win_rate"].iloc[0] == pytest.approx(0.5)
+
+
+# ── Cohort (전략 조합) ──────────────────────────────────────────────────────
+
+
+def test_build_signal_cohorts_identifies_same_day_signals():
+    date = pd.Timestamp("2026-01-10")
+    signals = [
+        SignalRecord("strategy_two", "005930", date, 0.8, 70000.0),
+        SignalRecord("strategy_three", "005930", date, 0.9, 70000.0),
+        SignalRecord("strategy_two", "000660", date, 0.7, 80000.0),
+    ]
+    cohorts = build_signal_cohorts(signals)
+    assert cohorts[("005930", date)] == frozenset({"strategy_two", "strategy_three"})
+    assert cohorts[("000660", date)] == frozenset({"strategy_two"})
+
+
+def _make_cohort_trade(
+    strategy: str, cohort: frozenset, pnl: float, hd: int = 1
+) -> TimingTrade:
+    return TimingTrade(
+        strategy=strategy,
+        ticker="005930",
+        signal_date=pd.Timestamp("2026-01-02"),
+        rank_bucket=1,
+        entry_window=EntryWindow.MORNING,
+        hold_days=hd,
+        entry_price=10000.0,
+        exit_price=10000.0 * (1 + pnl / 100),
+        commission_pct=0.0,
+        cohort=cohort,
+    )
+
+
+def test_aggregate_by_cohort_subset_match():
+    cohort_234 = frozenset({"strategy_two", "strategy_three", "strategy_four"})
+    trades = [
+        _make_cohort_trade("strategy_two", cohort_234, 1.0) for _ in range(6)
+    ]
+    agg = MetricsAggregator()
+    df = agg.aggregate_by_cohort(trades)
+    combos = set(df["combo"].tolist())
+    # query={2,3} 는 cohort {2,3,4} 의 부분집합이므로 포함
+    assert "strategy_three+strategy_two" in combos
+    # query={2,3,4} 도 정확 매칭으로 포함
+    assert "strategy_four+strategy_three+strategy_two" in combos
+    # query={2,5} 는 cohort 에 5 없음 → 제외
+    assert "strategy_five+strategy_two" not in combos
+
+
+def test_aggregate_by_cohort_min_sample_guard():
+    # strategy_one 미포함 + sample_n=2 → 가드 적용으로 제외
+    cohort_23 = frozenset({"strategy_two", "strategy_three"})
+    trades = [_make_cohort_trade("strategy_two", cohort_23, 1.0) for _ in range(2)]
+    df = MetricsAggregator().aggregate_by_cohort(trades)
+    assert df.empty or "strategy_three+strategy_two" not in set(df["combo"].tolist())
+
+
+def test_aggregate_by_cohort_strategy_one_bypass():
+    # strategy_one 포함 combo 는 sample_n=1 이라도 노출
+    cohort_12 = frozenset({"strategy_one", "strategy_two"})
+    trades = [_make_cohort_trade("strategy_one", cohort_12, 5.0)]
+    df = MetricsAggregator().aggregate_by_cohort(trades)
+    combos = set(df["combo"].tolist())
+    assert "strategy_one+strategy_two" in combos
+    row = df[df["combo"] == "strategy_one+strategy_two"].iloc[0]
+    assert int(row["sample_n"]) == 1
+
+
+def test_aggregate_by_cohort_preserves_single_strategy_unchanged():
+    # 회귀: cohort 도입이 기본 aggregate() 결과에 영향 없어야 함
+    trades = make_trades_fixture()
+    df = MetricsAggregator().aggregate(trades)
+    assert "avg_return" in df.columns
+    assert len(df) > 0

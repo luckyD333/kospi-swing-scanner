@@ -14,6 +14,7 @@ from backtest_engine.timing_study import (
     ReportFormatter,
     TimingStudyConfig,
     TimingStudyEngine,
+    build_signal_cohorts,
 )
 
 CACHE_DIR = pathlib.Path(".cache/1D")
@@ -60,12 +61,21 @@ def main() -> None:
     gen = HistoricalSignalGenerator(min_lookback=config.min_lookback_bars)
     engine = TimingStudyEngine()
     all_trades = []
+    all_signals: list = []
+    signals_by_strategy: dict[str, list] = {}
 
     for strategy_name in STRATEGIES:
         print(f"신호 추출 중: {strategy_name} ...", end=" ", flush=True)
         signals = gen.extract(strategy_name, ohlcv_map)
         print(f"{len(signals)}개 신호")
-        trades = engine.compute_trades(signals, ohlcv_map, config)
+        signals_by_strategy[strategy_name] = signals
+        all_signals.extend(signals)
+
+    cohorts = build_signal_cohorts(all_signals)
+    print(f"\ncohort 식별 완료: 동시 신호 발생 (ticker, date) {len(cohorts)}건")
+
+    for strategy_name, signals in signals_by_strategy.items():
+        trades = engine.compute_trades(signals, ohlcv_map, config, cohorts=cohorts)
         all_trades.extend(trades)
 
     if not all_trades:
@@ -75,8 +85,9 @@ def main() -> None:
     print(f"\n총 {len(all_trades)}개 거래 집계 중...")
     agg = MetricsAggregator()
     summary = agg.aggregate(all_trades)
+    cohort_summary = agg.aggregate_by_cohort(all_trades)
 
-    report = ReportFormatter().format(summary, config)
+    report = ReportFormatter().format(summary, config, cohort_summary)
     pathlib.Path(args.output).write_text(report, encoding="utf-8")
     print(f"리포트 저장: {args.output}")
 
@@ -86,6 +97,29 @@ def main() -> None:
     ].copy()
     top5["entry_window"] = top5["entry_window"].apply(lambda x: x.value if hasattr(x, "value") else x)
     print(top5.to_string(index=False))
+
+    if not cohort_summary.empty:
+        print("\n─── Confluence Top 5 (n_strategies ≥ 2, 포함매칭) ───")
+        ctop = cohort_summary.nlargest(5, "avg_return")[
+            ["combo", "n_strategies", "entry_window", "hold_days",
+             "avg_return", "win_rate", "sample_n"]
+        ].copy()
+        ctop["entry_window"] = ctop["entry_window"].apply(
+            lambda x: x.value if hasattr(x, "value") else x
+        )
+        print(ctop.to_string(index=False))
+
+        s1_rows = cohort_summary[cohort_summary["combo"].str.contains("strategy_one")]
+        if not s1_rows.empty:
+            print("\n─── strategy_one 포함 combo (가드 우회, 표본 적어도 노출) ───")
+            stop = s1_rows.nlargest(5, "avg_return")[
+                ["combo", "entry_window", "hold_days",
+                 "avg_return", "win_rate", "sample_n"]
+            ].copy()
+            stop["entry_window"] = stop["entry_window"].apply(
+                lambda x: x.value if hasattr(x, "value") else x
+            )
+            print(stop.to_string(index=False))
 
 
 if __name__ == "__main__":
