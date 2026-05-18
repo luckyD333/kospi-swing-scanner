@@ -75,9 +75,9 @@ def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> Produc
         return ProductType.REIT
 
     # 2) ETF API 명단 — ETF 와 ETN 통합 source
-    #    ETN 은 7xxxxx, ETF 는 그 외 (1/2/3/4xxxxx 일반적)
+    #    ETN 은 7xxxxx 또는 종목명 'ETN' 포함 (55xxxx 등 비-7 코드 ETN도 존재)
     if ticker in etf_list:
-        if ticker.startswith("7"):
+        if ticker.startswith("7") or any(kw in name for kw in _ETN_KEYWORDS):
             return ProductType.ETN
         return ProductType.ETF
 

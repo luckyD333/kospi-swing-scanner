@@ -48,8 +48,9 @@ def test_classify_etn_by_7_prefix_in_etf_list():
 
 
 def test_classify_etn_5_prefix_in_etf_list():
-    """ETF API 명단 hit + 5xxxxx → ETF (7로 시작 안 함, 일반적 ETF 코드)."""
-    assert classify("530031", "어떤 ETN", etf_list={"530031"}) == ProductType.ETF
+    """ETF API 명단 hit + 5xxxxx → 이름에 'ETN' 있으면 ETN, 없으면 ETF."""
+    assert classify("530031", "어떤 ETN", etf_list={"530031"}) == ProductType.ETN
+    assert classify("530031", "KODEX 200", etf_list={"530031"}) == ProductType.ETF
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +95,8 @@ def test_alphanumeric_etn_etf_serial_code_unaffected():
     """ETN/ETF 직렬 코드 (\\d{4}[A-Z]\\d) 는 step 5 패턴 미해당 → ETF API 명단 의존."""
     # 명단 미포함 → UNKNOWN (정상 운영에선 collect.py 가 명단 채워서 도달 X)
     assert classify("0025N0", "어떤 ETN") == ProductType.UNKNOWN
-    # 명단 포함 → 0xxxxx 라 ETF (7-prefix 아님)
-    assert classify("0025N0", "KODEX 채권 ETN", etf_list={"0025N0"}) == ProductType.ETF
+    # 명단 포함 + 이름에 ETN → ETN
+    assert classify("0025N0", "KODEX 채권 ETN", etf_list={"0025N0"}) == ProductType.ETN
 
 
 # ---------------------------------------------------------------------------

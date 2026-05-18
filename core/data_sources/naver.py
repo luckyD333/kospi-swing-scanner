@@ -106,8 +106,12 @@ class NaverSource(DailyDataSource):
         결과는 _ticker_cache에 저장하여 시총/이름 조회에 재사용.
         """
         if market == "ETF":
-            # ETN은 KRX에서 항상 7xxxxx 코드 — 유니버스 수집 시 제외
-            return [t for t in self._get_etf_tickers(top_n=200, sort_by="quant") if not t.startswith("7")]
+            items = self._get_etf_items(top_n=200, sort_by="quant")
+            return [
+                item["itemcode"] for item in items
+                if not item["itemcode"].startswith("7")
+                and "ETN" not in item.get("itemname", "")
+            ]
         self._crawl_market_sum(market)
         return [t for t, info in self._ticker_cache.items() if info["market"] == market]
 
@@ -118,15 +122,15 @@ class NaverSource(DailyDataSource):
         실패 시 빈 set + WARN 로그 — 분류기는 이름 키워드/코드 prefix 만으로 동작 가능.
         """
         try:
-            return set(self._get_etf_tickers(top_n=None, sort_by="marketSum"))
+            return {item["itemcode"] for item in self._get_etf_items(top_n=None, sort_by="marketSum")}
         except Exception as e:
             logger.warning(f"ETF 명단 fetch 실패: {e}")
             return set()
 
-    def _get_etf_tickers(
+    def _get_etf_items(
         self, top_n: int | None = None, sort_by: str = "marketSum"
-    ) -> list[str]:
-        """네이버 ETF 목록 API에서 itemcode 추출 (ETN 포함 원본 반환).
+    ) -> list[dict]:
+        """네이버 ETF 목록 API에서 item dict 목록 반환 (ETN 포함 원본).
 
         sort_by: 정렬 기준 필드 (기본 'marketSum', 거래량 기준 시 'quant')
         top_n: 상위 N개만 반환 (None이면 전체)
@@ -142,7 +146,7 @@ class NaverSource(DailyDataSource):
         items = sorted(items, key=lambda x: x.get(sort_by) or 0, reverse=True)
         if top_n is not None:
             items = items[:top_n]
-        return [item["itemcode"] for item in items]
+        return items
 
     def get_ticker_name(self, ticker: str) -> str:
         info = self._ticker_cache.get(ticker)

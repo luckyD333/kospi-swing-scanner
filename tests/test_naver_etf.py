@@ -121,7 +121,7 @@ def test_get_tickers_etf_top200_limit():
 
 
 def test_get_tickers_etf_excludes_etn():
-    """get_tickers('ETF')는 코드 7xxxxx ETN을 제외한다. KRX ETN은 항상 7xxxxx 코드."""
+    """get_tickers('ETF')는 코드 7xxxxx 또는 종목명 'ETN' 포함 항목을 제외한다."""
     src = NaverSource()
     with patch(
         "core.data_sources.naver.requests.get",
@@ -129,7 +129,8 @@ def test_get_tickers_etf_excludes_etn():
     ):
         tickers = src.get_tickers("ETF", "20260503")
 
-    assert "700020" not in tickers  # 코드 7xxxxx → ETN 제외
+    assert "700020" not in tickers  # 코드 7xxxxx → 제외
+    assert "590010" not in tickers  # 종목명 'ETN' 포함 (55xxxx 코드) → 제외
     assert "360750" in tickers
     assert "069500" in tickers
 
