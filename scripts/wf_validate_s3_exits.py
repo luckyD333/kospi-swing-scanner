@@ -44,7 +44,9 @@ from backtest_engine.walk_forward import (  # noqa: E402
     run_walk_forward,
 )
 from scripts.wf_validate_s2_to_s5 import (  # noqa: E402
+    _s2_factory,
     _s3_factory,
+    _s4_factory,
     load_history,
 )
 from strategies.strategy_one_d_v2 import (  # noqa: E402
@@ -75,6 +77,36 @@ def build_targets(include_s1: bool) -> list[dict]:
             "note": (
                 "S3 청산 2D 그리드 — BarTracker scorer 로 Finding 7 해소 검증. "
                 "셀별 동일값 (N봉 scorer 결과 -0.334) → 다른값 으로 변동되면 PASS."
+            ),
+        },
+        {
+            "label": "S3_exits_2d_ext",
+            "factory": _s3_factory,
+            "param_grid": {
+                "atr_stop_mult": [0.5, 0.75, 1.0, 1.25, 1.5],
+                "atr_target_mult": [1.0, 1.5, 2.0, 2.5],
+            },
+            "note": (
+                "Grid 확장 — 1라운드 best (1.0, 2.0) 가 양쪽 차원 모두 grid "
+                "가장자리. interior best 또는 edge 재확인 목적 (advisor 권고)."
+            ),
+        },
+        {
+            "label": "S2_atr_target_mult_bt",
+            "factory": _s2_factory,
+            "param_grid": {"atr_target_mult": [2.0, 2.5, 3.0, 3.5, 4.0]},
+            "note": (
+                "S2 atr_target_mult — t2 = entry + ATR × mult (live param). "
+                "BarTracker 어댑터 가치 검증: 1D 그리드에서 셀별 다른 metric 나와야 정상."
+            ),
+        },
+        {
+            "label": "S4_atr_target_mult_bt",
+            "factory": _s4_factory,
+            "param_grid": {"atr_target_mult": [2.0, 2.5, 3.0, 3.5, 4.0]},
+            "note": (
+                "S4 atr_target_mult — t2 = entry + ATR × mult (live param). "
+                "BarTracker 어댑터 가치 검증 동일."
             ),
         },
     ]
