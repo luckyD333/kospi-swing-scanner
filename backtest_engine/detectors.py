@@ -137,6 +137,8 @@ class DoubleBottomSimple(DoubleBottomDetector):
 
         p1 = float(df["low"].iloc[idx_1])
         p2 = float(df["low"].iloc[idx_2])
+        if p1 <= 0:
+            return None
         if abs(p2 - p1) / p1 > self.price_tolerance:
             return None
 

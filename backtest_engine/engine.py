@@ -29,7 +29,7 @@ class BacktestConfig:
     position_size_pct: float = 0.20             # 종목당 20%
     max_positions: int = 5                      # 동시 보유 최대 5개
     min_cash_pct: float = 0.10                  # 최소 현금 비율 10%
-    commission_pct: float = 0.0025              # 왕복 0.25% (거래세 + 슬리피지)
+    commission_pct: float = 0.0030              # 왕복 0.30% (거래세 + 슬리피지, paper trading 실측 기반)
     allocation_mode: str = "conservative"       # "conservative" or "aggressive"
 
 

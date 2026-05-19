@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class UniverseFilter:
     """시총 + 유동성 필터 파라미터 (모두 inclusive 범위)."""
-    min_market_cap_bil: float = 2000.0      # 최소 시총 (억)
+    min_market_cap_bil: float = 5000.0      # 최소 시총 (억) — 2026-05-19 상향: 베타 추정 안정성 + 슬리피지 감소
     max_market_cap_bil: float = 30000.0     # 최대 시총 (억)
     min_daily_volume: int = 100_000          # 일 최소 거래량
     market: str = "KOSPI"

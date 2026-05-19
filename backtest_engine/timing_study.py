@@ -27,7 +27,7 @@ class TimingStudyConfig:
     entry_windows: list[EntryWindow] = field(default_factory=lambda: list(EntryWindow))
     hold_periods: list[int] = field(default_factory=lambda: [0, 1, 2, 3])
     rank_buckets: int = 4
-    commission_pct: float = 0.0025
+    commission_pct: float = 0.0030
     min_lookback_bars: int = 25
     top_n_tickers: int = 500
 
@@ -42,7 +42,7 @@ class TimingTrade:
     hold_days: int
     entry_price: float
     exit_price: float
-    commission_pct: float = 0.0025
+    commission_pct: float = 0.0030
     cohort: frozenset[str] = field(default_factory=frozenset)
 
     @property

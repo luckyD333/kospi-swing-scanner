@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="출력 포맷 (단일 전략) / 비교 모드 (--strategy all) 시 markdown/csv/json 권장",
     )
     parser.add_argument(
-        "--min-cap", type=float, default=2000.0,
+        "--min-cap", type=float, default=5000.0,
         help="최소 시총 (억)",
     )
     parser.add_argument(

@@ -56,7 +56,7 @@ def _none_if_nan(value):
 class RunnerConfig:
     """Runner 실행 설정."""
     market: str = "KOSPI"
-    min_market_cap_bil: float = 2000.0
+    min_market_cap_bil: float = 5000.0
     max_market_cap_bil: float = 30000.0
     min_daily_volume: int = 100_000
     lookback_days: int = 90
