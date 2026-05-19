@@ -163,6 +163,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
     atr14, changePct, currentPrice,
     naverUrl, generatedAtDisplay, signalDate,
     confirmationLevel, activeRegime, tradabilityScore,
+    ensembleScore, regimeLabel, fngLabel,
   } = detail;
 
   // 대표 매매 파라미터 (matches[0] 기반)
@@ -542,6 +543,18 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                   <span style={ts('caption-sm', 'var(--muted-soft)')}>
                     신호 시점 {activeRegime}
                   </span>
+                )}
+                {ensembleScore != null && (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <span style={ts('caption', 'var(--ink)')}>
+                      {ensembleScore.toFixed(2)}
+                    </span>
+                    <span style={ts('caption-sm', 'var(--muted-soft)')}>
+                      다전략 합의도
+                      {regimeLabel ? ` · ${regimeLabel} 가중` : ''}
+                      {fngLabel ? ` · ${fngLabel}` : ''}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

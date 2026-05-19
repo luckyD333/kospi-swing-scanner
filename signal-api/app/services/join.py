@@ -316,6 +316,10 @@ def aggregate_entries_for_ticker(
         "external_links": base_meta.get("external_links"),
         "potential_score": base_decision.get("final_score", 0),
         "potential_factors": base_decision.get("factors", []),
+        # Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
+        "ensemble_score": base_decision.get("ensemble_score"),
+        "regime_label": base_decision.get("regime_label"),
+        "fng_label": base_decision.get("fng_label"),
         "matches": matches,
         # 호환 필드 (signal_date, active_regime, signal_status, tradability_score 등)
         "signal_date": base_meta.get("signal_date"),

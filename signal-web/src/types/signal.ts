@@ -75,6 +75,10 @@ export interface DecisionMeta {
   // 신규 — max_regret 의 명확한 alias (기회 점수)
   regret_score?: number | null;
   regret_factors?: RegretFactor[] | null;
+  // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
+  ensemble_score?: number | null;   // compute_regime_aware_ensemble_score 결과
+  regime_label?: string | null;      // 가중치 적용 regime (BULL/NEUTRAL/BEAR)
+  fng_label?: string | null;         // F&G modifier 라벨 (Extreme Fear ~ Extreme Greed)
 }
 
 export interface Ranking {

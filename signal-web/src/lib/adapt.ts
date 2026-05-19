@@ -64,6 +64,10 @@ export interface DetailProps {
   confirmationLevel: string | null;
   activeRegime: string | null;
   tradabilityScore: number | null;
+  // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
+  ensembleScore: number | null;
+  regimeLabel: string | null;
+  fngLabel: string | null;
 }
 
 export interface CardProps {
@@ -130,6 +134,10 @@ export interface CardProps {
   confirmationLevel: string | null;
   activeRegime: string | null;
   signalFreshness?: SignalFreshness;
+  // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
+  ensembleScore: number | null;
+  regimeLabel: string | null;
+  fngLabel: string | null;
 }
 
 // Factor 라벨 매핑
@@ -259,6 +267,9 @@ export function adaptDetailV2(raw: any): DetailProps {
     confirmationLevel: raw.confirmation_level ?? null,
     activeRegime: raw.active_regime ?? null,
     tradabilityScore: raw.tradability_score ?? null,
+    ensembleScore: raw.ensemble_score ?? null,
+    regimeLabel: raw.regime_label ?? null,
+    fngLabel: raw.fng_label ?? null,
   };
 }
 
@@ -339,6 +350,9 @@ export function adaptDetailLegacy(raw: any): DetailProps {
     confirmationLevel: card.confirmationLevel,
     activeRegime: card.activeRegime,
     tradabilityScore: card.tradabilityScore,
+    ensembleScore: card.ensembleScore,
+    regimeLabel: card.regimeLabel,
+    fngLabel: card.fngLabel,
   };
 }
 
@@ -467,5 +481,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     confirmationLevel: signal.confirmation_level ?? null,
     activeRegime: signal.active_regime ?? null,
     signalFreshness: signal.signal_freshness ?? undefined,
+    ensembleScore: signal.ranking?.decision?.ensemble_score ?? null,
+    regimeLabel: signal.ranking?.decision?.regime_label ?? null,
+    fngLabel: signal.ranking?.decision?.fng_label ?? null,
   };
 }
