@@ -78,11 +78,37 @@ strategy_weights:
   strategy_two_30m: 0.8
 
 # Phase 3 (2026-05-19): Regime-Conditional Parameter Optimization
-# regime 라벨이 per_ticker_regime.py 의 7-label (UPTREND_STRONG, UPTREND_WEAK,
-# RANGE_TIGHT, RANGE, DOWNTREND_WEAK, DOWNTREND_STRONG, MIXED) 과 일치할 때 매트릭스
-# 적용. regime 미지정 또는 등록 안 된 strategy 는 위 strategy_weights 로 fallback.
+# 매칭 우선순위:
+#   1. 시장 regime 3-label (market_regime.get_regime_label): BULL / NEUTRAL / BEAR
+#   2. per-ticker regime 7-label (per_ticker_regime): UPTREND_STRONG, RANGE_TIGHT, ... MIXED
+# runner._build_unique_pool 은 현재 1번 (3-label) 만 호출. 7-label 은 per-ticker 시스템 확장용.
+# regime 미지정 또는 등록 안 된 strategy 는 위 strategy_weights 로 fallback.
 # weight 0.0 = 해당 regime 에서 전략 신호 무시.
 strategy_weights_by_regime:
+  # ----- 3-label (시장 전체 regime, runner 활성) -----
+  BULL:
+    # score >= 70 — 강세장. 추세 추종 강화, mean reversion 약화
+    strategy_one_d_v2: 0.6
+    strategy_two_cross_sectional_momentum: 1.4
+    strategy_three_trend_following: 1.4
+    strategy_four_pullback_ma: 1.2
+    strategy_five_bull_flag: 1.4
+  NEUTRAL:
+    # 30 <= score < 70 — 평형. 정적 strategy_weights 와 유사 + 추세 약간 약화
+    strategy_one_d_v2: 1.1
+    strategy_two_cross_sectional_momentum: 0.9
+    strategy_three_trend_following: 0.8
+    strategy_four_pullback_ma: 1.0
+    strategy_five_bull_flag: 0.8
+  BEAR:
+    # score < 30 — 약세. 모두 약화, bull flag 차단
+    strategy_one_d_v2: 0.7
+    strategy_two_cross_sectional_momentum: 0.3
+    strategy_three_trend_following: 0.4
+    strategy_four_pullback_ma: 0.5
+    strategy_five_bull_flag: 0.0
+
+  # ----- 7-label (per-ticker, 향후 확장용) -----
   UPTREND_STRONG:
     strategy_one_d_v2: 0.5
     strategy_two_cross_sectional_momentum: 1.5
