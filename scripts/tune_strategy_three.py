@@ -97,7 +97,6 @@ GRID = {
     "lookback":               [15, 20, 25, 30],
     "atr_filter_multiplier":  [0.3, 0.5, 0.7, 1.0],
     "atr_stop_mult":          [1.0, 1.5, 2.0, 2.5],
-    "atr_target_mult":        [2.5, 3.0, 3.5],
 }
 
 # 기본값 (변경 안 할 파라미터)
@@ -111,7 +110,6 @@ def build_config(
     lookback: int,
     atr_filter_mult: float,
     atr_stop_mult: float,
-    atr_target_mult: float,
 ) -> StrategyThreeConfig:
     return StrategyThreeConfig(
         lookback=lookback,
@@ -119,7 +117,6 @@ def build_config(
         atr_filter_multiplier=atr_filter_mult,
         stop_loss_pct=BASE["stop_loss_pct"],
         atr_stop_mult=atr_stop_mult,
-        atr_target_mult=atr_target_mult,
     )
 
 
@@ -143,7 +140,6 @@ def run_grid(
             lookback=int(params["lookback"]),
             atr_filter_mult=params["atr_filter_multiplier"],
             atr_stop_mult=params["atr_stop_mult"],
-            atr_target_mult=params["atr_target_mult"],
         )
         strategy = StrategyThreeTrendFollowing(config=cfg, timeframe="1D")
 
@@ -230,7 +226,7 @@ def print_results(results: list[RunResult], top_n: int) -> None:
     print(f"\n{'='*100}")
     print(f"  상위 {min(top_n, len(valid))}개 조합 (신호≥10건, PF 기준)")
     print(f"{'='*100}")
-    print(f"  {'lookback':>8} {'atr_filt':>9} {'atr_stop':>9} {'atr_targ':>9} | {'신호':>5} {'승률':>7} {'avgPnL':>8} {'PF':>6} {'avgWin':>8} {'avgLoss':>8}")
+    print(f"  {'lookback':>8} {'atr_filt':>9} {'atr_stop':>9} | {'신호':>5} {'승률':>7} {'avgPnL':>8} {'PF':>6} {'avgWin':>8} {'avgLoss':>8}")
     print(f"  {'-'*98}")
 
     for r in valid[:top_n]:
@@ -239,7 +235,6 @@ def print_results(results: list[RunResult], top_n: int) -> None:
             f"  {int(p['lookback']):>8}"
             f"  {p['atr_filter_multiplier']:>9.1f}"
             f"  {p['atr_stop_mult']:>9.1f}"
-            f"  {p['atr_target_mult']:>9.1f}"
             f" | {r.signals:>5}"
             f"  {r.win_rate:>6.1f}%"
             f"  {r.avg_pnl:>+7.2f}%"
@@ -249,13 +244,12 @@ def print_results(results: list[RunResult], top_n: int) -> None:
         )
 
     # 현재 기본값 결과 표시
-    print("\n  ── 현재 기본값 (lookback=20, atr_filt=0.5, atr_stop=1.5, atr_targ=3.0) ──")
+    print("\n  ── 현재 기본값 (lookback=20, atr_filt=0.5, atr_stop=1.5) ──")
     baseline = next(
         (r for r in results
          if int(r.params["lookback"]) == 20
          and abs(r.params["atr_filter_multiplier"] - 0.5) < 0.001
-         and abs(r.params["atr_stop_mult"] - 1.5) < 0.001
-         and abs(r.params["atr_target_mult"] - 3.0) < 0.001),
+         and abs(r.params["atr_stop_mult"] - 1.5) < 0.001),
         None,
     )
     if baseline:
@@ -264,7 +258,6 @@ def print_results(results: list[RunResult], top_n: int) -> None:
             f"  {int(p['lookback']):>8}"
             f"  {p['atr_filter_multiplier']:>9.1f}"
             f"  {p['atr_stop_mult']:>9.1f}"
-            f"  {p['atr_target_mult']:>9.1f}"
             f" | {baseline.signals:>5}"
             f"  {baseline.win_rate:>6.1f}%"
             f"  {baseline.avg_pnl:>+7.2f}%"
@@ -281,7 +274,6 @@ def print_results(results: list[RunResult], top_n: int) -> None:
         print(f"    lookback            = {int(p['lookback'])}")
         print(f"    atr_filter_multiplier = {p['atr_filter_multiplier']:.1f}")
         print(f"    atr_stop_mult        = {p['atr_stop_mult']:.1f}")
-        print(f"    atr_target_mult      = {p['atr_target_mult']:.1f}")
         print(f"    → 신호 {best.signals}건, 승률 {best.win_rate:.1f}%, 평균PnL {best.avg_pnl:+.2f}%, PF {best.profit_factor:.2f}")
 
 

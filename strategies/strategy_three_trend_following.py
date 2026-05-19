@@ -60,7 +60,6 @@ class StrategyThreeConfig:
     atr_stop_swing_buffer: float = 0.5  # PR-F: channel_low - buffer×ATR(14)
     target_1_pct: float = 0.03          # +3%
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
-    atr_target_mult: float = 2.5        # target_2 = entry + ATR×mult (2026-05-14: 3.0→2.5)
     score_scale: float = 20000.0        # breakout_pct × scale → score (0..1000 cap; 5% 돌파 = 1000점)
     use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
 
@@ -193,6 +192,8 @@ class StrategyThreeTrendFollowing:
                 entry = round_to_tick(close_now)
                 # PR-F: ATR 기반 손절폭 (추세 추종)
                 # stop = max(entry-1.5×ATR, channel_low-0.5×ATR), fallback: entry×(1-stop_loss_pct)
+                # invariant (2026-05-19 WF 검증): Donchian channel_low 가 거의 항상 더 깊은 stop
+                # 이라 max() 에서 채택됨 → atr_stop_mult 변화는 stop 에 사실상 영향 없음.
                 stop_loss_raw = compute_atr_stop(
                     float(entry), atr_now, channel_low,
                     atr_mult=cfg.atr_stop_mult,
@@ -202,6 +203,7 @@ class StrategyThreeTrendFollowing:
                 stop_loss = floor_to_tick(stop_loss_raw)
 
                 # PR-G: T1 = entry + 1R, T2 = entry + Donchian width
+                # 주의: atr_target_mult config 는 dead — t2 는 채널 폭 기반 (2026-05-19 cleanup).
                 risk = float(entry) - float(stop_loss)
                 t1 = round_to_tick(float(entry) + risk)
                 donchian_width = channel_high - channel_low
