@@ -136,6 +136,10 @@ class DecisionMeta(BaseModel):
     # 신규 — max_regret 의 명확한 alias. 의미: regret_scorer 의 후회 점수.
     regret_score: Optional[float] = None
     regret_factors: Optional[list[RegretFactor]] = None
+    # Phase 3 (2026-05-19) wiring 노출 — 시장 국면 + F&G 가중치 결과
+    ensemble_score: Optional[float] = None   # compute_regime_aware_ensemble_score 결과 (raw float)
+    regime_label: Optional[str] = None        # 가중치 적용에 사용된 시장 regime (BULL/NEUTRAL/BEAR)
+    fng_label: Optional[str] = None           # F&G modifier 적용된 라벨 (Extreme Fear/Fear/Neutral/Greed/Extreme Greed)
 
 
 class Ranking(BaseModel):

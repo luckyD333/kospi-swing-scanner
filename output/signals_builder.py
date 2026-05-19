@@ -425,11 +425,26 @@ def build_signals_payload(
     if weight_config is not None:
         try:
             from core.decision.aggregator import aggregate_candidates
-            from core.decision.ensemble import compute_weighted_ensemble_score
+            from core.decision.ensemble import compute_regime_aware_ensemble_score
             from core.decision.regret_scorer import compute_regret_scores
 
-            weighted_scores = compute_weighted_ensemble_score(
-                filtered_candidates_by_strategy, weight_config.strategy_weights
+            # Phase 3 wiring: 시장 regime + F&G 라벨 추출 (정적 fallback 안전)
+            _regime_label: str | None = (
+                (market_regime or {}).get("1d", {}).get("regime")
+            )
+            _fng_label: str | None = None
+            try:
+                _fg = getattr(snapshot, "fear_greed", None)
+                if isinstance(_fg, dict):
+                    _fng_label = _fg.get("label")
+            except Exception:
+                _fng_label = None
+
+            weighted_scores = compute_regime_aware_ensemble_score(
+                filtered_candidates_by_strategy,
+                weight_config,
+                regime=_regime_label,
+                fng_label=_fng_label,
             )
             # ticker별 best-score 후보로 deduplicate
             # 1D/1W 풀: aggregator 팩터(fundamentals, momentum_3m, regime)가 1D 개념
@@ -473,6 +488,11 @@ def build_signals_payload(
                 }
                 if _regime_score_val is not None:
                     meta_patch["regime_score"] = _regime_score_val
+                # Phase 3 wiring: 시장 regime / F&G 라벨 metadata 노출
+                if _regime_label:
+                    meta_patch["regime_label"] = _regime_label
+                if _fng_label:
+                    meta_patch["fng_label"] = _fng_label
                 cand.metadata = {**(cand.metadata or {}), **meta_patch}
 
             # PR-B: 풀별 분리 ranking — STOCK 풀과 ETN_ETF 풀이 서로 영향 없이 독립 산출.
@@ -630,12 +650,22 @@ def build_signals_payload(
                 for k in _factor_labels
                 if f"regret_{k}" in rc.normalized_metrics
             ] or None
+            # Phase 3 wiring: 시장 regime / F&G 가중치 결과 노출 (None safe)
+            _es_raw = meta.get("ensemble_score")
+            _es_val: float | None = None
+            try:
+                _es_val = float(_es_raw) if _es_raw is not None else None
+            except (TypeError, ValueError):
+                _es_val = None
             decision = DecisionMeta(
                 final_score=rc.final_score,
                 factors=factors,
                 max_regret=float(mr) if mr is not None else None,
                 regret_score=float(mr) if mr is not None else None,
                 regret_factors=regret_factors_list,
+                ensemble_score=_es_val,
+                regime_label=meta.get("regime_label") or None,
+                fng_label=meta.get("fng_label") or None,
             )
 
         sig_date = getattr(c, "signal_date", None)

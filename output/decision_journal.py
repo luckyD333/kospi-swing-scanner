@@ -195,17 +195,20 @@ def format_ranking_report(
     lines.append("")
     lines.append(
         "| 순위 | 종목 | 이름 | final_score | PER | ROE | 외인% | "
-        "score | 다중전략 | 진입 | 손절% | 목표2% | 네이버 |"
+        "score | 다중전략 | ensemble | regime | 진입 | 손절% | 목표2% | 네이버 |"
     )
-    lines.append("|---:|:---|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|:--|")
+    lines.append("|---:|:---|:---|---:|---:|---:|---:|---:|---:|---:|:--|---:|---:|---:|:--|")
     for i, rc in enumerate(top, 1):
         c = rc.candidate
         m = c.metadata or {}
+        es_raw = m.get("ensemble_score")
+        es_disp = f"{float(es_raw):.2f}" if isinstance(es_raw, (int, float)) else "-"
+        regime_disp = m.get("regime_label") or "-"
         lines.append(
             f"| {i} | {c.ticker} | {c.name} | {rc.final_score} | "
             f"{_fmt_num(m.get('per'))} | {_fmt_num(m.get('roe'))} | "
             f"{_fmt_num(m.get('foreign_pct'))} | {c.score:.0f} | "
-            f"{m.get('ensemble_count', '-')} | "
+            f"{m.get('ensemble_count', '-')} | {es_disp} | {regime_disp} | "
             f"{c.entry_price:,.0f} | {-c.risk_pct:.2f} | {c.reward_pct_t2:.2f} | "
             f"[link]({m.get('naver_url', '')}) |"
         )
