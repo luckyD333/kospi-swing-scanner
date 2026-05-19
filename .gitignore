@@ -14,6 +14,7 @@ htmlcov/
 build/
 dist/
 .cache/
+.cache_wf/
 
 # Virtual environments
 venv/
@@ -30,6 +31,7 @@ ENV/
 
 # Project artifacts
 scan_results/
+results/
 # Job A/B 런타임 산출물 (signals.json, market_snapshot.json)
 data/
 # signal-web 정적 fallback (레거시) — 운영은 signal-api 경유 fetch만 사용
