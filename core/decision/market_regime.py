@@ -455,6 +455,9 @@ def apply_regime_overlay(
         priorities=priorities,
         must_have=base_config.must_have,
         strategy_weights=base_config.strategy_weights,
+        # Phase 3 wiring: regime/F&G 매트릭스 보존 (없으면 signals.json wiring 정적 fallback)
+        strategy_weights_by_regime=base_config.strategy_weights_by_regime,
+        fng_modifier=base_config.fng_modifier,
     )
 
 

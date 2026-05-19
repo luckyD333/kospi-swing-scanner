@@ -319,6 +319,37 @@ def test_regime_overlay_weights_sum_to_100():
         assert abs(total - 100.0) < 0.01
 
 
+def test_regime_overlay_preserves_regime_and_fng_matrices():
+    """Phase 3 wiring 회귀: apply_regime_overlay 가 strategy_weights_by_regime +
+    fng_modifier 를 보존해야 signals.json 의 wiring 효과가 사라지지 않음."""
+    base_priorities = _make_weight_config().priorities
+    from core.decision.config import WeightConfig
+
+    base = WeightConfig(
+        priorities=base_priorities,
+        must_have=[],
+        strategy_weights={"s_one": 1.3, "s_three": 1.3},
+        strategy_weights_by_regime={
+            "NEUTRAL": {"s_one": 1.1, "s_three": 0.8},
+            "BULL": {"s_three": 1.4},
+        },
+        fng_modifier={"extreme_greed": 0.6},
+    )
+
+    for score in (20, 50, 80):
+        result = apply_regime_overlay(base, regime_score=score)
+        assert result.strategy_weights_by_regime == base.strategy_weights_by_regime, (
+            f"score={score}: regime 매트릭스 누락"
+        )
+        assert result.fng_modifier == base.fng_modifier, (
+            f"score={score}: fng_modifier 누락"
+        )
+        # effective_weight 가 NEUTRAL 매트릭스 매칭하는지 직접 검증
+        assert result.effective_strategy_weight(
+            "s_three", regime="NEUTRAL"
+        ) == 0.8
+
+
 def test_regime_overlay_boundary_exactly_70():
     """score=70: bull 분기 진입."""
     base = _make_weight_config()
