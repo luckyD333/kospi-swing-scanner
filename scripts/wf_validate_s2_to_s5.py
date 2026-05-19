@@ -193,6 +193,19 @@ def build_targets() -> list[dict]:
             "param_grid": {"entry_percentile": [0.70, 0.75, 0.80, 0.85, 0.90]},
             "note": "2026-05-14: 0.75 → 0.80 — 의심도 🟢",
         },
+        # ----- Grid 확장 재검증 (advisor 지적: 기존 grid 가장자리 PASS) -----
+        {
+            "label": "S3_atr_stop_mult_ext",
+            "factory": _s3_factory,
+            "param_grid": {"atr_stop_mult": [0.5, 0.75, 1.0, 1.5, 2.0]},
+            "note": "Grid 확장: 기존 1.0 best 9/9 — 더 낮은 값까지 탐색",
+        },
+        {
+            "label": "S3_atr_target_mult_ext",
+            "factory": _s3_factory,
+            "param_grid": {"atr_target_mult": [1.0, 1.5, 2.0, 2.5, 3.0]},
+            "note": "Grid 확장: 기존 2.0 best 9/9 — 더 낮은 값까지 탐색",
+        },
     ]
 
 
