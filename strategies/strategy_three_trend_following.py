@@ -52,9 +52,9 @@ _TF_NAMES: dict[str, str] = {
 
 @dataclass(frozen=True)
 class StrategyThreeConfig:
-    lookback: int = 30                  # Donchian 채널 봉 수 (2026-05-14: 20→30 그리드 서치 최적화)
+    lookback: int = 20                  # Donchian 채널 봉 수 (2026-05-19 WF 롤백: 30→20, CV 0.403 + decay 0.416 FAIL)
     atr_period: int = 14                # ATR 계산 기간
-    atr_filter_multiplier: float = 0.7  # 돌파 폭 ≥ ATR × mult 만 진입 (2026-05-14: 0.5→0.7)
+    atr_filter_multiplier: float = 0.5  # 돌파 폭 ≥ ATR × mult 만 진입 (2026-05-19 WF 롤백: 0.7→0.5, CV 0.704 unstable)
     stop_loss_pct: float = 0.025        # ATR 결측 시 fallback (-2.5%)
     atr_stop_mult: float = 2.5          # PR-F: stop = entry - mult×ATR(14) (2026-05-14: 1.5→2.5)
     atr_stop_swing_buffer: float = 0.5  # PR-F: channel_low - buffer×ATR(14)
