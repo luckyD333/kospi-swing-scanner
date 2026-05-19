@@ -3,8 +3,21 @@ from __future__ import annotations
 
 import pandas as pd
 
+from core.decision.config import Priority, WeightConfig
 from core.decision.runner import _build_unique_pool
 from core.strategy_base import Candidate
+
+
+def _mk_weight_config() -> WeightConfig:
+    """검증 통과용 최소 WeightConfig — 정적 strategy_weights 동작 (regime 매트릭스 없음)."""
+    return WeightConfig(
+        priorities=[
+            Priority(key="rr_ratio", weight=100.0,
+                     direction="higher_better", label="RR"),
+        ],
+        must_have=[],
+        strategy_weights={},
+    )
 
 
 def _mk_candidate(ticker: str, strategy: str, score: float = 100.0) -> Candidate:
@@ -34,7 +47,7 @@ def test_build_unique_pool_injects_regime_score_and_label():
     }
     regime = {"current_score": 85, "current_regime": "BULL"}
 
-    pool = _build_unique_pool(by_strategy, regime=regime)
+    pool = _build_unique_pool(by_strategy, weight_config=_mk_weight_config(), regime=regime)
 
     assert len(pool) == 2
     for cand in pool:
@@ -47,7 +60,7 @@ def test_build_unique_pool_without_regime_omits_keys():
     by_strategy = {
         "strategy_one_d_v2": [_mk_candidate("005930", "strategy_one_d_v2")],
     }
-    pool = _build_unique_pool(by_strategy, regime=None)
+    pool = _build_unique_pool(by_strategy, weight_config=_mk_weight_config(), regime=None)
 
     assert "regime_score" not in pool[0].metadata
     assert "regime_label" not in pool[0].metadata
@@ -60,7 +73,7 @@ def test_build_unique_pool_handles_partial_regime_dict():
     }
     regime = {"current_score": 25}
 
-    pool = _build_unique_pool(by_strategy, regime=regime)
+    pool = _build_unique_pool(by_strategy, weight_config=_mk_weight_config(), regime=regime)
 
     assert pool[0].metadata["regime_score"] == 25
     # regime_label 은 score 기반으로 derive: 25 < 30 → BEAR
@@ -70,7 +83,6 @@ def test_build_unique_pool_handles_partial_regime_dict():
 def test_run_decide_ranking_passes_regime_from_cache_root(tmp_path, monkeypatch):
     """cache_root 인자로 regime_analysis.json 로드해 후보에 주입."""
     from core.decision import runner as r
-    from core.decision.config import Priority, WeightConfig
 
     cache_root = tmp_path / "cache"
     cache_root.mkdir()
@@ -84,20 +96,16 @@ def test_run_decide_ranking_passes_regime_from_cache_root(tmp_path, monkeypatch)
 
     captured: dict = {}
 
-    def fake_pool(by_strategy, strategy_weights=None, regime=None):
+    def fake_pool(by_strategy, weight_config=None, regime=None, fng_label=None):
         captured["regime"] = regime
+        captured["fng_label"] = fng_label
         return []
 
     monkeypatch.setattr(r, "load_candidates_from_manifest", lambda _p: {})
     monkeypatch.setattr(r, "_build_unique_pool", fake_pool)
     monkeypatch.setattr(r, "aggregate_candidates", lambda _p, _c: [])
 
-    cfg = WeightConfig(
-        priorities=[Priority(key="rr_ratio", weight=100.0,
-                             direction="higher_better", label="RR")],
-        must_have=[],
-        strategy_weights={},
-    )
+    cfg = _mk_weight_config()
     r.run_decide_ranking(
         scan_root=scan_root,
         target_date="20260503",
