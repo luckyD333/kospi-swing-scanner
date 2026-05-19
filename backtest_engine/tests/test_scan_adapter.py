@@ -12,7 +12,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from backtest_engine.scan_adapter import ScanPnlConfig, make_scan_pnl_scorer
+from backtest_engine.scan_adapter import (
+    ScanBarConfig,
+    ScanPnlConfig,
+    _track_position,
+    make_scan_bartracker_scorer,
+    make_scan_pnl_scorer,
+)
 from core.strategy_base import Candidate, ScanContext
 
 
@@ -201,3 +207,184 @@ def test_scorer_top_n_caps_candidates():
     sharpe, n = scorer(ohlcv, {}, start, end)
     # universe 2종목인데 top_n=1 cap → 1 trade
     assert n == 1
+
+
+# ---------- BarTracker 어댑터: _track_position 순수 함수 -----------------------
+
+
+def _ohlc(rows: list[tuple[float, float, float, float]]) -> pd.DataFrame:
+    """(open, high, low, close) 튜플 리스트 → 정확한 OHLC DataFrame."""
+    return pd.DataFrame(
+        {
+            "open":  [r[0] for r in rows],
+            "high":  [r[1] for r in rows],
+            "low":   [r[2] for r in rows],
+            "close": [r[3] for r in rows],
+            "volume": [1_000_000] * len(rows),
+        },
+        index=pd.date_range("2025-01-02", periods=len(rows), freq="B"),
+    )
+
+
+class TestTrackPosition:
+    """단일 trade 의 bar-by-bar stop/target 도달 추적."""
+
+    def test_target_reached_bar3(self):
+        # bar1~2 정상, bar3 high=106 ≥ target=105 → TARGET, exit=target
+        future = _ohlc([
+            (100, 101,  99, 100),
+            (100, 102,  99, 102),
+            (102, 106, 101, 105),
+            (105, 107, 104, 106),
+            (106, 108, 105, 107),
+        ])
+        exit_p, bars, reason = _track_position(
+            future, entry_price=100.0, stop_loss=95.0, target=105.0, max_holding_bars=5,
+        )
+        assert reason == "TARGET"
+        assert bars == 3
+        assert exit_p == 105.0
+
+    def test_stop_reached_bar2(self):
+        # bar1 정상, bar2 open=98>stop, low=94 ≤ stop=95 → STOP, exit=stop
+        future = _ohlc([
+            (100, 101,  99, 100),
+            (98,  100,  94,  95),
+            (95,   96,  94,  95),
+            (95,   96,  94,  95),
+            (95,   96,  94,  95),
+        ])
+        exit_p, bars, reason = _track_position(
+            future, entry_price=100.0, stop_loss=95.0, target=120.0, max_holding_bars=5,
+        )
+        assert reason == "STOP"
+        assert bars == 2
+        assert exit_p == 95.0
+
+    def test_gap_down_bar1(self):
+        # bar1 open=93 ≤ stop=95 → GAP_DOWN, exit=open=93 (stop 보다 낮음, 슬리피지 반영)
+        future = _ohlc([
+            (93,  95, 92, 94),
+            (94,  95, 93, 94),
+            (94,  95, 93, 94),
+            (94,  95, 93, 94),
+            (94,  95, 93, 94),
+        ])
+        exit_p, bars, reason = _track_position(
+            future, entry_price=100.0, stop_loss=95.0, target=110.0, max_holding_bars=5,
+        )
+        assert reason == "GAP_DOWN"
+        assert bars == 1
+        assert exit_p == 93.0
+
+    def test_time_stop_no_reach(self):
+        # 5봉 모두 stop/target 미도달 → TIME, exit=마지막 close
+        future = _ohlc([
+            (100, 101,  99, 100),
+            (100, 101,  99, 100),
+            (100, 101,  99, 101),
+            (101, 102, 100, 101),
+            (101, 103, 100, 102),
+        ])
+        exit_p, bars, reason = _track_position(
+            future, entry_price=100.0, stop_loss=80.0, target=120.0, max_holding_bars=5,
+        )
+        assert reason == "TIME"
+        assert bars == 5
+        assert exit_p == 102.0
+
+    def test_tie_break_stop_priority(self):
+        # 같은 봉에 low=94≤stop=95 AND high=111≥target=110 → STOP 우선
+        future = _ohlc([
+            (100, 111, 94, 105),
+            (105, 106, 104, 105),
+            (105, 106, 104, 105),
+            (105, 106, 104, 105),
+            (105, 106, 104, 105),
+        ])
+        exit_p, bars, reason = _track_position(
+            future, entry_price=100.0, stop_loss=95.0, target=110.0, max_holding_bars=5,
+        )
+        assert reason == "STOP"
+        assert bars == 1
+        assert exit_p == 95.0
+
+    def test_insufficient_future_bars(self):
+        # max_holding_bars=5, future=2봉 → INSUFFICIENT, NaN
+        future = _ohlc([
+            (100, 101,  99, 100),
+            (100, 101,  99, 100),
+        ])
+        exit_p, bars, reason = _track_position(
+            future, entry_price=100.0, stop_loss=95.0, target=110.0, max_holding_bars=5,
+        )
+        assert reason == "INSUFFICIENT"
+        assert bars == 0
+        assert np.isnan(exit_p)
+
+
+# ---------- BarTracker scorer factory ---------------------------------------
+
+
+class TestBarTrackerScorer:
+    """make_scan_bartracker_scorer factory + ScanBarConfig 시그니처/동작."""
+
+    def test_signature_compat_with_pnl_scorer(self):
+        """BarTracker scorer 가 N봉 scorer 와 동일 시그니처 → walk_forward 교체 가능."""
+        df = _make_df(40, start_price=100.0, daily_step=1.0)
+        ohlcv = {"AAA": df}
+        strategy = _AlwaysFirstStrategy()
+        scorer = make_scan_bartracker_scorer(
+            lambda _p: strategy,
+            ScanBarConfig(holding_bars=3, top_n=1, commission_pct=0.0, lookback_buffer_days=0),
+        )
+        start = df.index[20]
+        end = df.index[30]
+        sharpe, n = scorer(ohlcv, {}, start, end)
+        assert isinstance(sharpe, float)
+        assert isinstance(n, int)
+        assert n > 1  # 단조증가 + target 1.05 → 매 trade target 도달
+
+    def test_emit_stats_exposes_exit_reason_distribution(self):
+        """emit_stats=True 시 scorer.last_stats 로 STOP/TARGET/TIME/GAP_DOWN 분포 노출."""
+        df = _make_df(40, start_price=100.0, daily_step=1.0)
+        ohlcv = {"AAA": df}
+        strategy = _AlwaysFirstStrategy()
+        scorer = make_scan_bartracker_scorer(
+            lambda _p: strategy,
+            ScanBarConfig(
+                holding_bars=3, top_n=1, commission_pct=0.0,
+                lookback_buffer_days=0, emit_stats=True,
+            ),
+        )
+        start = df.index[20]
+        end = df.index[30]
+        sharpe, n = scorer(ohlcv, {}, start, end)
+        stats = scorer.last_stats  # type: ignore[attr-defined]
+        assert set(stats.keys()) >= {"STOP", "TARGET", "TIME", "GAP_DOWN", "avg_bars_held"}
+        total_reasons = stats["STOP"] + stats["TARGET"] + stats["TIME"] + stats["GAP_DOWN"]
+        assert total_reasons == n  # 분포 합 = n_trades
+
+    def test_target_reached_yields_higher_pnl_than_pnl_scorer(self):
+        """단조 상승 시나리오: BarTracker 가 target 조기 도달 → trade 짧고 수익률 ≠ N봉 PnL."""
+        df = _make_df(40, start_price=100.0, daily_step=1.0)
+        ohlcv = {"AAA": df}
+        # N봉 scorer: holding=3 강제, target 무시
+        strategy_pnl = _AlwaysFirstStrategy()
+        scorer_pnl = make_scan_pnl_scorer(
+            lambda _p: strategy_pnl,
+            ScanPnlConfig(holding_bars=10, top_n=1, commission_pct=0.0, lookback_buffer_days=0),
+        )
+        # BarTracker: target=1.05 → 5%면 조기 청산
+        strategy_bt = _AlwaysFirstStrategy()
+        scorer_bt = make_scan_bartracker_scorer(
+            lambda _p: strategy_bt,
+            ScanBarConfig(holding_bars=10, top_n=1, commission_pct=0.0, lookback_buffer_days=0),
+        )
+        start = df.index[20]
+        end = df.index[25]
+        sh_pnl, n_pnl = scorer_pnl(ohlcv, {}, start, end)
+        sh_bt, n_bt = scorer_bt(ohlcv, {}, start, end)
+        # 두 scorer 결과가 달라야 함 — BarTracker 가 stop/target 을 본다는 증거
+        assert n_pnl > 1 and n_bt > 1
+        assert sh_pnl != sh_bt

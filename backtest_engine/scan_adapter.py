@@ -3,13 +3,11 @@
 기존 BacktestEngine 은 StrategyD 전용 (check_entry/check_exit/prepare 필수).
 S2~S5 는 scan(ctx, top_n) → list[Candidate] 만 노출하므로 직접 호환 X.
 
-본 모듈은 N봉 단순 PnL 평가:
-  - 각 t ∈ [start, end] 마다 ScanContext(ohlcv[index ≤ t]) 생성 (look-ahead 차단)
-  - strategy.scan(ctx, top_n) 호출 → top_n Candidate 채택
-  - 진입가 = T+1 open (Candidate.entry_price = T close 라 거래 불가)
-  - 청산가 = T+1+holding_bars close
-  - PnL = (exit - entry)/entry - commission_pct (왕복)
-  - trade-level Sharpe = mean/std * sqrt(252 / holding_bars) — annualized
+두 어댑터 공존:
+  1. `make_scan_pnl_scorer` — N봉 후 단순 종가 청산 (stop/target 무시).
+     진입 파라미터 검증용. 기존 WF 결과 회귀 안전.
+  2. `make_scan_bartracker_scorer` — Candidate.stop_loss/target_2 를 bar-by-bar 추적.
+     청산 파라미터 (S3 atr_stop_mult 등) 검증 가능.
 
 WF scorer 시그니처 (walk_forward.run_walk_forward 와 동일):
     scorer(ohlcv_data, params, start, end) -> (sharpe, n_trades)
@@ -141,6 +139,192 @@ def make_scan_pnl_scorer(
             return 0.0, len(trades_pnl)
         mean = float(arr.mean())
         sharpe = mean / std * np.sqrt(252.0 / cfg.holding_bars)
+        return float(sharpe), len(trades_pnl)
+
+    return scorer
+
+
+# ---------- BarTracker 어댑터 ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ScanBarConfig:
+    """Bar-by-bar stop/target 추적 평가 설정.
+
+    holding_bars 의 의미가 N봉 scorer 와 다름: **최대 보유**.
+    조기 stop/target 도달 시 단축 청산, 미도달 시 holding_bars-th bar close 청산.
+    """
+    holding_bars: int = 3
+    top_n: int = 5
+    commission_pct: float = 0.0030
+    lookback_buffer_days: int = 60
+    market: str = "KOSPI"
+    emit_stats: bool = False  # True 시 scorer.last_stats 로 exit_reason 분포 노출
+
+
+def _track_position(
+    future_df: pd.DataFrame,
+    entry_price: float,
+    stop_loss: float,
+    target: float,
+    max_holding_bars: int,
+) -> tuple[float, int, str]:
+    """T+1 부터 시작한 진입 포지션을 bar-by-bar 추적.
+
+    한 봉 처리 우선순위 (보수적 STOP 우선):
+      1. open  ≤ stop  → GAP_DOWN, exit=open (실제 슬리피지 반영)
+      2. low   ≤ stop  → STOP,     exit=stop
+      3. high  ≥ target → TARGET,  exit=target
+      4. bars_held == max → TIME,  exit=close
+
+    Args:
+        future_df: T+1 부터 시작하는 OHLCV. caller 가 슬라이스 보장.
+        entry_price: 진입가 (참고용, 본 함수는 사용 X — 호출자 PnL 계산에서 사용).
+        stop_loss: 손절선.
+        target: 익절선 (Candidate.target_2 권장).
+        max_holding_bars: 최대 보유 봉 수.
+
+    Returns:
+        (exit_price, bars_held, exit_reason)
+        exit_reason ∈ {STOP, TARGET, TIME, GAP_DOWN, INSUFFICIENT}
+        future_df 가 max_holding_bars 보다 짧으면 (NaN, 0, "INSUFFICIENT") → caller skip.
+    """
+    if len(future_df) < max_holding_bars:
+        return float("nan"), 0, "INSUFFICIENT"
+
+    for i in range(max_holding_bars):
+        bar = future_df.iloc[i]
+        o = float(bar["open"])
+        h = float(bar["high"])
+        low = float(bar["low"])
+        c = float(bar["close"])
+        bars_held = i + 1
+
+        # 1) GAP_DOWN — open 이 이미 stop 아래로 하락
+        if o <= stop_loss:
+            return o, bars_held, "GAP_DOWN"
+
+        # 2) STOP 우선 (같은 봉 tie-break)
+        if low <= stop_loss:
+            return stop_loss, bars_held, "STOP"
+
+        # 3) TARGET
+        if h >= target:
+            return target, bars_held, "TARGET"
+
+        # 4) 최대 보유 만기
+        if bars_held >= max_holding_bars:
+            return c, bars_held, "TIME"
+
+    # 안전망 — 위 루프에서 반드시 반환됨
+    last = future_df.iloc[max_holding_bars - 1]
+    return float(last["close"]), max_holding_bars, "TIME"
+
+
+def make_scan_bartracker_scorer(
+    strategy_factory: Callable[[dict], Strategy],
+    scoring: ScanBarConfig | None = None,
+) -> Callable[
+    [dict[str, pd.DataFrame], dict, pd.Timestamp, pd.Timestamp],
+    tuple[float, int],
+]:
+    """WF scorer factory — Candidate.stop_loss/target_2 추적.
+
+    Args:
+        strategy_factory: params dict 받아 Strategy 인스턴스 반환.
+        scoring: 추적 평가 설정. None 이면 기본값 (3봉/5종목/0.30%).
+
+    Returns:
+        scorer(ohlcv_data, params, start, end) → (sharpe, n_trades)
+        scoring.emit_stats=True 면 scorer.last_stats 속성에 exit_reason 분포 누적.
+    """
+    cfg = scoring or ScanBarConfig()
+
+    def scorer(
+        ohlcv_data: dict[str, pd.DataFrame],
+        params: dict,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> tuple[float, int]:
+        # 1) lookback buffer 포함 슬라이스
+        buffered_start = start - pd.Timedelta(days=cfg.lookback_buffer_days)
+        sliced: dict[str, pd.DataFrame] = {}
+        for ticker, df in ohlcv_data.items():
+            sub = df[(df.index >= buffered_start) & (df.index <= end)]
+            if len(sub) > 0:
+                sliced[ticker] = sub
+        if not sliced:
+            return float("nan"), 0
+
+        # 2) signal 발생 가능 거래일
+        all_dates = sorted(set().union(*[df.index for df in sliced.values()]))
+        signal_dates = [d for d in all_dates if start <= d <= end]
+        if not signal_dates:
+            return float("nan"), 0
+
+        # 3) strategy 1회 생성
+        try:
+            strategy = strategy_factory(params)
+        except Exception:
+            return float("nan"), 0
+
+        # 4) 각 signal date 에서 scan → T+1 진입 → bar-by-bar 청산
+        trades_pnl: list[float] = []
+        bars_held_all: list[int] = []
+        stats = {"STOP": 0, "TARGET": 0, "TIME": 0, "GAP_DOWN": 0}
+
+        for d in signal_dates:
+            ctx = _build_ctx(d, sliced, market=cfg.market)
+            try:
+                candidates = strategy.scan(ctx, top_n=cfg.top_n)
+            except Exception:
+                continue
+
+            for cand in candidates[: cfg.top_n]:
+                full_df = ohlcv_data.get(cand.ticker)
+                if full_df is None:
+                    continue
+                future = full_df[full_df.index > d]
+                if len(future) < cfg.holding_bars:
+                    continue
+                entry_price = float(future.iloc[0]["open"])
+                if entry_price <= 0:
+                    continue
+
+                exit_price, bars_held, reason = _track_position(
+                    future,
+                    entry_price=entry_price,
+                    stop_loss=cand.stop_loss,
+                    target=cand.target_2,
+                    max_holding_bars=cfg.holding_bars,
+                )
+                if reason == "INSUFFICIENT":
+                    continue
+
+                gross = (exit_price - entry_price) / entry_price
+                trades_pnl.append(gross - cfg.commission_pct)
+                bars_held_all.append(bars_held)
+                stats[reason] = stats.get(reason, 0) + 1
+
+        # 5) emit_stats 통계 노출
+        if cfg.emit_stats:
+            scorer.last_stats = {  # type: ignore[attr-defined]
+                **stats,
+                "avg_bars_held": (
+                    float(np.mean(bars_held_all)) if bars_held_all else 0.0
+                ),
+            }
+
+        # 6) trade-level Sharpe (annualized) — avg_bars_held 기반
+        if len(trades_pnl) < 2:
+            return float("nan"), len(trades_pnl)
+        arr = np.array(trades_pnl, dtype=float)
+        std = float(arr.std(ddof=0))
+        if std < 1e-9:
+            return 0.0, len(trades_pnl)
+        mean = float(arr.mean())
+        avg_bars = float(np.mean(bars_held_all)) if bars_held_all else float(cfg.holding_bars)
+        sharpe = mean / std * np.sqrt(252.0 / max(avg_bars, 1.0))
         return float(sharpe), len(trades_pnl)
 
     return scorer
