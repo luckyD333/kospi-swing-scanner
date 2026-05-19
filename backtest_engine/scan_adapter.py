@@ -26,7 +26,7 @@ from core.strategy_base import ScanContext, Strategy
 @dataclass(frozen=True)
 class ScanPnlConfig:
     """N봉 PnL 평가 설정."""
-    holding_bars: int = 3        # 진입 후 N봉 보유 (CLAUDE.md: 1~3일 보유 단기 스윙)
+    holding_bars: int = 5        # 진입 후 N봉 보유 (CLAUDE.md: 1~5일 보유 단기 스윙)
     top_n: int = 5               # scan() 호출당 채택 후보 수 (max_positions=5 매칭)
     commission_pct: float = 0.0030  # 왕복 0.30% (BacktestConfig 기본과 일치)
     lookback_buffer_days: int = 60  # S3·S4 lookback 30 + 여유 (S1=45, S3·S4 더 필요)
@@ -154,7 +154,7 @@ class ScanBarConfig:
     holding_bars 의 의미가 N봉 scorer 와 다름: **최대 보유**.
     조기 stop/target 도달 시 단축 청산, 미도달 시 holding_bars-th bar close 청산.
     """
-    holding_bars: int = 3
+    holding_bars: int = 5
     top_n: int = 5
     commission_pct: float = 0.0030
     lookback_buffer_days: int = 60
