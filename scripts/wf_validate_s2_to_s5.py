@@ -233,7 +233,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--holding-bars", type=int, default=3,
-        help="N봉 PnL 청산 (1~5일 보유 단기 스윙)",
+        help="N봉 PnL 청산 (1~7일 spec, default 3)",
     )
     parser.add_argument(
         "--top-n", type=int, default=5,

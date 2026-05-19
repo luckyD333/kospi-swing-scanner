@@ -138,7 +138,7 @@ class StrategyTwoCrossSectionalMomentum:
         # NOTE: np.argsort(np.argsort(...)) 는 unique rank 를 할당 (tied rank average 아님).
         #       동률 ticker 는 stable sort 순서대로 분할되어 0.5/0.75 식으로 나뉨.
         #       Jegadeesh-Titman 원전의 month-level decile 와 미세 차이가 있으나, 일봉
-        #       1~5일 보유 + Long-only 맥락에서 분리 정렬이 결정론적 진입 우선순위에
+        #       1~7일 보유 + Long-only 맥락에서 분리 정렬이 결정론적 진입 우선순위에
         #       유리 (동률 다수 = 시장 정체 = 신호 신뢰도 낮음 → 일부 배제 효과).
         order = np.argsort(np.argsort(moms))
         ranks = (order + 1) / len(moms)  # 1/N..1.0

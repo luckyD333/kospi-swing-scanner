@@ -25,7 +25,7 @@ class EntryWindow(str, Enum):
 @dataclass
 class TimingStudyConfig:
     entry_windows: list[EntryWindow] = field(default_factory=lambda: list(EntryWindow))
-    hold_periods: list[int] = field(default_factory=lambda: [0, 1, 3, 5])
+    hold_periods: list[int] = field(default_factory=lambda: [0, 1, 3, 5, 7])
     rank_buckets: int = 4
     commission_pct: float = 0.0030
     min_lookback_bars: int = 25

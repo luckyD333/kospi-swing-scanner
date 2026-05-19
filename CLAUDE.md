@@ -1,6 +1,6 @@
 # KOSPI Swing Scanner
 
-KOSPI/KOSDAQ 일봉 기반 1~5일 보유 단기 스윙 매수 후보 자동 스크리닝 시스템 (Strategy D v2: RSI + 볼린저 밴드 + 쌍바닥 + 장악형 양봉).
+KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스크리닝 시스템 (Strategy D v2: RSI + 볼린저 밴드 + 쌍바닥 + 장악형 양봉).
 
 ## Tech Stack
 - **Runtime**: Python 3.10+

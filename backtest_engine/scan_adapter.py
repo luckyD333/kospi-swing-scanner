@@ -26,7 +26,7 @@ from core.strategy_base import ScanContext, Strategy
 @dataclass(frozen=True)
 class ScanPnlConfig:
     """N봉 PnL 평가 설정."""
-    holding_bars: int = 5        # 진입 후 N봉 보유 (CLAUDE.md: 1~5일 보유 단기 스윙)
+    holding_bars: int = 5        # 진입 후 N봉 보유 (CLAUDE.md: 1~7일 spec, default 5 = S1 sweet spot)
     top_n: int = 5               # scan() 호출당 채택 후보 수 (max_positions=5 매칭)
     commission_pct: float = 0.0030  # 왕복 0.30% (BacktestConfig 기본과 일치)
     lookback_buffer_days: int = 60  # S3·S4 lookback 30 + 여유 (S1=45, S3·S4 더 필요)
