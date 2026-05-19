@@ -3,6 +3,8 @@ core/decision/ensemble.py — 다중 전략 교집합 + Minimax Regret.
 
 기능:
   - compute_ensemble_count: ticker가 몇 개 전략에서 등장했는지 집계
+  - compute_weighted_ensemble_score: strategy_weights 가산 (정적)
+  - compute_regime_aware_ensemble_score: regime + F&G CPO 가산 (Phase 3, 2026-05-19)
   - apply_minimax_regret: 후보별 시나리오 후회 매트릭스 → 최대 후회 최소 순
   - auto_volatility_scenarios: 후보 risk/reward 기반 bull/bear 시나리오 자동 생성
 
@@ -18,6 +20,7 @@ from typing import Callable
 from core.strategy_base import Candidate
 
 from .aggregator import RankedCandidate
+from .config import WeightConfig
 
 RegretFn = Callable[[Candidate], dict[str, float]]
 
@@ -49,6 +52,44 @@ def compute_weighted_ensemble_score(
     scores: dict[str, float] = {}
     for strategy_name, cands in candidates_by_strategy.items():
         w = strategy_weights.get(strategy_name, 1.0)
+        seen_in_strategy: set[str] = set()
+        for c in cands:
+            if c.ticker not in seen_in_strategy:
+                scores[c.ticker] = scores.get(c.ticker, 0.0) + w
+                seen_in_strategy.add(c.ticker)
+    return scores
+
+
+def compute_regime_aware_ensemble_score(
+    candidates_by_strategy: dict[str, list[Candidate]],
+    weight_config: WeightConfig,
+    *,
+    regime: str | None = None,
+    fng_label: str | None = None,
+) -> dict[str, float]:
+    """ticker → regime + F&G CPO 가산 ensemble score.
+
+    Phase 3 (2026-05-19): regime/F&G 미지정 시 정적 strategy_weights 동작과 동일하게
+    fallback. effective_strategy_weight 가 0 이하면 해당 전략 신호 무시 (block).
+
+    Args:
+        candidates_by_strategy: {strategy_name: [Candidate, ...]}
+        weight_config: WeightConfig (strategy_weights_by_regime + fng_modifier 포함)
+        regime: per-ticker regime 라벨 (UPTREND_STRONG, RANGE, ... 또는 None)
+        fng_label: F&G 5-label (Extreme Fear/Fear/Neutral/Greed/Extreme Greed 또는 None)
+
+    Returns:
+        ticker → ensemble score (effective weight 합산)
+    """
+    scores: dict[str, float] = {}
+    for strategy_name, cands in candidates_by_strategy.items():
+        w = weight_config.effective_strategy_weight(
+            strategy=strategy_name,
+            regime=regime,
+            fng_label=fng_label,
+        )
+        if w <= 0:
+            continue  # 차단된 전략은 무시
         seen_in_strategy: set[str] = set()
         for c in cands:
             if c.ticker not in seen_in_strategy:

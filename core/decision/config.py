@@ -99,12 +99,22 @@ class MustHaveOp:
     optional: bool = False
 
 
+def _normalize_fng_label(label: str | None) -> str:
+    """F&G 라벨을 yaml 키 형식으로 정규화. e.g. 'Extreme Fear' → 'extreme_fear'."""
+    if not label:
+        return ""
+    return label.strip().lower().replace(" ", "_")
+
+
 @dataclass
 class WeightConfig:
     """가중치 + 필수 조건 묶음. yaml 로드/저장 지원."""
     priorities: list[Priority]
     must_have: list[str] = field(default_factory=list)
     strategy_weights: dict[str, float] = field(default_factory=dict)
+    # Phase 3 (2026-05-19): regime-conditional + F&G modifier
+    strategy_weights_by_regime: dict[str, dict[str, float]] = field(default_factory=dict)
+    fng_modifier: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self):
         # 합 100% 검증 (부동소수점 허용)
@@ -119,6 +129,40 @@ class WeightConfig:
         if len(keys) != len(set(keys)):
             dups = [k for k in keys if keys.count(k) > 1]
             raise ValueError(f"priority key 중복: {sorted(set(dups))}")
+
+    # ---- Phase 3: regime-conditional weights -------------------------------
+
+    def effective_strategy_weight(
+        self,
+        strategy: str,
+        regime: str | None = None,
+        fng_label: str | None = None,
+    ) -> float:
+        """regime + F&G 결합 effective weight.
+
+        우선순위:
+          1. strategy_weights_by_regime[regime][strategy] 가 있으면 사용 (regime CPO)
+          2. 없으면 strategy_weights.get(strategy, 1.0) (기존 fallback)
+          3. fng_modifier[normalized_fng] 곱하기 (없으면 1.0)
+
+        반환값 ≤ 0 이면 해당 전략을 비활성화한다는 의미.
+        """
+        if regime and self.strategy_weights_by_regime:
+            regime_table = self.strategy_weights_by_regime.get(regime)
+            if regime_table is not None and strategy in regime_table:
+                base = regime_table[strategy]
+            else:
+                base = self.strategy_weights.get(strategy, 1.0)
+        else:
+            base = self.strategy_weights.get(strategy, 1.0)
+
+        if fng_label and self.fng_modifier:
+            key = _normalize_fng_label(fng_label)
+            modifier = self.fng_modifier.get(key, 1.0)
+        else:
+            modifier = 1.0
+
+        return float(base) * float(modifier)
 
     # -- yaml -------------------------------------------------------------
 
@@ -153,7 +197,21 @@ class WeightConfig:
             str(k): float(v)
             for k, v in data.get("strategy_weights", {}).items()
         }
-        return cls(priorities=priorities, must_have=must_have, strategy_weights=strategy_weights)
+        strategy_weights_by_regime = {
+            str(regime): {str(s): float(w) for s, w in table.items()}
+            for regime, table in data.get("strategy_weights_by_regime", {}).items()
+        }
+        fng_modifier = {
+            _normalize_fng_label(k): float(v)
+            for k, v in data.get("fng_modifier", {}).items()
+        }
+        return cls(
+            priorities=priorities,
+            must_have=must_have,
+            strategy_weights=strategy_weights,
+            strategy_weights_by_regime=strategy_weights_by_regime,
+            fng_modifier=fng_modifier,
+        )
 
     def save(self, path: Path | str) -> None:
         p = Path(path)
@@ -174,6 +232,13 @@ class WeightConfig:
         }
         if self.strategy_weights:
             payload["strategy_weights"] = dict(self.strategy_weights)
+        if self.strategy_weights_by_regime:
+            payload["strategy_weights_by_regime"] = {
+                regime: dict(table)
+                for regime, table in self.strategy_weights_by_regime.items()
+            }
+        if self.fng_modifier:
+            payload["fng_modifier"] = dict(self.fng_modifier)
         p.write_text(
             yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
             encoding="utf-8",
@@ -218,7 +283,21 @@ class WeightConfig:
             str(k): float(v)
             for k, v in wc.get("strategy_weights", {}).items()
         }
-        return cls(priorities=priorities, must_have=must_have, strategy_weights=strategy_weights)
+        strategy_weights_by_regime = {
+            str(regime): {str(s): float(w) for s, w in table.items()}
+            for regime, table in wc.get("strategy_weights_by_regime", {}).items()
+        }
+        fng_modifier = {
+            _normalize_fng_label(k): float(v)
+            for k, v in wc.get("fng_modifier", {}).items()
+        }
+        return cls(
+            priorities=priorities,
+            must_have=must_have,
+            strategy_weights=strategy_weights,
+            strategy_weights_by_regime=strategy_weights_by_regime,
+            fng_modifier=fng_modifier,
+        )
 
 
 # ---------------------------------------------------------------------------
