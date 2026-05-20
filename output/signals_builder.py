@@ -31,7 +31,25 @@ from output.models import (
     StrategyContext, MarketSnapshot, MarketIndexDisplay,
     DecisionFactor, DecisionMeta, RegretFactor,
 )
+from output.holding_recommender import (
+    load_recommendations as _load_holding_recs,
+    recommend_holding as _recommend_holding,
+)
 from output.signal_components import build_signal_components
+
+# 모듈 cache — data/holding_recommendations.json 한 번 로드.
+# 파일 부재 시 빈 dict (recommend_holding 이 LOW_CONFIDENCE 반환).
+_HOLDING_RECS_CACHE: dict | None = None
+
+
+def _holding_recs() -> dict:
+    global _HOLDING_RECS_CACHE
+    if _HOLDING_RECS_CACHE is None:
+        from pathlib import Path
+        _HOLDING_RECS_CACHE = _load_holding_recs(
+            Path("data/holding_recommendations.json"),
+        )
+    return _HOLDING_RECS_CACHE
 
 # 기회 점수(regret_score) 4축 breakdown — UI 표시용 라벨 (시장 무관).
 REGRET_FACTOR_LABELS: dict[str, str] = {
@@ -657,6 +675,15 @@ def build_signals_payload(
                 _es_val = float(_es_raw) if _es_raw is not None else None
             except (TypeError, ValueError):
                 _es_val = None
+            # 상황별 holding 추천 (data/holding_recommendations.json lookup)
+            _hold_rec = _recommend_holding(
+                _holding_recs(),
+                strategy=c.strategy,
+                market_regime=meta.get("regime_label") or "NEUTRAL",
+                fng_label=meta.get("fng_label"),
+                per_ticker_regime=meta.get("per_ticker_regime"),
+                atr_bucket=meta.get("atr_bucket"),
+            )
             decision = DecisionMeta(
                 final_score=rc.final_score,
                 factors=factors,
@@ -666,6 +693,9 @@ def build_signals_payload(
                 ensemble_score=_es_val,
                 regime_label=meta.get("regime_label") or None,
                 fng_label=meta.get("fng_label") or None,
+                recommended_holding_bars=_hold_rec.recommended_bars,
+                holding_confidence=_hold_rec.confidence if _hold_rec.status == "OK" else None,
+                holding_status=_hold_rec.status,
             )
 
         sig_date = getattr(c, "signal_date", None)

@@ -320,6 +320,10 @@ def aggregate_entries_for_ticker(
         "ensemble_score": base_decision.get("ensemble_score"),
         "regime_label": base_decision.get("regime_label"),
         "fng_label": base_decision.get("fng_label"),
+        # 2026-05-20 상황별 holding 추천
+        "recommended_holding_bars": base_decision.get("recommended_holding_bars"),
+        "holding_confidence": base_decision.get("holding_confidence"),
+        "holding_status": base_decision.get("holding_status"),
         "matches": matches,
         # 호환 필드 (signal_date, active_regime, signal_status, tradability_score 등)
         "signal_date": base_meta.get("signal_date"),

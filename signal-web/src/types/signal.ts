@@ -79,6 +79,10 @@ export interface DecisionMeta {
   ensemble_score?: number | null;   // compute_regime_aware_ensemble_score 결과
   regime_label?: string | null;      // 가중치 적용 regime (BULL/NEUTRAL/BEAR)
   fng_label?: string | null;         // F&G modifier 라벨 (Extreme Fear ~ Extreme Greed)
+  // 2026-05-20 상황별 최적 holding 추천 (plan: warm-percolating-cosmos.md)
+  recommended_holding_bars?: number | null;   // 1~7일 권장 보유 봉 수 (null = SKIP/LOW_CONFIDENCE)
+  holding_confidence?: number | null;          // 0.0~1.0 신뢰도
+  holding_status?: string | null;              // "OK" / "SKIP" / "LOW_CONFIDENCE"
 }
 
 export interface Ranking {

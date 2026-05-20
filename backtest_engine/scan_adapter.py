@@ -160,6 +160,7 @@ class ScanBarConfig:
     lookback_buffer_days: int = 60
     market: str = "KOSPI"
     emit_stats: bool = False  # True 시 scorer.last_stats 로 exit_reason 분포 노출
+    emit_per_trade: bool = False  # True 시 scorer.per_trade_records 로 trade 단위 기록 노출
 
 
 def _track_position(
@@ -272,6 +273,7 @@ def make_scan_bartracker_scorer(
         trades_pnl: list[float] = []
         bars_held_all: list[int] = []
         stats = {"STOP": 0, "TARGET": 0, "TIME": 0, "GAP_DOWN": 0}
+        per_trade: list[dict] = []
 
         for d in signal_dates:
             ctx = _build_ctx(d, sliced, market=cfg.market)
@@ -302,9 +304,18 @@ def make_scan_bartracker_scorer(
                     continue
 
                 gross = (exit_price - entry_price) / entry_price
-                trades_pnl.append(gross - cfg.commission_pct)
+                pnl_pct = gross - cfg.commission_pct
+                trades_pnl.append(pnl_pct)
                 bars_held_all.append(bars_held)
                 stats[reason] = stats.get(reason, 0) + 1
+                if cfg.emit_per_trade:
+                    per_trade.append({
+                        "signal_date": d,
+                        "ticker": cand.ticker,
+                        "exit_reason": reason,
+                        "pnl_pct": float(pnl_pct),
+                        "bars_held": int(bars_held),
+                    })
 
         # 5) emit_stats 통계 노출
         if cfg.emit_stats:
@@ -314,6 +325,8 @@ def make_scan_bartracker_scorer(
                     float(np.mean(bars_held_all)) if bars_held_all else 0.0
                 ),
             }
+        if cfg.emit_per_trade:
+            scorer.per_trade_records = per_trade  # type: ignore[attr-defined]
 
         # 6) trade-level Sharpe (annualized) — avg_bars_held 기반
         if len(trades_pnl) < 2:

@@ -365,6 +365,66 @@ class TestBarTrackerScorer:
         total_reasons = stats["STOP"] + stats["TARGET"] + stats["TIME"] + stats["GAP_DOWN"]
         assert total_reasons == n  # 분포 합 = n_trades
 
+    def test_emit_per_trade_records_exposed(self):
+        """emit_per_trade=True 시 scorer.per_trade_records 로 trade 단위 기록 노출."""
+        df = _make_df(40, start_price=100.0, daily_step=1.0)
+        ohlcv = {"AAA": df}
+        strategy = _AlwaysFirstStrategy()
+        scorer = make_scan_bartracker_scorer(
+            lambda _p: strategy,
+            ScanBarConfig(
+                holding_bars=3, top_n=1, commission_pct=0.0,
+                lookback_buffer_days=0, emit_per_trade=True,
+            ),
+        )
+        sharpe, n = scorer(ohlcv, {}, df.index[20], df.index[30])
+        records = scorer.per_trade_records  # type: ignore[attr-defined]
+        assert isinstance(records, list)
+        assert len(records) == n
+        # record schema 검증
+        sample = records[0]
+        assert set(sample.keys()) >= {
+            "signal_date", "ticker", "exit_reason", "pnl_pct", "bars_held",
+        }
+
+    def test_emit_per_trade_default_off(self):
+        """emit_per_trade 기본값(False) 시 scorer.per_trade_records 비어 있어야."""
+        df = _make_df(40, start_price=100.0, daily_step=1.0)
+        ohlcv = {"AAA": df}
+        strategy = _AlwaysFirstStrategy()
+        scorer = make_scan_bartracker_scorer(
+            lambda _p: strategy,
+            ScanBarConfig(
+                holding_bars=3, top_n=1, commission_pct=0.0, lookback_buffer_days=0,
+            ),
+        )
+        scorer(ohlcv, {}, df.index[20], df.index[30])
+        # attribute 없거나 빈 리스트 — 호환성 위해 후자 권장
+        records = getattr(scorer, "per_trade_records", None)
+        assert records is None or records == []
+
+    def test_emit_per_trade_record_content(self):
+        """trade record 의 필드값 검증."""
+        df = _make_df(40, start_price=100.0, daily_step=1.0)
+        ohlcv = {"AAA": df}
+        strategy = _AlwaysFirstStrategy()
+        scorer = make_scan_bartracker_scorer(
+            lambda _p: strategy,
+            ScanBarConfig(
+                holding_bars=3, top_n=1, commission_pct=0.0,
+                lookback_buffer_days=0, emit_per_trade=True,
+            ),
+        )
+        scorer(ohlcv, {}, df.index[20], df.index[20])
+        records = scorer.per_trade_records  # type: ignore[attr-defined]
+        assert len(records) == 1
+        r = records[0]
+        assert r["ticker"] == "AAA"
+        assert r["exit_reason"] in {"STOP", "TARGET", "TIME", "GAP_DOWN"}
+        assert isinstance(r["pnl_pct"], float)
+        assert isinstance(r["bars_held"], int)
+        assert 1 <= r["bars_held"] <= 3
+
     def test_target_reached_yields_higher_pnl_than_pnl_scorer(self):
         """단조 상승 시나리오: BarTracker 가 target 조기 도달 → trade 짧고 수익률 ≠ N봉 PnL."""
         df = _make_df(40, start_price=100.0, daily_step=1.0)

@@ -68,6 +68,10 @@ export interface DetailProps {
   ensembleScore: number | null;
   regimeLabel: string | null;
   fngLabel: string | null;
+  // 2026-05-20 상황별 holding 추천
+  recommendedHoldingBars: number | null;
+  holdingConfidence: number | null;
+  holdingStatus: string | null;
 }
 
 export interface CardProps {
@@ -270,6 +274,9 @@ export function adaptDetailV2(raw: any): DetailProps {
     ensembleScore: raw.ensemble_score ?? null,
     regimeLabel: raw.regime_label ?? null,
     fngLabel: raw.fng_label ?? null,
+    recommendedHoldingBars: raw.recommended_holding_bars ?? null,
+    holdingConfidence: raw.holding_confidence ?? null,
+    holdingStatus: raw.holding_status ?? null,
   };
 }
 
@@ -353,6 +360,9 @@ export function adaptDetailLegacy(raw: any): DetailProps {
     ensembleScore: card.ensembleScore,
     regimeLabel: card.regimeLabel,
     fngLabel: card.fngLabel,
+    recommendedHoldingBars: null,
+    holdingConfidence: null,
+    holdingStatus: null,
   };
 }
 
@@ -484,5 +494,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     ensembleScore: signal.ranking?.decision?.ensemble_score ?? null,
     regimeLabel: signal.ranking?.decision?.regime_label ?? null,
     fngLabel: signal.ranking?.decision?.fng_label ?? null,
+    recommendedHoldingBars: signal.ranking?.decision?.recommended_holding_bars ?? null,
+    holdingConfidence: signal.ranking?.decision?.holding_confidence ?? null,
+    holdingStatus: signal.ranking?.decision?.holding_status ?? null,
   };
 }

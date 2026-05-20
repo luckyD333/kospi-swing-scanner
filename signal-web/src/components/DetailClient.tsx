@@ -164,6 +164,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
     naverUrl, generatedAtDisplay, signalDate,
     confirmationLevel, activeRegime, tradabilityScore,
     ensembleScore, regimeLabel, fngLabel,
+    recommendedHoldingBars, holdingConfidence, holdingStatus,
   } = detail;
 
   // 대표 매매 파라미터 (matches[0] 기반)
@@ -365,6 +366,45 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
             </div>
           ))}
         </div>
+
+        {/* 추천 보유 기간 (상황별 holding 추천 — plan: warm-percolating-cosmos.md) */}
+        {holdingStatus && (
+          <div style={{
+            padding: '16px 0',
+            borderBottom: '1px solid var(--hairline)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+          }}>
+            <div style={{ ...ts('caption', 'var(--muted)') }}>
+              권장 보유
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              {holdingStatus === 'OK' && recommendedHoldingBars != null ? (
+                <>
+                  <span style={{ ...ts('body', 'var(--ink)'), fontFamily: 'var(--f-mono-stack)', fontSize: '20px' }}>
+                    {recommendedHoldingBars}일
+                  </span>
+                  {holdingConfidence != null && (
+                    <span style={ts('caption-sm', 'var(--muted-soft)')}>
+                      (신뢰도 {Math.round(holdingConfidence * 100)}%)
+                    </span>
+                  )}
+                </>
+              ) : holdingStatus === 'SKIP' ? (
+                <span style={{ ...ts('caption', C_RISK) }}>
+                  진입 비추천 (강한 하락 추세)
+                </span>
+              ) : (
+                <span style={ts('caption', 'var(--muted-soft)')}>
+                  데이터 부족
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
       </div>
 

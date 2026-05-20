@@ -32,8 +32,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import pandas as pd  # noqa: E402
-
 from backtest_engine.scan_adapter import (  # noqa: E402
     ScanBarConfig,
     make_scan_bartracker_scorer,
