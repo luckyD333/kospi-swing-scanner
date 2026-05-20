@@ -30,6 +30,7 @@ from .cache.ohlcv_disk import OhlcvDiskCache
 from .cache.resampler import resample_to
 from .data_fetch import DataClient, OhlcvCache
 from .data_sources.naver import naver_detail_url
+from .decision.atr_volatility import bucket_atr, compute_atr_pct
 from .decision.factors.liquidity import compute_liquidity_score as _compute_liquidity_score
 from .decision.factors.momentum_3m import compute_momentum_3m as _compute_momentum_3m
 from .decision.product_type import ProductType
@@ -225,6 +226,16 @@ class ScanRunner:
             d_1d = compute_donchian(df_1d, timeframe="1d")
             donchian_1d_by_ticker[ticker] = d_1d
 
+        # 3b-3) ATR% universe 분포 — holding_recommender modifier 입력
+        # (holding feature spec: warm-percolating-cosmos.md)
+        atr_distribution: dict[str, float] = {}
+        for ticker, df_1d in ohlcv_1d.items():
+            if not {"high", "low", "close"}.issubset(df_1d.columns):
+                continue
+            pct = compute_atr_pct(df_1d, period=14)
+            if not pd.isna(pct):
+                atr_distribution[ticker] = pct
+
         # 3c) ScanContext 1회 생성 (모든 TF 포함)
         legacy_ohlcv = ohlcv_by_tf.get("1D", {})
         # universe 는 어떤 TF 라도 데이터 있는 ticker 합집합 (univ.tickers 순서 유지)
@@ -295,6 +306,13 @@ class ScanRunner:
                     _vol = cand.metadata.get("value_traded_20d_avg")
                     if _mkt and _vol:
                         cand.metadata["liquidity"] = _compute_liquidity_score(_mkt, _vol)
+                    # holding_recommender modifier 입력 — runner 가 ctx 라벨을 candidate 에 사후 주입
+                    cand.metadata["per_ticker_regime"] = per_ticker_regime.get(
+                        cand.ticker, "MIXED",
+                    )
+                    cand.metadata["atr_bucket"] = bucket_atr(
+                        atr_distribution.get(cand.ticker), atr_distribution,
+                    )
                 result.candidates_by_strategy_tf[(strat.name, tf)] = candidates
                 # legacy 1D alias
                 if tf == "1D":
@@ -319,6 +337,12 @@ class ScanRunner:
                                 _fb_vol = cand.metadata.get("value_traded_20d_avg")
                                 if _fb_mkt and _fb_vol:
                                     cand.metadata["liquidity"] = _compute_liquidity_score(_fb_mkt, _fb_vol)
+                                cand.metadata["per_ticker_regime"] = per_ticker_regime.get(
+                                    cand.ticker, "MIXED",
+                                )
+                                cand.metadata["atr_bucket"] = bucket_atr(
+                                    atr_distribution.get(cand.ticker), atr_distribution,
+                                )
                             result.candidates_by_strategy_tf[(fb_strat.name, fb_tf)] = fb_candidates
                             if fb_tf == "1D":
                                 result.candidates_by_strategy[fb_strat.name] = fb_candidates

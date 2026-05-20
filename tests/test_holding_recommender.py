@@ -155,3 +155,88 @@ def test_recommend_strategy_not_in_primary(mock_recs, tmp_path):
         atr_bucket="MID",
     )
     assert out.status == "LOW_CONFIDENCE"
+
+
+# --- Schema v2.0: regime-조건부 nested modifier 검증 ---------------------------
+
+
+@pytest.fixture
+def mock_recs_v2(tmp_path: Path) -> dict:
+    """v2.0 — modifier_per_ticker / modifier_atr 가 regime-nested."""
+    return {
+        "schema_version": "2.0",
+        "min_trades_per_cell": 30,
+        "baseline_holding": 5,
+        "primary": {
+            "S2_CrossSectional": {
+                "BULL":    {"best": 5, "n_trades": 200, "mean_pnl": 0.020},
+                "NEUTRAL": {"best": 5, "n_trades": 150, "mean_pnl": 0.012},
+                "BEAR":    {"best": 3, "n_trades": 50, "mean_pnl": 0.005},
+            },
+        },
+        "modifier_fng": {},
+        "modifier_per_ticker": {
+            "BULL":    {"UPTREND_STRONG": +1, "RANGE": 0,
+                        "DOWNTREND_STRONG": "skip"},
+            "NEUTRAL": {"UPTREND_STRONG": 0, "RANGE": 0,
+                        "DOWNTREND_STRONG": "skip"},
+            "BEAR":    {"DOWNTREND_STRONG": "skip"},
+        },
+        "modifier_atr": {
+            "BULL":    {"LOW": 0, "MID": 0, "HIGH": -1},
+            "NEUTRAL": {"LOW": 0, "MID": 0, "HIGH": -2},
+        },
+    }
+
+
+def test_v2_recommend_uses_regime_nested_modifier(mock_recs_v2, tmp_path):
+    """v2.0 — BULL/UPTREND_STRONG(+1) + BULL/HIGH(-1) → primary 5+0=5."""
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(mock_recs_v2))
+    recs = load_recommendations(p)
+    out = recommend_holding(
+        recs,
+        strategy="S2_CrossSectional",
+        market_regime="BULL",
+        fng_label=None,
+        per_ticker_regime="UPTREND_STRONG",
+        atr_bucket="HIGH",
+    )
+    assert out.status == "OK"
+    # 5 (primary) + 1 (BULL/UPTREND_STRONG) + (-1) (BULL/HIGH) = 5
+    assert out.recommended_bars == 5
+
+
+def test_v2_skip_via_nested_modifier(mock_recs_v2, tmp_path):
+    """v2.0 — BEAR regime 에서 DOWNTREND_STRONG=skip lookup."""
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(mock_recs_v2))
+    recs = load_recommendations(p)
+    out = recommend_holding(
+        recs,
+        strategy="S2_CrossSectional",
+        market_regime="BEAR",
+        fng_label=None,
+        per_ticker_regime="DOWNTREND_STRONG",
+        atr_bucket="MID",
+    )
+    assert out.status == "SKIP"
+
+
+def test_v2_regime_missing_in_modifier_silent_skip(mock_recs_v2, tmp_path):
+    """v2.0 — BEAR regime 에 modifier_atr 키 없으면 delta=0 처리."""
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(mock_recs_v2))
+    recs = load_recommendations(p)
+    # BEAR primary=3, BEAR/RANGE 키 없음 → 3+0+0=3
+    out = recommend_holding(
+        recs,
+        strategy="S2_CrossSectional",
+        market_regime="BEAR",
+        fng_label=None,
+        per_ticker_regime="RANGE",  # BEAR 키에 RANGE 없음 → 0
+        atr_bucket="MID",  # modifier_atr 에 BEAR 키 없음 → 0
+    )
+    # BEAR primary n_trades=50 >= 30 → OK
+    assert out.status == "OK"
+    assert out.recommended_bars == 3

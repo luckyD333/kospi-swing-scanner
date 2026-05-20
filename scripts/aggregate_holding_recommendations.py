@@ -138,7 +138,7 @@ def label_trade(
         "market_regime": snap["market_regime"],
         "per_ticker_regime": snap["per_ticker"].get(ticker, "MIXED"),
         "atr_bucket": atr_b,
-        "fng_label": None,  # historical F&G 부재
+        "fng_label": None,  # historical F&G 부재 (TODO: VIX-proxy 백필 별도 ticket)
     }
 
 
@@ -215,7 +215,7 @@ def modifier_table(
     baseline_holding: int,
     min_n: int = 30,
 ) -> dict[str, int]:
-    """label_key 별 best holding - baseline_holding 의 delta."""
+    """label_key 별 best holding - baseline_holding 의 delta (v1.0 flat marginal)."""
     # group: (label_value, holding) → pnls
     groups: dict[tuple, list[float]] = defaultdict(list)
     for t in trades:
@@ -237,6 +237,33 @@ def modifier_table(
             continue
         best_hold = max(hold_to_pnl, key=hold_to_pnl.get)
         out[val] = int(best_hold - baseline_holding)
+    return out
+
+
+def modifier_table_by_regime(
+    trades: list[dict],
+    label_key: str,
+    baseline_holding: int,
+    min_n: int = 30,
+) -> dict[str, dict[str, int]]:
+    """market_regime 별로 modifier_table 산출. 반환: {regime: {label: delta}}.
+
+    v1.0 의 strategy-aggregate marginal 은 cross-regime mixing 효과로 극단 delta
+    유발 (BEAR 가 BULL marginal 끌어내림). regime 별로 segmenting 하여 조건부
+    marginal 산출.
+    """
+    by_regime: dict[str, list[dict]] = defaultdict(list)
+    for t in trades:
+        regime = t.get("market_regime")
+        if regime is None:
+            continue
+        by_regime[regime].append(t)
+
+    out: dict[str, dict[str, int]] = {}
+    for regime, sub_trades in by_regime.items():
+        out[regime] = modifier_table(
+            sub_trades, label_key, baseline_holding, min_n,
+        )
     return out
 
 
@@ -297,17 +324,25 @@ def main() -> None:
     baselines = [v["best"] for strat in primary.values() for v in strat.values()]
     baseline_holding = int(np.median(baselines)) if baselines else 5
 
+    # v2.0: modifier_per_ticker / modifier_atr 는 regime-조건부 nested marginal.
+    # modifier_fng 는 historical 부재로 NOOP 유지 (flat).
+    # TODO: VIX-proxy 백필 도입 시 modifier_fng 도 _by_regime 으로 전환 (별도 ticket).
     modifier_fng = modifier_table(trades, "fng_label", baseline_holding, args.min_trades)
-    modifier_per_ticker = modifier_table(trades, "per_ticker_regime", baseline_holding, args.min_trades)
-    modifier_atr = modifier_table(trades, "atr_bucket", baseline_holding, args.min_trades)
+    modifier_per_ticker = modifier_table_by_regime(
+        trades, "per_ticker_regime", baseline_holding, args.min_trades,
+    )
+    modifier_atr = modifier_table_by_regime(
+        trades, "atr_bucket", baseline_holding, args.min_trades,
+    )
 
-    # DOWNTREND_STRONG 은 "skip" 으로 override
-    if "DOWNTREND_STRONG" in modifier_per_ticker:
-        modifier_per_ticker["DOWNTREND_STRONG"] = "skip"  # type: ignore[assignment]
+    # DOWNTREND_STRONG 은 "skip" 으로 override (regime 별 적용)
+    for regime, sub in modifier_per_ticker.items():
+        if "DOWNTREND_STRONG" in sub:
+            sub["DOWNTREND_STRONG"] = "skip"  # type: ignore[assignment]
 
     summary = {
         "generated_at": pd.Timestamp.now().isoformat(),
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "windows": len(windows),
         "total_trades": len(trades),
         "min_trades_per_cell": args.min_trades,
@@ -315,15 +350,18 @@ def main() -> None:
         "holdings_tested": holdings,
         "primary": primary,
         "modifier_fng": modifier_fng,
+        "modifier_fng_status": "EMPTY_HISTORICAL_FNG",
         "modifier_per_ticker": modifier_per_ticker,
         "modifier_atr": modifier_atr,
     }
     output_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     logger.info(f"JSON 저장: {output_path}")
     logger.info(f"Primary cells: {sum(len(v) for v in primary.values())} / 15")
-    logger.info(f"Modifier fng cells: {len(modifier_fng)} (historical 부재시 0)")
-    logger.info(f"Modifier per_ticker cells: {len(modifier_per_ticker)}")
-    logger.info(f"Modifier atr cells: {len(modifier_atr)}")
+    logger.info(f"Modifier fng cells: {len(modifier_fng)} (historical 부재 → NOOP)")
+    per_cells = sum(len(v) for v in modifier_per_ticker.values())
+    atr_cells = sum(len(v) for v in modifier_atr.values())
+    logger.info(f"Modifier per_ticker cells: {per_cells} ({list(modifier_per_ticker.keys())})")
+    logger.info(f"Modifier atr cells: {atr_cells} ({list(modifier_atr.keys())})")
 
 
 if __name__ == "__main__":
