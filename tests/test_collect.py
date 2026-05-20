@@ -42,7 +42,7 @@ def _make_mock_client(tickers=("005930", "000660"), with_fundamentals=True):
                 "per": 33.59 + i,
                 "roe": 10.85 + i,
                 "foreign_pct": 49.27 + i,
-                "naver_url": f"https://stock.naver.com/domestic/stock/{t}/price",
+                "naver_url": f"https://finance.naver.com/item/main.naver?code={t}",
             }
         client.get_fundamentals.return_value = pd.DataFrame(funda).T
     else:
@@ -96,8 +96,8 @@ def test_collect_creates_parquet_files(tmp_path):
     assert len(parquet_files) == 2  # 005930, 000660
 
 
-def test_collect_excludes_low_volatility_etf_from_cache_and_manifest(tmp_path):
-    """ETF 1D 수익률 표준편차가 임계값 미만이면 수집 대상에서 제외."""
+def test_collect_excludes_ineligible_etf_from_cache_and_manifest(tmp_path):
+    """저변동/커버드콜 ETF는 수집 대상에서 제외."""
     from scripts.collect import CollectConfig, run_collect
 
     idx = pd.date_range("2026-01-01", periods=30, freq="B")
@@ -115,15 +115,18 @@ def test_collect_excludes_low_volatility_etf_from_cache_and_manifest(tmp_path):
     high_vol_etf_df["close"] = [100.0 if i % 2 == 0 else 102.0 for i in range(30)]
     low_vol_etf_df = stock_df.copy()
     low_vol_etf_df["close"] = [100.0] * 30
+    covered_call_etf_df = high_vol_etf_df.copy()
 
     client = MagicMock()
     client.get_tickers.side_effect = (
-        lambda market, target_date: ["069500", "123456"]
+        lambda market, target_date: ["069500", "486290", "123456"]
         if market == "ETF"
         else ["005930"]
     )
-    client.get_ticker_name.side_effect = lambda t: f"종목{t}"
-    client.get_etf_list.return_value = {"069500", "123456"}
+    client.get_ticker_name.side_effect = lambda t: {
+        "486290": "TIGER 미국나스닥100타겟데일리커버드콜",
+    }.get(t, f"종목{t}")
+    client.get_etf_list.return_value = {"069500", "486290", "123456"}
     client.get_market_cap.return_value = pd.DataFrame(
         {"005930": {"시가총액": 5_000 * 1e8, "종목명": "종목005930"}}
     ).T
@@ -133,6 +136,7 @@ def test_collect_excludes_low_volatility_etf_from_cache_and_manifest(tmp_path):
     client.get_ohlcv.side_effect = lambda ticker, start, end, timeframe="1D": {
         "005930": stock_df,
         "069500": high_vol_etf_df,
+        "486290": covered_call_etf_df,
         "123456": low_vol_etf_df,
     }[ticker]
 
@@ -144,7 +148,7 @@ def test_collect_excludes_low_volatility_etf_from_cache_and_manifest(tmp_path):
         lookback_days=60,
         min_market_cap_bil=0.0,
         max_market_cap_bil=999999.0,
-        min_etf_volatility_pct=0.1,
+        min_etf_volatility_pct=0.5,
     )
     with patch("scripts.collect.DataClient", return_value=client), \
             patch("scripts.collect._update_dynamic_weights_status"), \
@@ -154,8 +158,10 @@ def test_collect_excludes_low_volatility_etf_from_cache_and_manifest(tmp_path):
 
     manifest = json.loads((tmp_path / ".cache" / "manifest.json").read_text())
     assert manifest["etf_tickers"] == ["069500"]
+    assert "486290" not in manifest["tickers"]
     assert "123456" not in manifest["tickers"]
     assert (tmp_path / ".cache" / "1D" / "069500.parquet").exists()
+    assert not (tmp_path / ".cache" / "1D" / "486290.parquet").exists()
     assert not (tmp_path / ".cache" / "1D" / "123456.parquet").exists()
 
 
@@ -273,7 +279,7 @@ def test_manifest_includes_fundamentals_in_tickers_meta(tmp_path):
     assert meta["005930"]["roe"] == 10.85
     assert meta["005930"]["foreign_pct"] == 49.27
     assert meta["005930"]["naver_url"] == \
-        "https://stock.naver.com/domestic/stock/005930/price"
+        "https://finance.naver.com/item/main.naver?code=005930"
 
 
 def test_manifest_naver_url_present_even_without_fundamentals(tmp_path):
@@ -297,7 +303,7 @@ def test_manifest_naver_url_present_even_without_fundamentals(tmp_path):
     meta = data["tickers_meta"]
     for ticker, m in meta.items():
         assert m["naver_url"] == \
-            f"https://stock.naver.com/domestic/stock/{ticker}/price"
+            f"https://finance.naver.com/item/main.naver?code={ticker}"
         # 결측은 None (JSON null)
         assert m["per"] is None
         assert m["roe"] is None

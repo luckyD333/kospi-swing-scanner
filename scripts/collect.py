@@ -28,6 +28,7 @@ from core.cache.universe_cache import UniverseCache
 from core.data_fetch import DataClient, OhlcvCache
 from core.data_sources.naver import naver_detail_url
 from core.dates import latest_business_day
+from core.decision.product_type import is_swing_ineligible_product_name
 from core.universe import UniverseFilter, build_universe
 from output.snapshot_builder import build_market_snapshot
 
@@ -62,7 +63,7 @@ class CollectConfig:
     cache_root: Path = Path(".cache")
     max_universe_size: int = 300
     max_etf_size: int = 50
-    min_etf_volatility_pct: float = 0.1
+    min_etf_volatility_pct: float = 0.5
     # 1D+1W는 base 1D로, 1h/30m는 base 1m으로 저장 후 리샘플링
     base_tfs: list[str] = field(default_factory=lambda: ["1D", "1m"])
     lookback_days: int = 90
@@ -131,6 +132,41 @@ def _filter_low_volatility_etfs(
     return kept
 
 
+def _filter_swing_ineligible_etfs(
+    client: DataClient,
+    tickers: list[str],
+) -> list[str]:
+    """커버드콜처럼 단기 스윙에 부적합한 ETF를 제외한다."""
+    if not tickers:
+        return tickers
+
+    kept: list[str] = []
+    excluded: list[tuple[str, str]] = []
+    for ticker in tickers:
+        try:
+            name = client.get_ticker_name(ticker)
+        except Exception as e:
+            logger.debug(f"ETF 상품명 조회 실패 ({ticker}): {e}")
+            kept.append(ticker)
+            continue
+        if is_swing_ineligible_product_name(name):
+            excluded.append((ticker, name))
+            continue
+        kept.append(ticker)
+
+    if excluded:
+        sample = ", ".join(
+            f"{ticker}({name})"
+            for ticker, name in excluded[:5]
+        )
+        suffix = "..." if len(excluded) > 5 else ""
+        logger.info(
+            f"ETF 스윙 부적합 상품명 필터: {len(excluded)}개 제외 "
+            f"(예: {sample}{suffix})"
+        )
+    return kept
+
+
 def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     if target_date is None:
         target_date = latest_business_day()
@@ -161,9 +197,21 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             if classify(t, _name_lkp.get(t, "")) != ProductType.ETN
         ]
         if len(_etn_filtered) < len(cached["tickers"]):
-            logger.info(f"  캐시 ETN 재필터: {len(cached['tickers']) - len(_etn_filtered)}건 제외")
+            logger.info(
+                f"  캐시 ETN 재필터: "
+                f"{len(cached['tickers']) - len(_etn_filtered)}건 제외"
+            )
+        _eligible = [
+            t for t in _etn_filtered
+            if not is_swing_ineligible_product_name(_name_lkp.get(t, ""))
+        ]
+        if len(_eligible) < len(_etn_filtered):
+            logger.info(
+                f"  캐시 스윙 부적합 상품명 재필터: "
+                f"{len(_etn_filtered) - len(_eligible)}건 제외"
+            )
         univ = UniverseResult(
-            tickers=_etn_filtered[:cfg.max_universe_size],
+            tickers=_eligible[:cfg.max_universe_size],
             cap_lookup=cached["cap_lookup"],
             name_lookup=_name_lkp,
         )
@@ -197,6 +245,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             etf_tickers = client.get_tickers("ETF", target_date)
             if cfg.max_etf_size > 0:
                 etf_tickers = etf_tickers[:cfg.max_etf_size]
+            etf_tickers = _filter_swing_ineligible_etfs(client, etf_tickers)
             etf_tickers = _filter_low_volatility_etfs(
                 client,
                 etf_tickers,
@@ -721,8 +770,8 @@ def main() -> None:
     parser.add_argument("--max-universe", type=int, default=300)
     parser.add_argument("--max-etf", type=int, default=50, help="ETF 상위 N개 제한 (0=전종목, 기본: 50)")
     parser.add_argument(
-        "--min-etf-volatility-pct", type=float, default=0.1,
-        help="ETF 1D 수익률 표준편차 최소값(%%). 미만이면 수집 제외 (기본: 0.1, 0=비활성화)",
+        "--min-etf-volatility-pct", type=float, default=0.5,
+        help="ETF 1D 수익률 표준편차 최소값(%%). 미만이면 수집 제외 (기본: 0.5, 0=비활성화)",
     )
     parser.add_argument(
         "--timeframes", nargs="+", default=["1D", "1W", "1h", "30m"],

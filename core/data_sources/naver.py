@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def naver_detail_url(ticker: str) -> str:
     """ticker → 네이버 종목 상세 페이지 URL (UI 클릭 이동용)."""
-    return f"https://stock.naver.com/domestic/stock/{ticker}/price"
+    return f"https://finance.naver.com/item/main.naver?code={ticker}"
 
 
 def _to_optional_float(value) -> float | None:

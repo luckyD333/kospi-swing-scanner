@@ -10,6 +10,7 @@ import pandas as pd
 
 from core.data_fetch import DataClient
 from core.data_sources.base import DailyDataSource
+from core.decision.product_type import ProductType
 from core.universe import UniverseFilter, build_universe
 
 
@@ -183,3 +184,32 @@ def test_cap_limit_when_cap_lookup_empty():
     )
     assert len(res.tickers) == 2
     assert res.pre_cap_limit_size == 0
+
+
+def test_build_universe_excludes_covered_call_etf():
+    """KOSPI market-sum 경로에 섞인 커버드콜 ETF는 스윙 유니버스에서 제외."""
+    class _EtfAwareSource(_MockSource):
+        def get_etf_list(self, target_date: str) -> set[str]:
+            return {"486290", "069500"}
+
+    mock = _EtfAwareSource(
+        tickers=["005930", "486290", "069500"],
+        cap_lookup={
+            "005930": 20_000 * 1e8,
+            "486290": 16_000 * 1e8,
+            "069500": 15_000 * 1e8,
+        },
+        names={
+            "005930": "삼성전자",
+            "486290": "TIGER 미국나스닥100타겟데일리커버드콜",
+            "069500": "KODEX 200",
+        },
+    )
+    client = _client_with_mock(mock)
+    res = build_universe(
+        client, "20260418",
+        UniverseFilter(min_market_cap_bil=2000, max_market_cap_bil=30000),
+    )
+    assert "486290" not in res.tickers
+    assert "069500" in res.tickers
+    assert res.product_type_lookup["486290"] == ProductType.ETF

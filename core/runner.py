@@ -53,6 +53,20 @@ def _none_if_nan(value):
     return value
 
 
+def _realized_volatility_pct(df: pd.DataFrame | None) -> float | None:
+    """1D close 일간 수익률 표준편차를 % 단위로 계산."""
+    if df is None or df.empty or "close" not in df.columns:
+        return None
+    close = df["close"].dropna().astype(float)
+    close = close[close > 0]
+    if len(close) < 2:
+        return None
+    returns = close.pct_change().dropna()
+    if returns.empty:
+        return 0.0
+    return float(returns.std(ddof=0) * 100)
+
+
 @dataclass
 class RunnerConfig:
     """Runner 실행 설정."""
@@ -63,6 +77,7 @@ class RunnerConfig:
     lookback_days: int = 90
     top_n: int = 20
     max_universe_size: int = 500
+    min_etf_volatility_pct: float = 0.5
     timeframes: list[str] = field(default_factory=lambda: ["1D"])
     cache_root: Path | None = None  # 주어지면 .cache/ohlcv/ 디스크 영속
 
@@ -175,6 +190,7 @@ class ScanRunner:
             "fetch_exceptions": Counter(),
             "source_counts": Counter(),
             "per_tf_size": {},
+            "low_volatility_etf_excluded": 0,
         }
 
         for tf in self.config.timeframes:
@@ -204,6 +220,44 @@ class ScanRunner:
             logger.info(f"📦 OHLCV/{tf}: {len(tf_data)}종목")
 
         logger.info(f"💾 cache stats={cache.stats}")
+
+        if self.config.min_etf_volatility_pct > 0:
+            low_volatility_etfs: list[tuple[str, float]] = []
+            for ticker, df_1d in ohlcv_by_tf.get("1D", {}).items():
+                if univ.product_type_lookup.get(ticker) != ProductType.ETF:
+                    continue
+                volatility_pct = _realized_volatility_pct(df_1d)
+                if (
+                    volatility_pct is not None
+                    and volatility_pct < self.config.min_etf_volatility_pct
+                ):
+                    low_volatility_etfs.append((ticker, volatility_pct))
+
+            if low_volatility_etfs:
+                excluded_tickers = {ticker for ticker, _ in low_volatility_etfs}
+                univ.tickers = [
+                    ticker for ticker in univ.tickers
+                    if ticker not in excluded_tickers
+                ]
+                for tf_data in ohlcv_by_tf.values():
+                    for ticker in excluded_tickers:
+                        tf_data.pop(ticker, None)
+                funnel["universe_size"] = len(univ.tickers)
+                funnel["per_tf_size"] = {
+                    tf: len(tf_data) for tf, tf_data in ohlcv_by_tf.items()
+                }
+                sample = ", ".join(
+                    f"{ticker}({volatility_pct:.3f}%)"
+                    for ticker, volatility_pct in low_volatility_etfs[:5]
+                )
+                suffix = "..." if len(low_volatility_etfs) > 5 else ""
+                funnel["low_volatility_etf_excluded"] = len(low_volatility_etfs)
+                logger.info(
+                    f"ETF 저변동성 필터: {len(low_volatility_etfs)}개 제외 "
+                    f"(1D 수익률 표준편차 < "
+                    f"{self.config.min_etf_volatility_pct:.3f}%, "
+                    f"예: {sample}{suffix})"
+                )
 
         # 3) Task 5a: Entry gate 용 Donchian 지표 빌드
         # 3a) 1d regime 분류 (전략별 게이트)

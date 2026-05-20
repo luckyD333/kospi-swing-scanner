@@ -91,6 +91,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-universe", type=int, default=500,
         help="시총 상위 N 종목으로 유니버스 제한. 0 또는 음수 입력 시 무제한",
     )
+    parser.add_argument(
+        "--min-etf-volatility-pct", type=float, default=0.5,
+        help="ETF 1D 수익률 표준편차 최소값(%%). 미만이면 스캔 제외",
+    )
     # ----- 가중치 설정 -----
     decision_grp = parser.add_argument_group("가중치 설정")
     decision_grp.add_argument(
@@ -562,6 +566,7 @@ def main(argv: list[str] | None = None) -> int:
             lookback_days=args.lookback_days,
             top_n=args.top,
             max_universe_size=cap_limit or 500,
+            min_etf_volatility_pct=args.min_etf_volatility_pct,
             timeframes=runner_timeframes,
             cache_root=cache_root,
         ),
@@ -589,6 +594,7 @@ def main(argv: list[str] | None = None) -> int:
         "min_cap_bil": args.min_cap,
         "max_cap_bil": args.max_cap,
         "min_volume": args.min_volume,
+        "min_etf_volatility_pct": args.min_etf_volatility_pct,
         "lookback_days": args.lookback_days,
         "market": args.market,
     }

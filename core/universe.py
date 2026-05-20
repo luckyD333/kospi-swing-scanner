@@ -14,7 +14,11 @@ import logging
 from dataclasses import dataclass, field
 
 from .data_fetch import DataClient
-from .decision.product_type import ProductType, classify
+from .decision.product_type import (
+    ProductType,
+    classify,
+    is_swing_ineligible_product_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,8 +124,24 @@ def build_universe(
     if len(etn_excluded) < len(filtered_final):
         logger.info(f"  ETN 제외: {len(filtered_final) - len(etn_excluded)}건")
 
+    eligible = [
+        t for t in etn_excluded
+        if not is_swing_ineligible_product_name(name_lookup.get(t, ""))
+    ]
+    if len(eligible) < len(etn_excluded):
+        eligible_set = set(eligible)
+        excluded = [t for t in etn_excluded if t not in eligible_set]
+        sample = ", ".join(
+            f"{t}({name_lookup.get(t, t)})"
+            for t in excluded[:5]
+        )
+        suffix = "..." if len(excluded) > 5 else ""
+        logger.info(
+            f"  스윙 부적합 상품명 제외: {len(excluded)}건 (예: {sample}{suffix})"
+        )
+
     return UniverseResult(
-        tickers=etn_excluded,
+        tickers=eligible,
         cap_lookup=cap_lookup,
         name_lookup=name_lookup,
         pre_cap_limit_size=pre_limit,

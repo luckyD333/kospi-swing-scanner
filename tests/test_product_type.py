@@ -6,7 +6,13 @@ from __future__ import annotations
 
 import pytest
 
-from core.decision.product_type import Pool, ProductType, classify, to_pool
+from core.decision.product_type import (
+    Pool,
+    ProductType,
+    classify,
+    is_swing_ineligible_product_name,
+    to_pool,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -160,3 +166,9 @@ def test_pool_grouping_independence():
     assert Pool.STOCK != Pool.ETN_ETF
     assert Pool.STOCK != Pool.OTHER
     assert Pool.ETN_ETF != Pool.OTHER
+
+
+def test_swing_ineligible_product_name_detects_covered_call():
+    """커버드콜 ETF는 단기 스윙 후보에서 제외 대상."""
+    assert is_swing_ineligible_product_name("TIGER 미국나스닥100타겟데일리커버드콜")
+    assert not is_swing_ineligible_product_name("TIGER 코리아AI전력기기TOP3플러스")

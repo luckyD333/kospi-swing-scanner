@@ -357,3 +357,57 @@ def test_run_records_source_counts():
 
     assert result.funnel_stats["source_counts"]["primary"] == 8
     assert result.funnel_stats["source_counts"]["secondary"] == 2
+
+
+def test_runner_excludes_low_volatility_etf_from_scan_universe():
+    """ETF 1D 수익률 표준편차가 임계값 미만이면 전략 context 에서 제외."""
+    class _EtfSource(DailyDataSource):
+        name = "etf_source"
+
+        def get_tickers(self, market, target_date):
+            return ["005930", "069500", "229200"]
+
+        def get_ticker_name(self, ticker):
+            return {
+                "005930": "삼성전자",
+                "069500": "KODEX 200",
+                "229200": "KODEX 코스닥150",
+            }[ticker]
+
+        def get_etf_list(self, target_date):
+            return {"069500", "229200"}
+
+        def get_ohlcv(self, ticker, start, end, timeframe="1D"):
+            if ticker == "229200":
+                close = [100.0 if i % 2 == 0 else 102.0 for i in range(40)]
+            else:
+                close = [100.0] * 40
+            return pd.DataFrame(
+                {
+                    "open": close,
+                    "high": [c + 1.0 for c in close],
+                    "low": [c - 1.0 for c in close],
+                    "close": close,
+                    "volume": [1_000_000] * 40,
+                },
+                index=pd.date_range("2026-01-01", periods=40, freq="D"),
+            )
+
+        def get_market_cap(self, market, target_date):
+            return pd.DataFrame({
+                "005930": {"시가총액": 20_000 * 1e8, "종목명": "삼성전자"},
+                "069500": {"시가총액": 15_000 * 1e8, "종목명": "KODEX 200"},
+                "229200": {"시가총액": 14_000 * 1e8, "종목명": "KODEX 코스닥150"},
+            }).T
+
+    src = _EtfSource()
+    client = DataClient(ticker_list_sources=[src], ohlcv_sources=[src])
+    runner = ScanRunner(client, RunnerConfig(top_n=10, min_etf_volatility_pct=0.5))
+    result = runner.run([_FakeStrategy("s")], target_date="20260418")
+
+    tickers = [cand.ticker for cand in result.candidates_by_strategy["s"]]
+    assert "069500" not in tickers
+    assert "005930" in tickers
+    assert "229200" in tickers
+    assert result.funnel_stats["low_volatility_etf_excluded"] == 1
+    assert result.universe_size == 2

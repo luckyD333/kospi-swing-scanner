@@ -49,9 +49,18 @@ class Pool(str, Enum):
 
 _SPAC_KEYWORDS = ("스팩", "기업인수목적")
 _ETN_KEYWORDS = ("ETN",)
+_SWING_INELIGIBLE_PRODUCT_KEYWORDS = ("커버드콜",)
 
 # Task 1: 채권 ETF 감지 키워드 (정확히 이 7개만)
 BOND_KEYWORDS = {"채권", "초단기채", "회사채", "국고", "금리", "단기자금", "MMF"}
+
+
+def is_swing_ineligible_product_name(name: str) -> bool:
+    """단기 스윙 후보에서 제외할 상품명인지 판정."""
+    if not name:
+        return False
+    normalized = name.upper()
+    return any(kw.upper() in normalized for kw in _SWING_INELIGIBLE_PRODUCT_KEYWORDS)
 
 
 def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> ProductType:
