@@ -68,6 +68,42 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 
 ---
 
+## 전략 운영 규칙
+
+### 전략별 진입 패턴 + 청산 logic
+
+| # | 전략 | 진입 패턴 (T 종가 조건) | 청산 logic |
+|---|---|---|---|
+| S1 | Mean Reversion | RSI<30 + BB 하단 터치 + 쌍바닥 + 장악형 양봉 | ATR 기반 손절, Donchian 폭 목표 |
+| S2 | Cross-Sectional Momentum | 15일 percentile rank 상위 20% (Jegadeesh-Titman) | ATR 손절, target = entry + ATR × mult |
+| S3 | Trend Following | Donchian 20일 채널 상단 돌파 + ATR 폭 필터 | max(entry−mult×ATR, channel_low−0.5×ATR) 손절, donchian_width 목표 |
+| S4 | Pullback MA | MA20 상승추세 + MA5 눌림목 회복 | ATR 손절, target = entry + ATR × mult |
+| S5 | Bull Flag | Flagpole +8% → flag 거래량 수축 → 돌파 | ATR 손절, target_pct fallback |
+
+### 매수 (BUY) 방법
+
+1. **시점**: 전날 장 마감 후 신호 생성 → 다음 거래일 **T+1 시초가(open) 매수**
+2. **가격**: `trade_plan.entry` (EOD 종가 기준 신호 가격). `limit_entry` 권장값 있으면 지정가, 없으면 시장가
+3. **차단**: Detail 페이지에 **"진입 비추천 (강한 하락 추세)"** 표시되면 매수 X (per_ticker_regime = DOWNTREND_STRONG)
+4. **국면 가중치**: `weights.yml` 의 `strategy_weights_by_regime` 매트릭스로 BULL/NEUTRAL/BEAR 자동 조정. BEAR 에서 S5=0.0 자동 차단
+
+### 매도 (SELL) 방법
+
+청산 trigger 우선순위 (같은 봉 다중 조건 시 위 trigger 우선):
+
+| 우선순위 | Trigger | 조건 | 청산가 |
+|---|---|---|---|
+| 1 | GAP_DOWN | T+N 시가 ≤ stop_loss | 시가 (슬리피지 반영) |
+| 2 | STOP | T+N 저가 ≤ stop_loss | stop_loss |
+| 3 | TARGET | T+N 고가 ≥ target_2 | target_2 |
+| 4 | TIME | 추천 보유 기간 도달 | 종가 |
+
+- 같은 봉 stop+target 동시 hit → **STOP 우선** (보수)
+- 추천 보유 기간: `signals.json` 의 `ranking.decision.recommended_holding_bars` (1~7일, 신뢰도 동반)
+- 거래비용: 왕복 0.30% 차감 (paper trading 실측 기반)
+
+---
+
 ## 출력 포맷
 
 ### market_snapshot.json (Job A)
