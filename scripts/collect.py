@@ -62,6 +62,7 @@ class CollectConfig:
     cache_root: Path = Path(".cache")
     max_universe_size: int = 300
     max_etf_size: int = 50
+    min_etf_volatility_pct: float = 0.1
     # 1D+1W는 base 1D로, 1h/30m는 base 1m으로 저장 후 리샘플링
     base_tfs: list[str] = field(default_factory=lambda: ["1D", "1m"])
     lookback_days: int = 90
@@ -74,6 +75,60 @@ class CollectConfig:
     force_refetch: bool = False  # True면 기존 parquet 무시하고 전 구간 재수집
     max_cache_days: int = 365   # 0이면 비활성화
     scan_root: Path = field(default_factory=lambda: Path("scan_results"))
+
+
+def _realized_volatility_pct(df) -> float | None:
+    """1D close 일간 수익률 표준편차를 % 단위로 계산."""
+    if df is None or df.empty or "close" not in df.columns:
+        return None
+    close = df["close"].dropna().astype(float)
+    close = close[close > 0]
+    if len(close) < 2:
+        return None
+    returns = close.pct_change().dropna()
+    if returns.empty:
+        return 0.0
+    return float(returns.std(ddof=0) * 100)
+
+
+def _filter_low_volatility_etfs(
+    client: DataClient,
+    tickers: list[str],
+    start: str,
+    end: str,
+    min_volatility_pct: float,
+) -> list[str]:
+    """저변동 ETF를 수집 대상에서 제외한다."""
+    if min_volatility_pct <= 0 or not tickers:
+        return tickers
+
+    kept: list[str] = []
+    excluded: list[tuple[str, float]] = []
+    for ticker in tickers:
+        try:
+            df = client.get_ohlcv(ticker, start, end, timeframe="1D")
+            volatility_pct = _realized_volatility_pct(df)
+        except Exception as e:
+            logger.debug(f"ETF 변동성 계산 실패 ({ticker}): {e}")
+            kept.append(ticker)
+            continue
+
+        if volatility_pct is not None and volatility_pct < min_volatility_pct:
+            excluded.append((ticker, volatility_pct))
+            continue
+        kept.append(ticker)
+
+    if excluded:
+        sample = ", ".join(
+            f"{ticker}({volatility_pct:.3f}%)"
+            for ticker, volatility_pct in excluded[:5]
+        )
+        suffix = "..." if len(excluded) > 5 else ""
+        logger.info(
+            f"ETF 저변동성 필터: {len(excluded)}개 제외 "
+            f"(1D 수익률 표준편차 < {min_volatility_pct:.3f}%, 예: {sample}{suffix})"
+        )
+    return kept
 
 
 def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
@@ -142,6 +197,13 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             etf_tickers = client.get_tickers("ETF", target_date)
             if cfg.max_etf_size > 0:
                 etf_tickers = etf_tickers[:cfg.max_etf_size]
+            etf_tickers = _filter_low_volatility_etfs(
+                client,
+                etf_tickers,
+                day_start,
+                target_date,
+                cfg.min_etf_volatility_pct,
+            )
             logger.info(f"ETF 유니버스: {len(etf_tickers)}개 (상위 {cfg.max_etf_size}개 제한)")
         except Exception as e:
             logger.warning(f"ETF 유니버스 수집 실패 (skip): {e}")
@@ -659,6 +721,10 @@ def main() -> None:
     parser.add_argument("--max-universe", type=int, default=300)
     parser.add_argument("--max-etf", type=int, default=50, help="ETF 상위 N개 제한 (0=전종목, 기본: 50)")
     parser.add_argument(
+        "--min-etf-volatility-pct", type=float, default=0.1,
+        help="ETF 1D 수익률 표준편차 최소값(%%). 미만이면 수집 제외 (기본: 0.1, 0=비활성화)",
+    )
+    parser.add_argument(
         "--timeframes", nargs="+", default=["1D", "1W", "1h", "30m"],
         metavar="TF", help="1D 1W 1h 30m → 내부에서 base TF로 변환 (기본: 전 구간)",
     )
@@ -703,6 +769,7 @@ def main() -> None:
         min_daily_volume=args.min_volume,
         include_etf=not args.no_etf,
         max_etf_size=args.max_etf,
+        min_etf_volatility_pct=args.min_etf_volatility_pct,
         skip_collected=args.skip_collected,
         smart_skip=not args.no_smart_skip,
         force_refetch=args.force_refetch,

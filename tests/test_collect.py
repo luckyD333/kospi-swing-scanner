@@ -96,6 +96,69 @@ def test_collect_creates_parquet_files(tmp_path):
     assert len(parquet_files) == 2  # 005930, 000660
 
 
+def test_collect_excludes_low_volatility_etf_from_cache_and_manifest(tmp_path):
+    """ETF 1D 수익률 표준편차가 임계값 미만이면 수집 대상에서 제외."""
+    from scripts.collect import CollectConfig, run_collect
+
+    idx = pd.date_range("2026-01-01", periods=30, freq="B")
+    stock_df = pd.DataFrame(
+        {
+            "open": [100.0] * 30,
+            "high": [101.0] * 30,
+            "low": [99.0] * 30,
+            "close": [100.0] * 30,
+            "volume": [1_000_000] * 30,
+        },
+        index=idx,
+    )
+    high_vol_etf_df = stock_df.copy()
+    high_vol_etf_df["close"] = [100.0 if i % 2 == 0 else 102.0 for i in range(30)]
+    low_vol_etf_df = stock_df.copy()
+    low_vol_etf_df["close"] = [100.0] * 30
+
+    client = MagicMock()
+    client.get_tickers.side_effect = (
+        lambda market, target_date: ["069500", "123456"]
+        if market == "ETF"
+        else ["005930"]
+    )
+    client.get_ticker_name.side_effect = lambda t: f"종목{t}"
+    client.get_etf_list.return_value = {"069500", "123456"}
+    client.get_market_cap.return_value = pd.DataFrame(
+        {"005930": {"시가총액": 5_000 * 1e8, "종목명": "종목005930"}}
+    ).T
+    client.get_fundamentals.return_value = pd.DataFrame(
+        columns=["per", "roe", "foreign_pct", "naver_url"]
+    )
+    client.get_ohlcv.side_effect = lambda ticker, start, end, timeframe="1D": {
+        "005930": stock_df,
+        "069500": high_vol_etf_df,
+        "123456": low_vol_etf_df,
+    }[ticker]
+
+    cfg = CollectConfig(
+        market="KOSPI",
+        cache_root=tmp_path / ".cache",
+        max_universe_size=10,
+        base_tfs=["1D"],
+        lookback_days=60,
+        min_market_cap_bil=0.0,
+        max_market_cap_bil=999999.0,
+        min_etf_volatility_pct=0.1,
+    )
+    with patch("scripts.collect.DataClient", return_value=client), \
+            patch("scripts.collect._update_dynamic_weights_status"), \
+            patch("scripts.collect._fetch_market_indices", return_value={}), \
+            patch("scripts.collect._fetch_vix_history", return_value=None):
+        run_collect(cfg, target_date="20260430")
+
+    manifest = json.loads((tmp_path / ".cache" / "manifest.json").read_text())
+    assert manifest["etf_tickers"] == ["069500"]
+    assert "123456" not in manifest["tickers"]
+    assert (tmp_path / ".cache" / "1D" / "069500.parquet").exists()
+    assert not (tmp_path / ".cache" / "1D" / "123456.parquet").exists()
+
+
 def test_collect_tf_to_base_mapping():
     """--timeframes 1D 1W 30m → base_tfs = ["1D", "1m"]."""
     from scripts.collect import _TF_TO_BASE
