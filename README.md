@@ -214,6 +214,7 @@ kospi-swing-scanner/
 │   ├── formatters.py                 # table/json/csv/markdown/signals_ui
 │   ├── signals_builder.py            # signals.json 빌드 (Pydantic 검증)
 │   ├── snapshot_builder.py           # market_snapshot.json 빌드
+│   ├── holding_recommender.py        # data/holding_recommendations.json lookup
 │   ├── models.py                     # 스키마
 │   └── comparison.py                 # 멀티 전략 비교
 │
@@ -293,7 +294,7 @@ python cli.py --strategy all --format json --output-dir scan_results
 python cli.py --interview
 ```
 
-`weights.yml`은 ranking factor breakdown(`ensemble_score`, `momentum_pct`, `rr_ratio`, `roe`, `per`, `regime_score`)의 가중치를 정의해요. signals.json 의 `ranking.decision` 필드는 이 weights 로드 성공 시에만 채워져요.
+`weights.yml`은 ranking factor breakdown(`ensemble_score`, `momentum_pct`, `rr_ratio`, `roe`, `per`, `regime_score`)의 가중치를 정의해요. 또한 `strategy_weights_by_regime` (3-label BULL/NEUTRAL/BEAR 매트릭스) + `fng_modifier` (5-label 곱셈) 으로 regime-aware ensemble 적용 — 시장 국면에 따라 strategy 가중치가 자동 조정돼요. signals.json 의 `ranking.decision` 필드는 이 weights 로드 성공 시에만 채워져요.
 
 ### 필터 조정
 

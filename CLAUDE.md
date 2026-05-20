@@ -6,18 +6,18 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 - **Runtime**: Python 3.10+
 - **Core**: pandas, numpy, scipy
 - **Data sources**: 네이버 금융 — `sise_market_sum`(KOSPI/KOSDAQ 크롤링) + `etfItemList`(ETF) + `siseJson` API + `marketindex`(USD/KRW, WTI, 국고채3Y, VIX 매크로). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
-- **Test**: pytest (현재 542개)
+- **Test**: pytest (현재 1146개)
 
 ## Project Structure
 - `cli.py` — CLI 진입점 (스캔 + Phase 2 가중치 인터뷰 모드 `--interview`)
 - `core/` — DataClient, OhlcvCache, universe, indicators, runner, dates
-- `core/decision/` — 의사결정 엔진 (aggregator, ensemble, market_regime HMM, market_axes, market_breadth, regret_scorer)
+- `core/decision/` — 의사결정 엔진 (aggregator, ensemble, market_regime HMM, market_axes, market_breadth, regret_scorer, atr_volatility, per_ticker_regime)
 - `strategies/` — 전략 plug-in (Strategy Protocol). 5개 전략 × 다중 TF + fallback 변형(r1/r2)
-- `output/` — 포맷터 (table/json/csv/markdown/**signals_ui**) + signals_builder + snapshot_builder
+- `output/` — 포맷터 (table/json/csv/markdown/**signals_ui**) + signals_builder + snapshot_builder + holding_recommender
 - `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
 - `signal-api/` — FastAPI 서비스 (`/api/signals`, `/api/signals/{ticker}`). signals.json + market_snapshot.json 조인(`services/join.py`)
 - `signal-web/` — Next.js 카탈로그/디테일 UI (`MarketRegimePanel`, `DetailClient`, RR/점수/ATR/RSI 표시)
-- `scripts/` — collect.py (수집 + ETF + 매크로), backtest_run.py
+- `scripts/` — collect.py (수집 + ETF + 매크로), backtest_run.py, wf_validate_*.py (WF 검증), wf_strategy_compare.py (5 전략 OOS 비교), aggregate_holding_recommendations.py (상황별 holding 집계)
 - `tests/` — 통합 테스트 (네이버 mock, CLI E2E, decision/market_axes/breadth/regret)
 - `docs/` — 전략 스펙, 데이터 소스, 배포(`deploy.md`), cron 가이드
 
@@ -55,7 +55,7 @@ python cli.py --interview
 - `strategy_five_bull_flag` (+ `_1h`/`_30m`) — Flagpole +8% → flag 거래량 수축 → 돌파
 
 ## Verification
-변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1071개 이상 통과해야 함.
+변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1146개 이상 통과해야 함.
 정적 분석: `.venv/bin/ruff check . --exclude .venv` 통과 유지.
 
 ## Conventions
@@ -81,7 +81,8 @@ python cli.py --interview
 ## Data Flow (SSOT)
 운영 데이터는 **`data/signals.json`**(전략 결과) + **`data/market_snapshot.json`**(시장 raw) 2-파일.
 signal-api 가 응답 시점에 `services/join.py`로 두 파일을 조인 — fundamentals/flow/external_links 는 latest snapshot 으로 override (live_quote/trade_plan 은 cli.py 동시점 freeze 유지).
-weights.yml(가중치)는 `--interview` 실행 또는 git 배포로 생성. `.cache/regime_analysis.json`(시장 국면)은 `collect.py` 실행 시 HMM 분석으로 자동 생성.
+weights.yml(가중치)는 `--interview` 실행 또는 git 배포로 생성. `strategy_weights_by_regime` (3-label BULL/NEUTRAL/BEAR 매트릭스) + `fng_modifier` (5-label 곱셈) 로 regime-aware ensemble 적용. `.cache/regime_analysis.json`(시장 국면)은 `collect.py` 실행 시 HMM 분석으로 자동 생성.
+`data/holding_recommendations.json`(상황별 최적 holding 추천)은 `scripts/aggregate_holding_recommendations.py` 로 WF 백테스트 결과를 marginal table 로 집계해 생성. signals_builder 가 응답 시점에 DecisionMeta.recommended_holding_bars/holding_confidence/holding_status 채움.
 
 ## Safety Note
 이 파일은 완전하지 않아요. 복잡한 작업 전 관련 디렉토리를 검색해서 최신 컨텍스트를 확인하세요. 데이터 소스 변경(네이버 API 응답 포맷)은 코드보다 테스트 mock에 먼저 영향을 주므로 회귀 시 mock fixture부터 점검할 것.

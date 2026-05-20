@@ -384,7 +384,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
               {holdingStatus === 'OK' && recommendedHoldingBars != null ? (
                 <>
-                  <span style={{ ...ts('body', 'var(--ink)'), fontFamily: 'var(--f-mono-stack)', fontSize: '20px' }}>
+                  <span style={{ color: 'var(--ink)', fontFamily: 'var(--f-mono-stack)', fontSize: '20px' }}>
                     {recommendedHoldingBars}일
                   </span>
                   {holdingConfidence != null && (
