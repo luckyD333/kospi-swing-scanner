@@ -32,6 +32,7 @@ from output.models import (
     DecisionFactor, DecisionMeta, RegretFactor,
 )
 from output.holding_recommender import (
+    canonical_holding_strategy as _canonical_holding_strategy,
     load_recommendations as _load_holding_recs,
     recommend_holding as _recommend_holding,
 )
@@ -675,15 +676,19 @@ def build_signals_payload(
                 _es_val = float(_es_raw) if _es_raw is not None else None
             except (TypeError, ValueError):
                 _es_val = None
-            # 상황별 holding 추천 (data/holding_recommendations.json lookup)
-            _hold_rec = _recommend_holding(
-                _holding_recs(),
-                strategy=c.strategy,
-                market_regime=meta.get("regime_label") or "NEUTRAL",
-                fng_label=meta.get("fng_label"),
-                per_ticker_regime=meta.get("per_ticker_regime"),
-                atr_bucket=meta.get("atr_bucket"),
-            )
+            # 상황별 holding 추천 (data/holding_recommendations.json lookup).
+            # 현재 추천표는 1D 백테스트 기반이므로 1h/30m/1W 에는 노출하지 않는다.
+            _hold_rec = None
+            _holding_strategy = _canonical_holding_strategy(c.strategy, tf)
+            if _holding_strategy is not None:
+                _hold_rec = _recommend_holding(
+                    _holding_recs(),
+                    strategy=_holding_strategy,
+                    market_regime=meta.get("regime_label") or "NEUTRAL",
+                    fng_label=meta.get("fng_label"),
+                    per_ticker_regime=meta.get("per_ticker_regime"),
+                    atr_bucket=meta.get("atr_bucket"),
+                )
             decision = DecisionMeta(
                 final_score=rc.final_score,
                 factors=factors,
@@ -693,9 +698,15 @@ def build_signals_payload(
                 ensemble_score=_es_val,
                 regime_label=meta.get("regime_label") or None,
                 fng_label=meta.get("fng_label") or None,
-                recommended_holding_bars=_hold_rec.recommended_bars,
-                holding_confidence=_hold_rec.confidence if _hold_rec.status == "OK" else None,
-                holding_status=_hold_rec.status,
+                recommended_holding_bars=(
+                    _hold_rec.recommended_bars if _hold_rec is not None else None
+                ),
+                holding_confidence=(
+                    _hold_rec.confidence
+                    if _hold_rec is not None and _hold_rec.status == "OK"
+                    else None
+                ),
+                holding_status=_hold_rec.status if _hold_rec is not None else None,
             )
 
         sig_date = getattr(c, "signal_date", None)

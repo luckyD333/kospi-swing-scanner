@@ -142,6 +142,9 @@ export interface CardProps {
   ensembleScore: number | null;
   regimeLabel: string | null;
   fngLabel: string | null;
+  recommendedHoldingBars: number | null;
+  holdingConfidence: number | null;
+  holdingStatus: string | null;
 }
 
 // Factor 라벨 매핑
@@ -494,5 +497,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     ensembleScore: signal.ranking?.decision?.ensemble_score ?? null,
     regimeLabel: signal.ranking?.decision?.regime_label ?? null,
     fngLabel: signal.ranking?.decision?.fng_label ?? null,
+    recommendedHoldingBars: signal.ranking?.decision?.recommended_holding_bars ?? null,
+    holdingConfidence: signal.ranking?.decision?.holding_confidence ?? null,
+    holdingStatus: signal.ranking?.decision?.holding_status ?? null,
   };
 }

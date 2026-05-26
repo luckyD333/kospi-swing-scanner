@@ -117,6 +117,30 @@ describe('adaptSignal', () => {
     expect(c.priceDisplay).toBe('15 050');
     expect(c.direction).toBe('up');
   });
+
+  test('holding recommendation을 카드 props로 매핑', () => {
+    const signal: Signal = {
+      ...minimal,
+      ranking: {
+        score: 80,
+        rank: 1,
+        percentile: 100,
+        signal_strength: 70,
+        decision: {
+          final_score: 65,
+          factors: [],
+          max_regret: null,
+          recommended_holding_bars: 7,
+          holding_confidence: 1,
+          holding_status: 'OK',
+        },
+      },
+    };
+    const c = adaptSignal(signal, '2026-05-03');
+    expect(c.recommendedHoldingBars).toBe(7);
+    expect(c.holdingConfidence).toBe(1);
+    expect(c.holdingStatus).toBe('OK');
+  });
 });
 
 

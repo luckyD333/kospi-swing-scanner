@@ -29,6 +29,22 @@ MIN_TRADES_DEFAULT = 30
 HOLDING_MIN = 1
 HOLDING_MAX = 7
 
+_BACKTEST_STRATEGY_KEYS = {
+    "S1_MeanReversion",
+    "S2_CrossSectional",
+    "S3_TrendFollowing",
+    "S4_PullbackMA",
+    "S5_BullFlag",
+}
+
+_RUNTIME_TO_BACKTEST_STRATEGY: tuple[tuple[str, str], ...] = (
+    ("strategy_one_", "S1_MeanReversion"),
+    ("strategy_two", "S2_CrossSectional"),
+    ("strategy_three", "S3_TrendFollowing"),
+    ("strategy_four", "S4_PullbackMA"),
+    ("strategy_five", "S5_BullFlag"),
+)
+
 
 @dataclass
 class HoldingRecommendation:
@@ -36,6 +52,26 @@ class HoldingRecommendation:
     recommended_bars: Optional[int]
     confidence: float
     status: Status
+
+
+def canonical_holding_strategy(
+    strategy: str,
+    timeframe: str | None = None,
+) -> str | None:
+    """런타임 strategy id 를 holding 백테스트 strategy key 로 변환.
+
+    현재 data/holding_recommendations.json 은 1D 백테스트 기반 전략군 key
+    (S1_MeanReversion 등) 만 가진다. 1h/30m/1W 신호에는 같은 값을 억지
+    환산하지 않기 위해 None 을 반환한다.
+    """
+    if timeframe is not None and timeframe != "1D":
+        return None
+    if strategy in _BACKTEST_STRATEGY_KEYS:
+        return strategy
+    for prefix, backtest_key in _RUNTIME_TO_BACKTEST_STRATEGY:
+        if strategy.startswith(prefix):
+            return backtest_key
+    return strategy
 
 
 def load_recommendations(path: str | Path) -> dict:
@@ -80,9 +116,14 @@ def recommend_holding(
     fng_label: Optional[str],
     per_ticker_regime: Optional[str],
     atr_bucket: Optional[str],
+    timeframe: str | None = None,
 ) -> HoldingRecommendation:
     """결합 규칙 적용 후 추천 결과 반환."""
     if not recs:
+        return HoldingRecommendation(None, 0.0, "LOW_CONFIDENCE")
+
+    strategy_key = canonical_holding_strategy(strategy, timeframe)
+    if strategy_key is None:
         return HoldingRecommendation(None, 0.0, "LOW_CONFIDENCE")
 
     # 1) DOWNTREND_STRONG → 진입 비추천 (per_ticker_regime 라벨 자체로 게이트)
@@ -95,7 +136,7 @@ def recommend_holding(
             return HoldingRecommendation(None, 0.0, "SKIP")
 
     # 2) primary lookup
-    primary = recs.get("primary", {}).get(strategy, {}).get(market_regime)
+    primary = recs.get("primary", {}).get(strategy_key, {}).get(market_regime)
     min_n = int(recs.get("min_trades_per_cell", MIN_TRADES_DEFAULT))
     if not primary or primary.get("n_trades", 0) < min_n:
         return HoldingRecommendation(None, 0.0, "LOW_CONFIDENCE")

@@ -39,7 +39,10 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     signalStrength, decisionScore, decisionRegretScore,
     strategyLabel, timeframe, rank, allStrategyTags,
     signalStatus, signalFreshness,
-    productType, confirmationLevel, strategyId } = card;
+    productType, confirmationLevel, strategyId,
+    orderTypeLabel, limitEntryActive,
+    activeRegime, regimeLabel, fngLabel,
+    recommendedHoldingBars, holdingConfidence, holdingStatus } = card;
 
   const statusBadge = (() => {
     switch (signalStatus) {
@@ -72,6 +75,55 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     { label: '신호 강도', value: signalStrength != null ? signalStrength.toFixed(1) : '—' },
     { label: '잠재력 점수', value: decisionScore != null ? decisionScore.toFixed(1) : '—' },
     { label: '기회 점수', value: decisionRegretScore != null ? decisionRegretScore.toFixed(1) : '—' },
+  ];
+  const showHoldingGuide = holdingStatus === 'OK' && recommendedHoldingBars != null;
+  const holdingConfidencePct = holdingConfidence != null
+    ? `${Math.round(holdingConfidence * 100)}%`
+    : null;
+  const tradeStatus = (() => {
+    if (signalFreshness?.plan_expired || signalStatus === 'STALE') {
+      return { label: '만료', tone: '#ffb74d' };
+    }
+    switch (signalStatus) {
+      case 'TARGET_REACHED':
+        return { label: '목표도달', tone: '#30d158' };
+      case 'STOPPED_OUT':
+        return { label: '손절', tone: '#ff6b81' };
+      default:
+        return { label: '유효', tone: 'var(--body)' };
+    }
+  })();
+  const marketRegime = regimeLabel ?? activeRegime;
+  const regimeTone =
+    marketRegime === 'BULL' ? 'var(--gain)' :
+    marketRegime === 'BEAR' ? 'var(--loss)' :
+    'var(--body)';
+  const driftLabel = signalFreshness?.price_drift_pct != null
+    ? `${signalFreshness.price_drift_pct >= 0 ? '+' : ''}${signalFreshness.price_drift_pct.toFixed(1)}%`
+    : null;
+  const barsLabel = signalFreshness?.bars_since_trigger != null
+    ? `${signalFreshness.bars_since_trigger}봉 경과`
+    : null;
+  const statusSub = [driftLabel, barsLabel].filter(Boolean).join(' · ') || null;
+  const tradeCheckItems = [
+    {
+      label: '매수',
+      value: orderTypeLabel ?? (limitEntryActive ? '지정가' : '—'),
+      sub: limitEntryActive ? '지지선 대기' : null,
+      tone: 'var(--link)',
+    },
+    {
+      label: '시황',
+      value: marketRegime ?? '—',
+      sub: fngLabel ? `F&G ${fngLabel}` : null,
+      tone: regimeTone,
+    },
+    {
+      label: '상태',
+      value: tradeStatus.label,
+      sub: statusSub,
+      tone: tradeStatus.tone,
+    },
   ];
 
   // 라벨은 muted-soft로 한 톤 낮춰 데이터가 자연스럽게 떠오르게 함
@@ -226,6 +278,77 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
             </div>
           ))}
         </div>
+
+        <div style={{
+          borderTop: '1px solid var(--hairline)',
+          paddingTop: '14px',
+          paddingBottom: '14px',
+        }}>
+          <div style={{ display: 'flex' }}>
+            {tradeCheckItems.map(({ label, value, sub, tone }, i) => (
+              <div key={label} style={{
+                flex: 1,
+                minWidth: 0,
+                paddingRight: i < 2 ? '12px' : '0',
+                paddingLeft: i > 0 ? '12px' : '0',
+                borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+              }}>
+                <div style={labelStyle}>
+                  {label}
+                </div>
+                <div style={{
+                  fontFamily: 'var(--f-mono-stack)',
+                  fontSize: '13px',
+                  lineHeight: 1.25,
+                  letterSpacing: 0,
+                  color: tone,
+                  overflowWrap: 'anywhere',
+                }}>
+                  {value}
+                </div>
+                {sub && (
+                  <div style={{
+                    ...ts('caption-sm', 'var(--muted-soft)'),
+                    marginTop: '4px',
+                    lineHeight: 1.25,
+                    overflowWrap: 'anywhere',
+                  }}>
+                    {sub}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {showHoldingGuide && (
+          <div style={{
+            borderTop: '1px solid var(--hairline)',
+            paddingTop: '14px',
+            paddingBottom: '14px',
+          }}>
+            <div style={labelStyle}>보유 가이드</div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}>
+              <span style={{
+                fontFamily: 'var(--f-mono-stack)',
+                fontSize: '15px',
+                letterSpacing: 0,
+                color: 'var(--body)',
+              }}>
+                {recommendedHoldingBars}거래일
+              </span>
+              <span style={ts('caption-sm', 'var(--muted-soft)')}>
+                {holdingConfidencePct ? `근거 ${holdingConfidencePct} · ` : ''}
+                D+{recommendedHoldingBars} 매도 검토
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 핵심 지표 1행: RSI | PER | 랭킹 */}
         <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: '14px', paddingBottom: '14px' }}>

@@ -15,6 +15,7 @@ import pytest
 
 from output.holding_recommender import (
     HoldingRecommendation,
+    canonical_holding_strategy,
     load_recommendations,
     recommend_holding,
 )
@@ -155,6 +156,50 @@ def test_recommend_strategy_not_in_primary(mock_recs, tmp_path):
         atr_bucket="MID",
     )
     assert out.status == "LOW_CONFIDENCE"
+
+
+def test_runtime_strategy_id_maps_to_backtest_key(mock_recs, tmp_path):
+    """운영 strategy id → 백테스트 전략군 key 로 변환해 추천을 찾는다."""
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(mock_recs))
+    recs = load_recommendations(p)
+
+    out = recommend_holding(
+        recs,
+        strategy="strategy_two_cross_sectional_momentum",
+        market_regime="NEUTRAL",
+        fng_label=None,
+        per_ticker_regime="RANGE",
+        atr_bucket="MID",
+        timeframe="1D",
+    )
+
+    assert canonical_holding_strategy(
+        "strategy_two_cross_sectional_momentum", "1D",
+    ) == "S2_CrossSectional"
+    assert out.status == "OK"
+    assert out.recommended_bars == 5
+
+
+def test_intraday_strategy_id_does_not_reuse_1d_holding(mock_recs, tmp_path):
+    """1h/30m 신호에는 1D 보유 추천을 억지 적용하지 않는다."""
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(mock_recs))
+    recs = load_recommendations(p)
+
+    out = recommend_holding(
+        recs,
+        strategy="strategy_two_1h",
+        market_regime="NEUTRAL",
+        fng_label=None,
+        per_ticker_regime="RANGE",
+        atr_bucket="MID",
+        timeframe="1h",
+    )
+
+    assert canonical_holding_strategy("strategy_two_1h", "1h") is None
+    assert out.status == "LOW_CONFIDENCE"
+    assert out.recommended_bars is None
 
 
 # --- Schema v2.0: regime-조건부 nested modifier 검증 ---------------------------
