@@ -2,18 +2,18 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
-# ── Task 1 ──────────────────────────────────────────────────────────────────
-
+from backtest_engine.historical_signals import HistoricalSignalGenerator, SignalRecord
 from backtest_engine.timing_study import (
     EntryWindow,
     MetricsAggregator,
     TimingStudyConfig,
     TimingStudyEngine,
-    TimingStudyResult,
     TimingTrade,
     build_signal_cohorts,
 )
+
+
+# ── Task 1 ──────────────────────────────────────────────────────────────────
 
 
 def test_timing_trade_pnl_pct():
@@ -40,8 +40,6 @@ def test_config_defaults():
 
 
 # ── Task 2 ──────────────────────────────────────────────────────────────────
-
-from backtest_engine.historical_signals import HistoricalSignalGenerator, SignalRecord
 
 
 def make_ohlcv(n: int = 60, seed: int = 42) -> pd.DataFrame:
