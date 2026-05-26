@@ -809,6 +809,8 @@ def build_signals_payload(
             tradability_score=tradability_s,
             confirmation_level=confirmation_lv,
             active_regime=active_regime_lbl,
+            per_ticker_regime=meta.get("per_ticker_regime") or None,
+            atr_bucket=meta.get("atr_bucket") or None,
             asset_class=asset_class_value,
             signal_components=signal_components_list,
         )

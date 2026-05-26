@@ -331,6 +331,8 @@ def aggregate_entries_for_ticker(
         "signal_freshness": base_meta.get("signal_freshness"),
         "scan_freshness_warning": compute_scan_freshness_warning(generated_at),
         "active_regime": base_meta.get("active_regime"),
+        "per_ticker_regime": base_meta.get("per_ticker_regime"),
+        "atr_bucket": base_meta.get("atr_bucket"),
         "tradability_score": base_meta.get("tradability_score"),
         "product_type": base_meta.get("product_type"),
     }

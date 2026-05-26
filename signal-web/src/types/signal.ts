@@ -141,6 +141,8 @@ export interface Signal {
   // PR-H/PR-J (P2-3, P3-2): confirmation 등급 + 시장 국면
   confirmation_level?: string | null;  // STRONG/MEDIUM/WEAK
   active_regime?: string | null;       // BULL/NEUTRAL/BEAR
+  per_ticker_regime?: string | null;   // UPTREND_STRONG/RANGE/... (종목별 국면)
+  atr_bucket?: string | null;          // LOW/MID/HIGH (종목별 변동성 구간)
   // 신호 신선도 메타
   signal_freshness?: SignalFreshness;
 }

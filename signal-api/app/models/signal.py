@@ -90,6 +90,8 @@ class Signal(BaseModel):
     # PR-H/PR-J (P2-3, P3-2): confirmation 등급 + 시장 국면
     confirmation_level: str | None = None  # STRONG/MEDIUM/WEAK
     active_regime: str | None = None       # BULL/NEUTRAL/BEAR
+    per_ticker_regime: str | None = None   # UPTREND_STRONG/RANGE/... (종목별 국면)
+    atr_bucket: str | None = None          # LOW/MID/HIGH (종목별 변동성 구간)
 
 
 class SignalMarketEntry(BaseModel):

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { CardProps } from '@/lib/adapt';
 import { ts } from '@/lib/typography';
 import { confirmationColor } from '@/lib/signal-colors';
+import { formatTickerState } from '@/lib/ticker-state';
 
 interface Props {
   card: CardProps;
@@ -41,7 +42,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     signalStatus, signalFreshness,
     productType, confirmationLevel, strategyId,
     orderTypeLabel, limitEntryActive,
-    activeRegime, regimeLabel, fngLabel,
+    rsi, perTickerRegime, atrBucket,
     recommendedHoldingBars, holdingConfidence, holdingStatus } = card;
 
   const statusBadge = (() => {
@@ -93,11 +94,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         return { label: '유효', tone: 'var(--body)' };
     }
   })();
-  const marketRegime = regimeLabel ?? activeRegime;
-  const regimeTone =
-    marketRegime === 'BULL' ? 'var(--gain)' :
-    marketRegime === 'BEAR' ? 'var(--loss)' :
-    'var(--body)';
+  const tickerState = formatTickerState(rsi, perTickerRegime, atrBucket);
   const driftLabel = signalFreshness?.price_drift_pct != null
     ? `${signalFreshness.price_drift_pct >= 0 ? '+' : ''}${signalFreshness.price_drift_pct.toFixed(1)}%`
     : null;
@@ -113,16 +110,16 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
       tone: 'var(--link)',
     },
     {
-      label: '시황',
-      value: marketRegime ?? '—',
-      sub: fngLabel ? `F&G ${fngLabel}` : null,
-      tone: regimeTone,
-    },
-    {
       label: '상태',
       value: tradeStatus.label,
       sub: statusSub,
       tone: tradeStatus.tone,
+    },
+    {
+      label: '종목상태',
+      value: tickerState.label,
+      sub: tickerState.sub,
+      tone: tickerState.tone,
     },
   ];
 

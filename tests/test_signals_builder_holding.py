@@ -186,6 +186,8 @@ def test_signals_builder_maps_1d_runtime_strategy_to_holding_rec(mock_rec_file):
     assert sig.ranking.decision.holding_status == "OK"
     assert sig.ranking.decision.recommended_holding_bars == 7
     assert sig.ranking.decision.holding_confidence == 1.0
+    assert sig.per_ticker_regime == "UPTREND_STRONG"
+    assert sig.atr_bucket == "MID"
 
 
 def test_signals_builder_omits_holding_rec_for_intraday(mock_rec_file):

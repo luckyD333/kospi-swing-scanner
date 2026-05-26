@@ -212,6 +212,8 @@ class Signal(BaseModel):
     # PR-L (P4): Phase 1 신규 필드 Signal 노출
     confirmation_level: Optional[str] = None  # STRONG/MEDIUM/WEAK (PR-H)
     active_regime: Optional[str] = None        # BULL/NEUTRAL/BEAR (PR-J)
+    per_ticker_regime: Optional[str] = None    # UPTREND_STRONG/RANGE/... (종목별 1D Donchian 국면)
+    atr_bucket: Optional[str] = None           # LOW/MID/HIGH (종목별 ATR 변동성 구간)
     # Task 2 (Plan 2026-05-08): 자산군 분류 (STOCK/EQUITY_ETF/BOND_ETF/OTHER)
     asset_class: Optional[str] = None  # AssetClass.value
     # Task 5c (Plan 2026-05-08): 1h 셋업 품질 점수 + 메타 노출

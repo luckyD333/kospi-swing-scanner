@@ -141,6 +141,17 @@ describe('adaptSignal', () => {
     expect(c.holdingConfidence).toBe(1);
     expect(c.holdingStatus).toBe('OK');
   });
+
+  test('종목별 국면과 ATR bucket을 카드 props로 매핑', () => {
+    const signal: Signal = {
+      ...minimal,
+      per_ticker_regime: 'UPTREND_STRONG',
+      atr_bucket: 'HIGH',
+    };
+    const c = adaptSignal(signal, '2026-05-03');
+    expect(c.perTickerRegime).toBe('UPTREND_STRONG');
+    expect(c.atrBucket).toBe('HIGH');
+  });
 });
 
 

@@ -63,6 +63,8 @@ export interface DetailProps {
   atr14: number | null;
   confirmationLevel: string | null;
   activeRegime: string | null;
+  perTickerRegime: string | null;
+  atrBucket: string | null;
   tradabilityScore: number | null;
   // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
   ensembleScore: number | null;
@@ -137,6 +139,8 @@ export interface CardProps {
   // PR-H/PR-J: confirmation 등급 + 시장 국면
   confirmationLevel: string | null;
   activeRegime: string | null;
+  perTickerRegime: string | null;
+  atrBucket: string | null;
   signalFreshness?: SignalFreshness;
   // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
   ensembleScore: number | null;
@@ -273,6 +277,8 @@ export function adaptDetailV2(raw: any): DetailProps {
     atr14: firstMatch?.trade_plan?.atr_14 ?? null,
     confirmationLevel: raw.confirmation_level ?? null,
     activeRegime: raw.active_regime ?? null,
+    perTickerRegime: raw.per_ticker_regime ?? null,
+    atrBucket: raw.atr_bucket ?? null,
     tradabilityScore: raw.tradability_score ?? null,
     ensembleScore: raw.ensemble_score ?? null,
     regimeLabel: raw.regime_label ?? null,
@@ -359,6 +365,8 @@ export function adaptDetailLegacy(raw: any): DetailProps {
     atr14: card.atr14,
     confirmationLevel: card.confirmationLevel,
     activeRegime: card.activeRegime,
+    perTickerRegime: card.perTickerRegime,
+    atrBucket: card.atrBucket,
     tradabilityScore: card.tradabilityScore,
     ensembleScore: card.ensembleScore,
     regimeLabel: card.regimeLabel,
@@ -493,6 +501,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     tradabilityScore: signal.tradability_score ?? null,
     confirmationLevel: signal.confirmation_level ?? null,
     activeRegime: signal.active_regime ?? null,
+    perTickerRegime: signal.per_ticker_regime ?? null,
+    atrBucket: signal.atr_bucket ?? null,
     signalFreshness: signal.signal_freshness ?? undefined,
     ensembleScore: signal.ranking?.decision?.ensemble_score ?? null,
     regimeLabel: signal.ranking?.decision?.regime_label ?? null,
