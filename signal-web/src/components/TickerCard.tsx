@@ -41,7 +41,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     strategyLabel, timeframe, rank, allStrategyTags,
     signalStatus, signalFreshness,
     productType, confirmationLevel, strategyId,
-    orderTypeLabel, limitEntryActive,
+    currentPrice, signalDate,
     rsi, perTickerRegime, atrBucket,
     recommendedHoldingBars, holdingConfidence, holdingStatus } = card;
 
@@ -81,40 +81,86 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
   const holdingConfidencePct = holdingConfidence != null
     ? `${Math.round(holdingConfidence * 100)}%`
     : null;
-  const tradeStatus = (() => {
-    if (signalFreshness?.plan_expired || signalStatus === 'STALE') {
-      return { label: '만료', tone: '#ffb74d' };
-    }
-    switch (signalStatus) {
-      case 'TARGET_REACHED':
-        return { label: '목표도달', tone: '#30d158' };
-      case 'STOPPED_OUT':
-        return { label: '손절', tone: '#ff6b81' };
-      default:
-        return { label: '유효', tone: 'var(--body)' };
-    }
-  })();
   const tickerState = formatTickerState(rsi, perTickerRegime, atrBucket);
-  const driftLabel = signalFreshness?.price_drift_pct != null
-    ? `${signalFreshness.price_drift_pct >= 0 ? '+' : ''}${signalFreshness.price_drift_pct.toFixed(1)}%`
+
+  // 진입거리: 현재가가 진입가 대비 얼마나 이격됐나 (+면 위 = 추격 구간, -면 미도달)
+  const entryDistPct = (currentPrice != null && entry > 0)
+    ? (currentPrice - entry) / entry * 100
     : null;
-  const barsLabel = signalFreshness?.bars_since_trigger != null
-    ? `${signalFreshness.bars_since_trigger}봉 경과`
+  const entryDistItem = (() => {
+    if (entryDistPct == null) {
+      return { label: '진입거리', value: '—', sub: null as string | null, tone: 'var(--body)' };
+    }
+    const v = `${entryDistPct >= 0 ? '+' : ''}${entryDistPct.toFixed(1)}%`;
+    if (entryDistPct >= 5) return { label: '진입거리', value: v, sub: '추격 주의', tone: '#ffb74d' };
+    if (entryDistPct < 0) return { label: '진입거리', value: v, sub: null, tone: 'var(--link)' };
+    return { label: '진입거리', value: v, sub: null, tone: 'var(--body)' };
+  })();
+
+  // 목표·손절 여지 (현재가 기준 위/아래 여력)
+  const targetRoomPct = (target1 != null && currentPrice != null && currentPrice > 0)
+    ? (target1 - currentPrice) / currentPrice * 100
     : null;
-  const statusSub = [driftLabel, barsLabel].filter(Boolean).join(' · ') || null;
+  const stopRoomPct = (currentPrice != null && currentPrice > 0)
+    ? (currentPrice - stop) / currentPrice * 100
+    : null;
+
+  // 30m·1h 만료 countdown (signalDate + TF별 임계, KST 고정 파싱). 렌더 시점 계산 — 120s refresh 의존.
+  const isIntraday = timeframe === '30m' || timeframe === '1h';
+  const expiryCountdown = (() => {
+    if (!isIntraday || !signalDate) return null;
+    const sdRaw = signalDate.includes('+') || signalDate.endsWith('Z')
+      ? signalDate
+      : `${signalDate}+09:00`;
+    const expiry = new Date(sdRaw).getTime() + (timeframe === '1h' ? 2 : 1) * 3600_000;
+    if (Number.isNaN(expiry)) return null;
+    const remainMin = Math.floor((expiry - Date.now()) / 60_000);
+    if (remainMin <= 0) return '만료';
+    if (remainMin >= 60) return `${Math.floor(remainMin / 60)}h ${remainMin % 60}m`;
+    return `${remainMin}분 남음`;
+  })();
+
+  // 두 번째 칸: intraday → 만료 countdown(+여지 compact sub), 그 외 → 목표·손절 여지
+  const secondItem = (() => {
+    if (isIntraday) {
+      const roomSub = [
+        targetRoomPct != null ? `목표${targetRoomPct >= 0 ? '+' : ''}${targetRoomPct.toFixed(1)}` : null,
+        stopRoomPct != null ? `손절-${Math.abs(stopRoomPct).toFixed(1)}` : null,
+      ].filter(Boolean).join(' · ') || null;
+      return {
+        label: '만료',
+        value: expiryCountdown ?? '—',
+        sub: roomSub,
+        tone: expiryCountdown === '만료' ? '#ff6b81' : 'var(--body)',
+      };
+    }
+    if (targetRoomPct == null && stopRoomPct == null) {
+      return { label: '여지', value: '—', sub: null, tone: 'var(--body)' };
+    }
+    // 손절선 임박(<1%)이면 손절을 헤드라인으로 강조
+    if (stopRoomPct != null && stopRoomPct < 1) {
+      return {
+        label: '여지',
+        value: `손절 -${Math.abs(stopRoomPct).toFixed(1)}%`,
+        sub: targetRoomPct != null
+          ? (targetRoomPct < 0 ? '목표 통과' : `목표 +${targetRoomPct.toFixed(1)}%`)
+          : null,
+        tone: '#ff6b81',
+      };
+    }
+    return {
+      label: '여지',
+      value: targetRoomPct == null
+        ? '—'
+        : (targetRoomPct < 0 ? '목표 통과' : `목표 +${targetRoomPct.toFixed(1)}%`),
+      sub: stopRoomPct != null ? `손절 -${Math.abs(stopRoomPct).toFixed(1)}%` : null,
+      tone: targetRoomPct != null && targetRoomPct < 0 ? '#ffb74d' : '#30d158',
+    };
+  })();
+
   const tradeCheckItems = [
-    {
-      label: '매수',
-      value: orderTypeLabel ?? (limitEntryActive ? '지정가' : '—'),
-      sub: limitEntryActive ? '지지선 대기' : null,
-      tone: 'var(--link)',
-    },
-    {
-      label: '상태',
-      value: tradeStatus.label,
-      sub: statusSub,
-      tone: tradeStatus.tone,
-    },
+    entryDistItem,
+    secondItem,
     {
       label: '종목상태',
       value: tickerState.label,
@@ -234,15 +280,6 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         }}>
           {dirGlyph} {changeDisplay}
         </span>
-        {signalFreshness?.price_drift_pct != null && Math.abs(signalFreshness.price_drift_pct) >= 5 && (
-          <span style={{
-            ...ts('caption-sm', signalFreshness.price_drift_pct >= 0 ? 'var(--gain)' : 'var(--loss)'),
-            fontSize: '11px',
-            fontWeight: 500,
-          }}>
-            {signalFreshness.price_drift_pct >= 0 ? '▲' : '▼'} {Math.abs(signalFreshness.price_drift_pct).toFixed(1)}%
-          </span>
-        )}
       </div>
 
       {/* 하단 고정 영역 */}
