@@ -164,6 +164,9 @@ export interface Stats {
   total_signals: number;
   by_strategy: Record<string, number>;
   by_rr_band: Record<string, number>;
+  by_product_type?: Record<string, number>;
+  by_pool?: Record<string, number>;
+  etf_exposure_ticker_limit?: number;
 }
 
 export interface RegimeScore {

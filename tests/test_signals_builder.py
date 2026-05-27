@@ -134,11 +134,11 @@ def test_format_target_display_past_date():
 # 'all' 통합 entry — Phase 3 (regret 기반 ticker dedup)
 # ---------------------------------------------------------------------------
 
-def _make_cand_for(ticker, score=80.0):
+def _make_cand_for(ticker, score=80.0, product_type="STOCK", name=None):
     from core.strategy_base import Candidate
     return Candidate(
         ticker=ticker,
-        name=f"종목{ticker}",
+        name=name or f"종목{ticker}",
         strategy="dummy",
         signal_date=pd.Timestamp.today(),
         score=score,
@@ -150,7 +150,7 @@ def _make_cand_for(ticker, score=80.0):
         metadata={
             "rr_ratio": 2.0, "rr_band": "sweet", "atr_14": 100,
             "naver_url": f"http://x/{ticker}",
-            "product_type": "STOCK",  # PR-B: 풀 분리에서 STOCK 풀로 진입
+            "product_type": product_type,  # PR-B: 풀 분리에서 STOCK/ETF 풀로 진입
         },
     )
 
@@ -340,3 +340,74 @@ def test_strategy_one_1h_fallback_variants_skip_duplicate_ticker_in_raw_signals(
         ("001", "strategy_one_1h_v2"),
         ("002", "strategy_one_1h_v2_r2"),
     ]
+
+
+def test_etf_exposure_policy_caps_etf_tickers_but_keeps_stocks():
+    """signals_ui 기본 출력은 주식 보존 + ETF/ETN 상위 소수 ticker만 보조 노출."""
+    from collections import Counter
+
+    from core.decision.config import Priority, WeightConfig
+
+    cfg = WeightConfig(
+        priorities=[Priority("score", 100.0, "higher_better", "전략점수")],
+    )
+    snap = _multi_strategy_snapshot()
+    stocks = [_make_cand_for(f"S{i:03d}", 60.0 + i) for i in range(4)]
+    etfs = [
+        _make_cand_for(f"E{i:03d}", 90.0 - i, product_type="ETF")
+        for i in range(6)
+    ]
+
+    payload = build_signals_payload(
+        snap,
+        {"strategy_two_cross_sectional_momentum": etfs + stocks},
+        weight_config=cfg,
+    )
+
+    etf_signals = [s for s in payload.signals if s.pool == "ETN_ETF"]
+    stock_signals = [s for s in payload.signals if s.pool == "STOCK"]
+    assert {s.ticker for s in stock_signals} == {c.ticker for c in stocks}
+    assert len({s.ticker for s in etf_signals}) <= 5
+
+    raw_etf_counts = Counter(
+        s.ticker for s in etf_signals if s.strategy.id != "all"
+    )
+    assert all(count <= 1 for count in raw_etf_counts.values())
+    assert payload.stats["etf_exposure_ticker_limit"] == 5
+    assert payload.stats["by_pool"]["STOCK"] >= len(stocks)
+
+
+def test_etf_exposure_dedups_brand_and_leverage_variants():
+    """같은 기초자산의 브랜드/레버리지 변형은 1개만, 인버스는 별개, dedup 후 상위 5개 cap."""
+    from core.decision.config import Priority, WeightConfig
+
+    cfg = WeightConfig(
+        priorities=[Priority("score", 100.0, "higher_better", "전략점수")],
+    )
+    snap = _multi_strategy_snapshot()
+    etfs = [
+        _make_cand_for("E001", 95.0, product_type="ETF", name="TIGER 200 IT"),
+        _make_cand_for("E002", 90.0, product_type="ETF", name="TIGER 200IT레버리지"),  # E001과 동일 그룹
+        _make_cand_for("E003", 88.0, product_type="ETF", name="KODEX 200"),
+        _make_cand_for("E004", 80.0, product_type="ETF", name="TIGER 200"),            # E003과 동일 그룹(200)
+        _make_cand_for("E005", 85.0, product_type="ETF", name="KODEX 200선물인버스2X"),  # 별개(인버스)
+        _make_cand_for("E006", 70.0, product_type="ETF", name="TIGER 반도체"),
+        _make_cand_for("E007", 65.0, product_type="ETF", name="KODEX 2차전지"),
+        _make_cand_for("E008", 60.0, product_type="ETF", name="SOL 미국S&P500"),
+    ]
+
+    payload = build_signals_payload(
+        snap,
+        {"strategy_two_cross_sectional_momentum": etfs},
+        weight_config=cfg,
+    )
+    etf_tickers = {s.ticker for s in payload.signals if s.pool == "ETN_ETF"}
+
+    assert "E002" not in etf_tickers  # 레버리지 변형 제거 (200IT 대표는 E001)
+    assert "E004" not in etf_tickers  # 브랜드만 다른 중복 제거 (200 대표는 E003)
+    assert "E001" in etf_tickers      # 200IT 그룹 대표
+    assert "E003" in etf_tickers      # 200 그룹 대표
+    assert "E005" in etf_tickers      # 인버스는 역방향이라 별개 그룹 유지
+    # dedup 후 그룹 6개(200IT·200·인버스·반도체·2차전지·S&P500) → 상위 5개 cap
+    assert len(etf_tickers) == 5
+    assert payload.stats["etf_exposure_ticker_limit"] == 5

@@ -25,8 +25,14 @@ interface Props {
 
 
 
+const ASSET_GROUPS = ['주식', 'ETF'];
+
+const isEtfCard = (c: CardProps): boolean =>
+  c.pool === 'ETN_ETF' || c.productType === 'ETF' || c.productType === 'ETN';
+
 export default function CatalogClient({ cards, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, scanFreshnessWarning, generatedAt }: Props) {
   const router = useRouter();
+  const [assetGroup, setAssetGroup] = useState('주식');
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
   const [sortBy, setSortBy] = useState('composite');
@@ -46,21 +52,26 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
     [cards],
   );
 
+  const assetCards = useMemo(
+    () => activeCards.filter(c => assetGroup === 'ETF' ? isEtfCard(c) : !isEtfCard(c)),
+    [activeCards, assetGroup],
+  );
+
   const strategies = useMemo(() => {
     const labels = new Set<string>();
-    for (const c of activeCards) {
+    for (const c of assetCards) {
       if (c.strategyId !== 'all') labels.add(c.strategyLabel);
     }
     return ['ALL', ...Array.from(labels).sort()];
-  }, [activeCards]);
+  }, [assetCards]);
 
   const timeframes = useMemo(() => {
     const tfs = new Set<string>();
-    for (const c of activeCards) {
+    for (const c of assetCards) {
       if (c.strategyId !== 'all') tfs.add(c.timeframe);
     }
     return ['ALL', ...Array.from(tfs).sort()];
-  }, [activeCards]);
+  }, [assetCards]);
 
   useEffect(() => {
     if (!strategies.includes(strategy)) setStrategy('ALL');
@@ -103,7 +114,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
 
     if (strategy === 'ALL') {
       // ticker별 그룹화 — 대표 카드(최고 rank)에 모든 전략+TF 태그 병합
-      const rawCards = activeCards.filter(c => c.strategyId !== 'all');
+      const rawCards = assetCards.filter(c => c.strategyId !== 'all');
       const grouped = new Map<string, CardProps[]>();
       for (const c of rawCards) {
         const arr = grouped.get(c.ticker) ?? [];
@@ -133,11 +144,11 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
         })
         .sort(sortFn);
     }
-    return activeCards
+    return assetCards
       .filter(c => c.strategyId !== 'all' && c.strategyLabel === strategy)
       .filter(c => timeframe === 'ALL' || c.timeframe === timeframe)
       .sort(sortFn);
-  }, [activeCards, strategy, timeframe, sortBy]);
+  }, [assetCards, strategy, timeframe, sortBy]);
 
   // Hide stale/expired signals: plan_expired 또는 price_drift >= target
   const isHidden = (card: CardProps): boolean => {
@@ -223,11 +234,14 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
       />
 
       <FilterBar
+        assetGroups={ASSET_GROUPS}
         strategies={strategies}
         timeframes={timeframes}
+        activeAssetGroup={assetGroup}
         activeStrategy={strategy}
         activeTimeframe={timeframe}
         sortBy={sortBy}
+        onAssetGroup={setAssetGroup}
         onStrategy={setStrategy}
         onTimeframe={setTimeframe}
         onSort={setSortBy}

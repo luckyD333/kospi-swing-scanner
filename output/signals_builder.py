@@ -204,6 +204,14 @@ _RAW_SIGNAL_DEDUP_GROUP_BY_STRATEGY_ID: dict[str, str] = {
     "strategy_one_1h_v2_r2": "strategy_one_1h_v2",
 }
 
+_ETF_EXPOSURE_TICKER_LIMIT = 5
+_ETF_EXPOSURE_RAW_ENTRIES_PER_TICKER = 1
+_ETF_PRODUCT_TYPES = {"ETF", "ETN"}
+
+# ETF 유사종목 dedup: 브랜드/레버리지 변형을 한 그룹으로 묶기 위해 제거하는 토큰.
+# 인버스/곱버스/선물(역방향·구조 상이)은 보존 — 별개 그룹 유지.
+_ETF_DEDUP_STRIP_TOKENS = ("레버리지", "(합성)", "합성", "(H)")
+
 
 def _infer_timeframe_from_id(strategy_id: str) -> str:
     """strategy_id 토큰으로 timeframe 추정. Candidate.timeframe 이 비어있을 때 fallback."""
@@ -310,6 +318,90 @@ def _dedup_raw_candidates(
         if kept:
             filtered[strategy_id] = kept
     return filtered
+
+
+def _is_etf_like_signal(sig: Signal) -> bool:
+    return sig.pool == "ETN_ETF" or (sig.product_type in _ETF_PRODUCT_TYPES)
+
+
+def _rank_sort_key(sig: Signal) -> tuple[int, float, str]:
+    rank = sig.ranking.rank if sig.ranking and sig.ranking.rank is not None else 10**9
+    score = sig.ranking.score if sig.ranking and sig.ranking.score is not None else -1.0
+    return (rank, -score, sig.ticker)
+
+
+def _normalize_etf_name(name: str | None) -> str:
+    """ETF 이름 → dedup 그룹 키. 첫 토큰(브랜드) + 레버리지/배수 변형 제거.
+
+    한국 ETF는 브랜드-선두 명명(TIGER/KODEX/RISE/PLUS/ACE…)이라 첫 공백 토큰을 브랜드로 보고 제거한다.
+    인버스/곱버스/선물(역방향·구조 상이)은 보존해 별개 그룹으로 남긴다.
+    공백 없는 이름은 브랜드 분리 불가 → 전체 이름 fallback (무병합).
+    """
+    if not name:
+        return ""
+    toks = name.split()
+    core = ("".join(toks[1:]) if len(toks) > 1 else name).replace(" ", "").upper()
+    for token in _ETF_DEDUP_STRIP_TOKENS:
+        core = core.replace(token.upper(), "")
+    return core
+
+
+def _select_etf_exposure_tickers(
+    strategy_signals: list[Signal],
+    all_signals: list[Signal],
+) -> set[str]:
+    """ETF/ETN은 별도 보조 노출: all 랭킹 기준 상위 소수 ticker만 유지.
+
+    같은 기초자산의 브랜드/레버리지 변형(_normalize_etf_name 동일 키)은 중복 제거 —
+    rank 최상위 1개만 대표로 노출하고, dedup 후 상위 _ETF_EXPOSURE_TICKER_LIMIT 그룹까지 선택.
+    """
+    source = [s for s in all_signals if _is_etf_like_signal(s)]
+    if not source:
+        source = [s for s in strategy_signals if _is_etf_like_signal(s)]
+
+    selected: list[str] = []
+    seen_tickers: set[str] = set()
+    seen_keys: set[str] = set()
+    for sig in sorted(source, key=_rank_sort_key):
+        if sig.ticker in seen_tickers:
+            continue
+        key = _normalize_etf_name(sig.name) or sig.ticker
+        if key in seen_keys:
+            continue  # 같은 그룹의 더 높은 rank 대표가 이미 선택됨
+        seen_keys.add(key)
+        seen_tickers.add(sig.ticker)
+        selected.append(sig.ticker)
+        if len(selected) >= _ETF_EXPOSURE_TICKER_LIMIT:
+            break
+    return set(selected)
+
+
+def _apply_etf_exposure_policy(
+    strategy_signals: list[Signal],
+    all_signals: list[Signal],
+) -> list[Signal]:
+    """주식 신호는 보존하고 ETF/ETN은 상위 ticker만 최소 노출한다."""
+    allowed_etfs = _select_etf_exposure_tickers(strategy_signals, all_signals)
+    limited_strategy: list[Signal] = []
+    raw_etf_counts: dict[str, int] = {}
+
+    for sig in strategy_signals:
+        if not _is_etf_like_signal(sig):
+            limited_strategy.append(sig)
+            continue
+        if sig.ticker not in allowed_etfs:
+            continue
+        used = raw_etf_counts.get(sig.ticker, 0)
+        if used >= _ETF_EXPOSURE_RAW_ENTRIES_PER_TICKER:
+            continue
+        raw_etf_counts[sig.ticker] = used + 1
+        limited_strategy.append(sig)
+
+    limited_all = [
+        sig for sig in all_signals
+        if not _is_etf_like_signal(sig) or sig.ticker in allowed_etfs
+    ]
+    return limited_strategy + limited_all
 
 
 def build_signals_payload(
@@ -830,7 +922,7 @@ def build_signals_payload(
         )
         return status == "VALID"
 
-    signals: list[Signal] = []
+    strategy_signals: list[Signal] = []
     # all_candidates 리스트에서 candidate 객체만 추출 (percentile rank 계산용)
     candidates_for_percentile = [c for _, c in all_candidates]
     for rank_idx, (strategy_id, c) in enumerate(all_candidates, start=1):
@@ -843,9 +935,10 @@ def build_signals_payload(
             all_candidates_for_percentile=candidates_for_percentile,
         )
         if _is_actionable(sig):
-            signals.append(sig)
+            strategy_signals.append(sig)
 
     # 'all' 통합 entry — 단일 1D 풀 기준 (인트라데이 포함)
+    all_signals: list[Signal] = []
     if ranked:
         n_ranked = len(ranked)
         all_pool_candidates = [rc.candidate for rc in ranked]
@@ -863,13 +956,21 @@ def build_signals_payload(
                 all_candidates_for_percentile=all_pool_candidates,
             )
             if _is_actionable(sig):
-                signals.append(sig)
+                all_signals.append(sig)
+
+    signals = _apply_etf_exposure_policy(strategy_signals, all_signals)
 
     by_strategy: dict[str, int] = {}
     by_rr_band: dict[str, int] = {}
+    by_product_type: dict[str, int] = {}
+    by_pool: dict[str, int] = {}
     for s in signals:
         by_strategy[s.strategy.label] = by_strategy.get(s.strategy.label, 0) + 1
         by_rr_band[s.trade_plan.rr_band] = by_rr_band.get(s.trade_plan.rr_band, 0) + 1
+        by_product_type[s.product_type or "UNKNOWN"] = by_product_type.get(
+            s.product_type or "UNKNOWN", 0,
+        ) + 1
+        by_pool[s.pool or "OTHER"] = by_pool.get(s.pool or "OTHER", 0) + 1
 
     has_all_entry = any(s.strategy.id == "all" for s in signals)
     strategy_names = sorted({
@@ -905,5 +1006,8 @@ def build_signals_payload(
             "total_signals": len(signals),
             "by_strategy": by_strategy,
             "by_rr_band":  by_rr_band,
+            "by_product_type": by_product_type,
+            "by_pool": by_pool,
+            "etf_exposure_ticker_limit": _ETF_EXPOSURE_TICKER_LIMIT,
         },
     )

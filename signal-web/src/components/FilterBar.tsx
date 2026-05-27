@@ -34,11 +34,14 @@ function FilterTab({ label, active, onClick, small }: FilterTabProps) {
 }
 
 interface Props {
+  assetGroups: string[];
   strategies: string[];
   timeframes: string[];
+  activeAssetGroup: string;
   activeStrategy: string;
   activeTimeframe: string;
   sortBy: string;
+  onAssetGroup: (s: string) => void;
   onStrategy: (s: string) => void;
   onTimeframe: (t: string) => void;
   onSort: (s: string) => void;
@@ -53,8 +56,10 @@ const SORT_OPTIONS: [string, string][] = [
 ];
 
 export default function FilterBar({
+  assetGroups,
   strategies, timeframes,
-  activeStrategy, activeTimeframe, sortBy,
+  activeAssetGroup, activeStrategy, activeTimeframe, sortBy,
+  onAssetGroup,
   onStrategy, onTimeframe, onSort,
 }: Props) {
   return (
@@ -66,6 +71,12 @@ export default function FilterBar({
       alignItems: 'center',
       flexWrap: 'nowrap',
     }}>
+      <div style={{ display: 'flex', flexShrink: 0 }}>
+        {assetGroups.map(s => (
+          <FilterTab key={s} label={s} active={activeAssetGroup === s} onClick={() => onAssetGroup(s)} />
+        ))}
+      </div>
+      <div style={{ width: '1px', height: '24px', background: 'var(--hairline)', margin: '0 16px', flexShrink: 0 }} />
       <div style={{ display: 'flex', flexShrink: 0 }}>
         {strategies.map(s => (
           <FilterTab key={s} label={s} active={activeStrategy === s} onClick={() => onStrategy(s)} />
