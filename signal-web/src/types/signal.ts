@@ -120,6 +120,13 @@ export interface SignalFreshness {
   plan_expired: boolean;
 }
 
+export interface SignalComponentPayload {
+  key?: string | null;
+  label?: string | null;
+  status?: string | null;
+  value?: string | null;
+}
+
 export interface Signal {
   ticker: string;
   name: string | null;
@@ -145,6 +152,7 @@ export interface Signal {
   atr_bucket?: string | null;          // LOW/MID/HIGH (종목별 변동성 구간)
   // 신호 신선도 메타
   signal_freshness?: SignalFreshness;
+  signal_components?: SignalComponentPayload[] | null;
 }
 
 export interface MarketIndex {

@@ -42,6 +42,7 @@ describe('adaptSignal', () => {
     expect(c.signalStrength).toBeNull();
     expect(c.decisionRegretScore).toBeNull();
     expect(c.naverUrl).toBeNull();
+    expect(c.signalComponents).toEqual([]);
   });
 
   test('name이 null이면 ticker로 fallback', () => {
@@ -151,6 +152,21 @@ describe('adaptSignal', () => {
     const c = adaptSignal(signal, '2026-05-03');
     expect(c.perTickerRegime).toBe('UPTREND_STRONG');
     expect(c.atrBucket).toBe('HIGH');
+  });
+
+  test('signal_components를 카드 props로 매핑', () => {
+    const signal: Signal = {
+      ...minimal,
+      signal_components: [
+        { key: 'double_bottom', label: '쌍바닥', status: 'ok', value: null },
+        { key: 'bullish_engulfing', label: '장악형 양봉', status: 'ok', value: null },
+      ],
+    };
+    const c = adaptSignal(signal, '2026-05-03');
+    expect(c.signalComponents).toEqual([
+      { key: 'double_bottom', label: '쌍바닥', status: 'ok', value: null },
+      { key: 'bullish_engulfing', label: '장악형 양봉', status: 'ok', value: null },
+    ]);
   });
 });
 

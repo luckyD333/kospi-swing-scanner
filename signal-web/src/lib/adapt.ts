@@ -10,6 +10,22 @@ export interface SignalComponent {
   value: string | null;
 }
 
+export function normalizeSignalComponents(raw: unknown): SignalComponent[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c): c is Record<string, unknown> =>
+      c != null && typeof c === 'object' && typeof (c as Record<string, unknown>).key === 'string',
+    )
+    .map((c) => ({
+      key: String(c.key),
+      label: typeof c.label === 'string' ? c.label : String(c.key),
+      status: (c.status === 'ok' || c.status === 'warn' || c.status === 'miss')
+        ? c.status
+        : 'ok',
+      value: typeof c.value === 'string' ? c.value : null,
+    }));
+}
+
 export interface MatchProps {
   strategy: {
     id: string;
@@ -103,6 +119,7 @@ export interface CardProps {
   atr14: number | null;
   changePct: number | null;
   currentPrice: number | null;
+  signalComponents: SignalComponent[];
   strategyId: string;
   strategyLabel: string;
   strategyCategory: string;
@@ -208,18 +225,7 @@ export function adaptDetailV2(raw: any): DetailProps {
           label: getFactorLabel(f.key),
         }))
       : null,
-    signalComponents: Array.isArray(m.signal_components)
-      ? (m.signal_components as any[])
-          .filter((c) => c && typeof c.key === 'string')
-          .map((c) => ({
-            key: String(c.key),
-            label: typeof c.label === 'string' ? c.label : c.key,
-            status: (c.status === 'ok' || c.status === 'warn' || c.status === 'miss')
-              ? c.status
-              : 'ok',
-            value: c.value ?? null,
-          }))
-      : [],
+    signalComponents: normalizeSignalComponents(m.signal_components),
     signalStatus: (m.signal_status ?? 'VALID') as SignalStatus,
     signalFreshness: m.signal_freshness ?? undefined,
   }));
@@ -307,18 +313,7 @@ export function adaptDetailLegacy(raw: any): DetailProps {
           label: getFactorLabel(f.key),
         }))
       : null,
-    signalComponents: Array.isArray(raw.signal_components)
-      ? (raw.signal_components as any[])
-          .filter((c: any) => c && typeof c.key === 'string')
-          .map((c: any) => ({
-            key: String(c.key),
-            label: typeof c.label === 'string' ? c.label : c.key,
-            status: (c.status === 'ok' || c.status === 'warn' || c.status === 'miss')
-              ? c.status
-              : 'ok',
-            value: c.value ?? null,
-          }))
-      : [],
+    signalComponents: normalizeSignalComponents(raw.signal_components),
     signalStatus: card.signalStatus,
   };
 
@@ -465,6 +460,7 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     atr14: tp.atr_14 ?? null,
     changePct: lq?.change_pct ?? null,
     currentPrice: lq?.current_price ?? null,
+    signalComponents: normalizeSignalComponents(signal.signal_components),
     rsi: tp.rsi_14 ?? null,
     rsi1d: tp.rsi_1d ?? (signal.strategy.timeframe === '1D' ? tp.rsi_14 : null),
     rsi1h: tp.rsi_1h ?? (signal.strategy.timeframe === '1h' ? tp.rsi_14 : null),
