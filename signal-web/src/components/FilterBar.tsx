@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { AssetGroup } from '@/lib/asset-filter';
 import { ts } from '@/lib/typography';
 
 interface FilterTabProps {
@@ -34,14 +35,14 @@ function FilterTab({ label, active, onClick, small }: FilterTabProps) {
 }
 
 interface Props {
-  assetGroups: string[];
+  assetGroups: AssetGroup[];
   strategies: string[];
   timeframes: string[];
-  activeAssetGroup: string;
+  activeAssetGroup: AssetGroup;
   activeStrategy: string;
   activeTimeframe: string;
   sortBy: string;
-  onAssetGroup: (s: string) => void;
+  onAssetGroup: (s: AssetGroup) => void;
   onStrategy: (s: string) => void;
   onTimeframe: (t: string) => void;
   onSort: (s: string) => void;

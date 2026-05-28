@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
 import type { CardProps } from '@/lib/adapt';
+import { ASSET_GROUPS, DEFAULT_ASSET_GROUP, filterCardsByAssetGroup, type AssetGroup } from '@/lib/asset-filter';
 import TopNav from './TopNav';
 import FilterBar from './FilterBar';
 import TickerCard from './TickerCard';
@@ -23,16 +24,9 @@ interface Props {
   generatedAt?: string;
 }
 
-
-
-const ASSET_GROUPS = ['주식', 'ETF'];
-
-const isEtfCard = (c: CardProps): boolean =>
-  c.pool === 'ETN_ETF' || c.productType === 'ETF' || c.productType === 'ETN';
-
 export default function CatalogClient({ cards, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, scanFreshnessWarning, generatedAt }: Props) {
   const router = useRouter();
-  const [assetGroup, setAssetGroup] = useState('주식');
+  const [assetGroup, setAssetGroup] = useState<AssetGroup>(DEFAULT_ASSET_GROUP);
   const [strategy, setStrategy] = useState('ALL');
   const [timeframe, setTimeframe] = useState('ALL');
   const [sortBy, setSortBy] = useState('composite');
@@ -53,7 +47,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
   );
 
   const assetCards = useMemo(
-    () => activeCards.filter(c => assetGroup === 'ETF' ? isEtfCard(c) : !isEtfCard(c)),
+    () => filterCardsByAssetGroup(activeCards, assetGroup),
     [activeCards, assetGroup],
   );
 
