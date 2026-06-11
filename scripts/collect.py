@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
+
 # 프로젝트 루트를 sys.path에 추가 (scripts/ 하위에서 직접 실행 지원)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
