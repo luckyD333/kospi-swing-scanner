@@ -386,8 +386,10 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         market_indices_collected_at = datetime.now().isoformat()
 
         # VIX 90일 close history → fear/greed Volatility 컴포넌트 입력
+        vix_last: float | None = None  # axes CRISIS 판정 입력 (수집 실패 시 None 유지)
         try:
             vix_history = _fetch_vix_history()
+            vix_last = _vix_last_from_history(vix_history)
             if vix_history is not None and not vix_history.empty:
                 macro_dir = Path(cfg.cache_root) / "macro"
                 macro_dir.mkdir(parents=True, exist_ok=True)
@@ -414,7 +416,10 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         axes_payload: dict | None = None
         try:
             from core.decision.market_breadth import compute_market_breadth
-            from core.decision.market_axes import compute_trend_score, compute_volatility_regime
+            from core.decision.market_axes import (
+                compute_trend_score,
+                compute_volatility_regime_with_vix,
+            )
             from core.decision.market_regime import build_market_proxy
 
             breadth_1d = compute_market_breadth(cfg.cache_root, tf="1D")
@@ -424,7 +429,9 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             proxy_1d = build_market_proxy(cfg.cache_root)
             if not proxy_1d.empty:
                 trend_1d = compute_trend_score(proxy_1d["mean_return"])
-                vol_1d = compute_volatility_regime(proxy_1d["rolling_std"])
+                vol_1d = compute_volatility_regime_with_vix(
+                    proxy_1d["rolling_std"], vix_last,
+                )
                 axes_payload = {"1d": {"trend_score": trend_1d, "volatility_regime": vol_1d}}
         except Exception as e:
             logger.warning(f"breadth/axes 계산 실패 (skip): {e}")
@@ -719,6 +726,16 @@ def _fetch_vix() -> dict | None:
         return {"value": close, "change_pct": round(change_pct, 2)}
     except Exception as e:
         logger.warning(f"VIX 수집 실패 (skip): {e}")
+        return None
+
+
+def _vix_last_from_history(vix_history: pd.DataFrame | None) -> float | None:
+    """VIX 히스토리 DataFrame → 마지막 close. 결측/포맷 이상 시 None."""
+    if vix_history is None or vix_history.empty or "close" not in vix_history.columns:
+        return None
+    try:
+        return float(vix_history["close"].iloc[-1])
+    except (TypeError, ValueError):
         return None
 
 
