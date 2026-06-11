@@ -21,8 +21,25 @@ from core.strategy_base import Candidate
 
 from .aggregator import RankedCandidate
 from .config import WeightConfig
+from .product_type import is_inverse_product_name
 
 RegretFn = Callable[[Candidate], dict[str, float]]
+
+# 인버스 자산용 regime 행 반전 맵 (방향성 라벨만). 나머지는 identity.
+_INVERT_REGIME = {
+    "BULL": "BEAR", "BEAR": "BULL",                       # 3-label
+    "UPTREND_STRONG": "DOWNTREND_STRONG",                  # 7-label
+    "UPTREND_WEAK": "DOWNTREND_WEAK",
+    "DOWNTREND_STRONG": "UPTREND_STRONG",
+    "DOWNTREND_WEAK": "UPTREND_WEAK",
+}
+
+
+def invert_regime(regime: str | None) -> str | None:
+    """인버스 자산용 regime 행 반전. 방향 없는 라벨·미지 라벨은 그대로."""
+    if regime is None:
+        return None
+    return _INVERT_REGIME.get(regime, regime)
 
 
 def compute_ensemble_count(
@@ -83,18 +100,26 @@ def compute_regime_aware_ensemble_score(
     """
     scores: dict[str, float] = {}
     for strategy_name, cands in candidates_by_strategy.items():
-        w = weight_config.effective_strategy_weight(
+        w_normal = weight_config.effective_strategy_weight(
             strategy=strategy_name,
             regime=regime,
             fng_label=fng_label,
         )
-        if w <= 0:
-            continue  # 차단된 전략은 무시
+        # 인버스 자산은 regime 행을 반전 적용 (BEAR 호황 자산 — S6).
+        w_inverse = weight_config.effective_strategy_weight(
+            strategy=strategy_name,
+            regime=invert_regime(regime),
+            fng_label=fng_label,
+        )
         seen_in_strategy: set[str] = set()
         for c in cands:
-            if c.ticker not in seen_in_strategy:
-                scores[c.ticker] = scores.get(c.ticker, 0.0) + w
-                seen_in_strategy.add(c.ticker)
+            if c.ticker in seen_in_strategy:
+                continue
+            w = w_inverse if is_inverse_product_name(c.name) else w_normal
+            if w <= 0:
+                continue  # 차단된 (전략, 자산방향) 조합은 무시
+            scores[c.ticker] = scores.get(c.ticker, 0.0) + w
+            seen_in_strategy.add(c.ticker)
     return scores
 
 

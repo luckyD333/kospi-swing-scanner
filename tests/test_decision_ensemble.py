@@ -13,11 +13,14 @@ import pandas as pd
 import pytest
 
 from core.decision.aggregator import RankedCandidate
+from core.decision.config import WeightConfig
 from core.decision.ensemble import (
     apply_minimax_regret,
     auto_volatility_scenarios,
     compute_ensemble_count,
+    compute_regime_aware_ensemble_score,
     compute_weighted_ensemble_score,
+    invert_regime,
 )
 from core.strategy_base import Candidate
 
@@ -197,3 +200,66 @@ def test_weighted_ensemble_empty_weights_equals_count():
     scores = compute_weighted_ensemble_score(by_strat, {})
     assert scores["005930"] == pytest.approx(2.0)
     assert scores["000660"] == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# 인버스 ETF regime 반전 (S6)
+# ---------------------------------------------------------------------------
+
+def _wc(strategy_weights_by_regime: dict) -> WeightConfig:
+    """테스트용 WeightConfig — priorities 합=100 검증 통과용 더미 1개."""
+    from core.decision.config import Priority
+
+    return WeightConfig(
+        priorities=[Priority(key="score", weight=100.0,
+                             direction="higher_better", label="점수")],
+        must_have=[],
+        strategy_weights={},
+        strategy_weights_by_regime=strategy_weights_by_regime,
+        fng_modifier={},
+    )
+
+
+def test_BEAR에서_인버스_ETF는_BULL행_가중치를_받는다():
+    """인버스 자산은 약세장이 호황 — regime 반전행 적용 검증."""
+    wc = _wc({
+        "BULL": {"strategy_three_trend_following": 1.4},
+        "BEAR": {"strategy_three_trend_following": 0.4},
+    })
+    scores = compute_regime_aware_ensemble_score(
+        {"strategy_three_trend_following": [
+            _cand("005930", name="삼성전자"),
+            _cand("114800", name="KODEX 인버스"),
+        ]},
+        wc, regime="BEAR", fng_label=None,
+    )
+    assert scores["005930"] == pytest.approx(0.4)   # 정방향: BEAR 행
+    assert scores["114800"] == pytest.approx(1.4)   # 인버스: BULL 행 (반전)
+
+
+def test_regime_None이면_인버스도_기존_동작():
+    wc = _wc({})
+    scores = compute_regime_aware_ensemble_score(
+        {"strategy_three_trend_following": [_cand("114800", name="KODEX 인버스")]},
+        wc, regime=None, fng_label=None,
+    )
+    assert scores["114800"] == pytest.approx(1.0)
+
+
+def test_invert_regime_은_weights_yml_라벨을_전수_커버한다():
+    """반전 결과가 매트릭스 밖 키로 새는 것을 방지 (리뷰 R1-3)."""
+    import yaml
+
+    with open("weights.yml", encoding="utf-8") as f:
+        matrix = yaml.safe_load(f)["strategy_weights_by_regime"]
+    for label in matrix:
+        inverted = invert_regime(label)
+        assert inverted == label or inverted in matrix, (
+            f"{label} 반전 결과 {inverted} 가 weights.yml 매트릭스에 없음"
+        )
+
+
+def test_방향없는_라벨은_반전되지_않는다():
+    for label in ("NEUTRAL", "RANGE", "RANGE_TIGHT", "MIXED"):
+        assert invert_regime(label) == label
+    assert invert_regime(None) is None
