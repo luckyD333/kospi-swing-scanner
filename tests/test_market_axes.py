@@ -5,7 +5,11 @@ from __future__ import annotations
 
 import pandas as pd
 
-from core.decision.market_axes import compute_trend_score, compute_volatility_regime
+from core.decision.market_axes import (
+    compute_trend_score,
+    compute_volatility_regime,
+    compute_volatility_regime_with_vix,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -94,3 +98,31 @@ def test_volatility_all_nan_returns_mid():
 def test_volatility_single_value_returns_high():
     """단일 값 → percentile 1.0 → HIGH."""
     assert compute_volatility_regime(pd.Series([3.0])) == "HIGH"
+
+
+# ---------------------------------------------------------------------------
+# compute_volatility_regime_with_vix — CRISIS 승격
+# ---------------------------------------------------------------------------
+
+def test_VIX_30_이상이면_CRISIS_승격():
+    """VIX 32 → 기존 라벨(HIGH) 대신 CRISIS."""
+    std = pd.Series([1.0] * 90 + [2.0])  # 기존 라벨 HIGH 영역
+    assert compute_volatility_regime_with_vix(std, vix_last=32.0) == "CRISIS"
+
+
+def test_VIX_경계값_30도_CRISIS():
+    """경계값 VIX=30.0 포함."""
+    std = pd.Series([1.0] * 91)
+    assert compute_volatility_regime_with_vix(std, vix_last=30.0) == "CRISIS"
+
+
+def test_VIX_None_이면_기존_라벨_유지():
+    """VIX 수집 실패(None) → 승격 없이 기존 3단계 fallback."""
+    std = pd.Series([1.0] * 90 + [2.0])
+    assert compute_volatility_regime_with_vix(std, vix_last=None) == "HIGH"
+
+
+def test_평시_VIX_는_기존_3단계_그대로():
+    """VIX 15 (평시) → 기존 라벨 LOW 그대로."""
+    std = pd.Series([5.0] * 50 + [1.0])
+    assert compute_volatility_regime_with_vix(std, vix_last=15.0) == "LOW"

@@ -47,3 +47,20 @@ def compute_volatility_regime(rolling_std: pd.Series) -> str:
     if pct <= 0.3:
         return "LOW"
     return "MID"
+
+
+_VIX_CRISIS_LEVEL = 30.0  # CBOE 통상 위기 구간 관례
+
+
+def compute_volatility_regime_with_vix(
+    rolling_std: pd.Series,
+    vix_last: float | None,
+) -> str:
+    """LOW/MID/HIGH 에 VIX 기반 CRISIS 승격 결합.
+
+    vix_last ≥ 30 → "CRISIS". None(수집 실패·파일 부재)이면
+    기존 compute_volatility_regime 라벨 그대로 (기능 저하, 오류 아님).
+    """
+    if vix_last is not None and vix_last >= _VIX_CRISIS_LEVEL:
+        return "CRISIS"
+    return compute_volatility_regime(rolling_std)
