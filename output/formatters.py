@@ -41,6 +41,8 @@ _CSV_FIELDS = [
     "rr_ratio", "rr_band", "atr_14", "source_strategy",
     # 펀더멘털 (Phase 1, runner 사후 주입). UI에서 활용.
     "per", "roe", "foreign_pct", "naver_url",
+    # MAX 급등 가드 (runner 사후 주입). 과도 차단 모니터링용.
+    "max_guard", "surge_3d_pct", "max_daily_5d_pct",
 ]
 
 
@@ -73,6 +75,15 @@ def _candidate_to_row(c: Candidate, rank: int) -> dict:
         "roe": meta.get("roe"),
         "foreign_pct": meta.get("foreign_pct"),
         "naver_url": meta.get("naver_url"),
+        "max_guard": meta.get("max_guard", ""),
+        "surge_3d_pct": (
+            round(meta["surge_3d_pct"], 2)
+            if meta.get("surge_3d_pct") is not None else ""
+        ),
+        "max_daily_5d_pct": (
+            round(meta["max_daily_5d_pct"], 2)
+            if meta.get("max_daily_5d_pct") is not None else ""
+        ),
     }
 
 
