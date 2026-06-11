@@ -34,11 +34,28 @@ from .decision.atr_volatility import bucket_atr, compute_atr_pct
 from .decision.factors.liquidity import compute_liquidity_score as _compute_liquidity_score
 from .decision.factors.momentum_3m import compute_momentum_3m as _compute_momentum_3m
 from .decision.product_type import ProductType
+from .decision.max_filter import MaxFilterConfig, evaluate_surge
 from .decision.tradability_filter import enrich_metadata as _enrich_tradability
 from .strategy_base import Candidate, ScanContext, Strategy
 from .universe import UniverseFilter, build_universe
 
 logger = logging.getLogger(__name__)
+
+
+_MAX_FILTER_CFG = MaxFilterConfig()
+
+
+def _apply_max_guard(cand, ohlcv_1d, cfg=_MAX_FILTER_CFG) -> bool:
+    """MAX effect 가드 적용. False 반환 시 후보 제외. metadata에 판정 기록."""
+    v = evaluate_surge(ohlcv_1d, cfg)
+    cand.metadata["surge_3d_pct"] = v.surge_3d_pct
+    cand.metadata["max_daily_5d_pct"] = v.max_daily_5d_pct
+    cand.metadata["max_guard"] = v.action
+    if v.action == "EXCLUDE":
+        return False
+    if v.action == "PENALTY":
+        cand.score *= v.score_mult
+    return True
 
 
 def _none_if_nan(value):
@@ -367,6 +384,9 @@ class ScanRunner:
                     cand.metadata["atr_bucket"] = bucket_atr(
                         atr_distribution.get(cand.ticker), atr_distribution,
                     )
+                # MAX effect 가드 — 메타 주입 루프 종료 후 일괄 필터 (R1-1: 루프 내 변형 금지)
+                candidates = [c for c in candidates if _apply_max_guard(
+                    c, ohlcv_by_tf.get("1D", {}).get(c.ticker))]
                 result.candidates_by_strategy_tf[(strat.name, tf)] = candidates
                 # legacy 1D alias
                 if tf == "1D":
@@ -397,6 +417,9 @@ class ScanRunner:
                                 cand.metadata["atr_bucket"] = bucket_atr(
                                     atr_distribution.get(cand.ticker), atr_distribution,
                                 )
+                            # MAX effect 가드 — fallback 경로에도 동일 적용
+                            fb_candidates = [c for c in fb_candidates if _apply_max_guard(
+                                c, ohlcv_by_tf.get("1D", {}).get(c.ticker))]
                             result.candidates_by_strategy_tf[(fb_strat.name, fb_tf)] = fb_candidates
                             if fb_tf == "1D":
                                 result.candidates_by_strategy[fb_strat.name] = fb_candidates
