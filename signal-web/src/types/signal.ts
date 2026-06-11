@@ -191,7 +191,7 @@ export interface BreadthScore {
 
 export interface AxesScore {
   trend_score: number;
-  volatility_regime: 'LOW' | 'MID' | 'HIGH';
+  volatility_regime: 'LOW' | 'MID' | 'HIGH' | 'CRISIS';
 }
 
 export type FearGreedLabel =

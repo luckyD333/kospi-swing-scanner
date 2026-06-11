@@ -66,6 +66,12 @@ const regimeColor = (regime: string): string =>
   : regime === 'BEAR' ? 'var(--loss)'
   : 'var(--flat)';
 
+// 변동성 축 배지 — LOW/MID 는 노이즈 방지를 위해 비표시
+const VOL_BADGE: Record<string, { label: string; color: string } | undefined> = {
+  HIGH: { label: '변동성 높음', color: '#ff9f0a' },
+  CRISIS: { label: '이벤트 장세 — 갭 리스크 주의', color: 'var(--loss)' },
+};
+
 export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, onHome, onOpenAbout }: Props) {
   const entries = Object.entries(marketIndices);
   const sortedRegimes = marketRegime
@@ -73,6 +79,7 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
     : [];
   const hasFearGreed = fearGreed != null;
   const hasRegime = hasFearGreed || sortedRegimes.length > 0;
+  const volBadge = VOL_BADGE[marketAxes?.['1d']?.volatility_regime ?? ''];
 
   // 시장 지표 아이템 — borderless=true 이면 구분선·패딩 없이 gap만 사용 (서브열용)
   function MarketItems({ borderless }: { borderless?: boolean }) {
@@ -142,6 +149,21 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
               </div>
             );
           })
+        )}
+
+        {volBadge && (
+          <span style={{
+            ...ts('caption-sm', volBadge.color),
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            padding: '2px 8px',
+            marginLeft: borderless ? 0 : '12px',
+            border: `1px solid ${volBadge.color}`,
+            borderRadius: '3px',
+            letterSpacing: '0.05em',
+          }}>
+            {volBadge.label}
+          </span>
         )}
       </>
     );
