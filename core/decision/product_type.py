@@ -63,6 +63,11 @@ def is_swing_ineligible_product_name(name: str) -> bool:
     return any(kw.upper() in normalized for kw in _SWING_INELIGIBLE_PRODUCT_KEYWORDS)
 
 
+def is_inverse_product_name(name: str) -> bool:
+    """종목명 기반 인버스 ETF/ETN 판별. 시장 하락 시 상승하는 역방향 상품."""
+    return bool(name) and "인버스" in name
+
+
 def classify(ticker: str, name: str, etf_list: set[str] | None = None) -> ProductType:
     """ticker + 종목명 + ETF API 명단 → ProductType.
 

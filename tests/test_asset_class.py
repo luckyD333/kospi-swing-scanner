@@ -5,7 +5,20 @@ Plan Task 1 TDD — Red 단계.
 """
 from __future__ import annotations
 
-from core.decision.product_type import AssetClass, ProductType, classify_asset_class
+from core.decision.product_type import (
+    AssetClass,
+    ProductType,
+    classify_asset_class,
+    is_inverse_product_name,
+)
+
+
+def test_인버스_ETF_이름_판별():
+    assert is_inverse_product_name("KODEX 인버스") is True
+    assert is_inverse_product_name("KODEX 200선물인버스2X") is True
+    assert is_inverse_product_name("KODEX 200") is False
+    assert is_inverse_product_name("삼성전자") is False
+    assert is_inverse_product_name("") is False
 
 
 class TestAssetClassEnum:
