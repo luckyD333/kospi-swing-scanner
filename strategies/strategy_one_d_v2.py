@@ -45,7 +45,7 @@ class StrategyOneDv2Config:
     detector_name: str = "simple"           # "simple" | "fractal" | "prominence"
     min_lookback_bars: int = 25
     prominence_pct: float = 0.015
-    engulf_strict: bool = False             # False: 완화 기준(전일 종가 +0.5% 돌파) (완화: True→False, 2026-05-14)
+    engulf_strict: bool = True              # True: 엄격 장악형. 완화(False)는 r1/r2 fallback 담당 (True→False 2026-05-14 → WF FAIL(OOS decay 2.18)로 복원 2026-06-12)
     db_freshness: int = 2                   # DoubleBottomSimple freshness
     db_price_tolerance: float = 0.03        # DoubleBottomSimple price_tolerance
     use_rr_filter: bool = True              # RR < min_rr_ratio 후보 제거

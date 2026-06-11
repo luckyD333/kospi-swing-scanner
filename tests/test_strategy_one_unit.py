@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from backtest_engine.scenarios import ScenarioBuilder
 from core.strategy_base import ScanContext
+from strategies import REGISTRY
 from strategies.strategy_one_d_v2 import StrategyOneDv2, StrategyOneDv2Config
 
 
@@ -133,3 +134,25 @@ def test_config_does_not_expose_dead_conditional_time_stop_option():
     assert not hasattr(cfg, "use_conditional_time_stop"), (
         "use_conditional_time_stop 은 live scan 에 영향이 없으므로 제거되어야 함"
     )
+
+
+def test_default_engulf_strict_is_true():
+    """WF 롤백 회귀 가드: engulf_strict 기본값은 True (엄격 장악형).
+
+    Why: 2026-05-14 완화(True→False)가 9윈도우 WF에서 OOS decay 2.18 FAIL
+    (Train Sharpe +0.7 vs Test -0.4 부호 반전). backtest_engine.StrategyDConfig
+    기본값(True)과도 재정렬.
+    """
+    assert StrategyOneDv2Config().engulf_strict is True
+
+
+def test_r1_fallback_relaxes_engulf_strict():
+    """r1 fallback 은 base 와 달리 engulf_strict 를 완화해야 함 (차별성 보장).
+
+    Why: base 기본값이 False 인 동안 r1 이 base 와 동일 동작 — "0건 시 완화
+    재시도" 체인 1단계가 no-op 이었음.
+    """
+    base = REGISTRY["strategy_one_d_v2"]()
+    r1 = REGISTRY["strategy_one_d_v2_r1"]()
+    assert base.config.engulf_strict is True
+    assert r1.config.engulf_strict is False
