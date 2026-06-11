@@ -85,6 +85,8 @@ strategy_weights:
 # regime 미지정 또는 등록 안 된 strategy 는 위 strategy_weights 로 fallback.
 # weight 0.0 = 해당 regime 에서 전략 신호 무시.
 strategy_weights_by_regime:
+  # 인버스 ETF(이름에 "인버스")는 ensemble 에서 regime 행을 반전 적용 (BULL↔BEAR,
+  # UPTREND↔DOWNTREND) — core/decision/ensemble.py invert_regime(). 시장 하락이 호황.
   # ----- 3-label (시장 전체 regime, runner 활성) -----
   BULL:
     # score >= 70 — 강세장. 추세 추종 강화, mean reversion 약화
