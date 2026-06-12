@@ -69,6 +69,47 @@ def test_rr_band_mapping():
         assert payload.signals[0].trade_plan.rr_band == expected, f"raw={raw}"
 
 
+def test_max_chase_set_when_limit_absent_and_immediate():
+    """감사 F6: limit 부재 + IMMEDIATE → max_chase = entry×1.03 tick 내림 + '상한 지정가' 라벨."""
+    snap = _make_snapshot()  # current_price=7120
+    c = _make_candidate()
+    c.entry_price = 7120     # entry≈현재가 → IMMEDIATE
+    c.limit_entry = None
+    c.limit_stop = None
+    payload = build_signals_payload(snap, {"strategy_one_d_v2": [c]})
+    tp = payload.signals[0].trade_plan
+    assert tp.order_type_intent == "IMMEDIATE"
+    assert tp.max_chase == 7330  # floor_to_tick(7120×1.03=7333.6) — 5천~1만원 tick 10
+    assert tp.order_type_label_ko == "상한 지정가"
+
+
+def test_max_chase_none_when_limit_present():
+    """limit_entry 있으면 갭상승은 구조적 차단 — max_chase 불필요."""
+    snap = _make_snapshot()
+    c = _make_candidate()
+    c.entry_price = 7120
+    c.limit_entry = 7000
+    c.limit_stop = 6800
+    payload = build_signals_payload(snap, {"strategy_one_d_v2": [c]})
+    tp = payload.signals[0].trade_plan
+    assert tp.max_chase is None
+    assert tp.order_type_label_ko != "상한 지정가"
+
+
+def test_max_chase_none_for_breakout_intent():
+    """BREAKOUT(역지정가)은 돌파 매수가 설계 의도 — max_chase 미적용, 라벨 유지."""
+    snap = _make_snapshot()
+    c = _make_candidate()
+    c.entry_price = 7200     # 7200/7120=1.011 > 1.005 → BREAKOUT
+    c.limit_entry = None
+    c.limit_stop = None
+    payload = build_signals_payload(snap, {"strategy_one_d_v2": [c]})
+    tp = payload.signals[0].trade_plan
+    assert tp.order_type_intent == "BREAKOUT"
+    assert tp.max_chase is None
+    assert tp.order_type_label_ko == "역지정가"
+
+
 def test_fmt_krw():
     assert _fmt_krw(475300000000) == "4,753억"
     assert _fmt_krw(1200000000000) == "1조 2,000억"

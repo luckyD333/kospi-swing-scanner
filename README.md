@@ -83,7 +83,7 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 ### 매수 (BUY) 방법
 
 1. **시점**: 전날 장 마감 후 신호 생성 → 다음 거래일 **T+1 시초가(open) 매수**
-2. **가격**: `trade_plan.entry` (EOD 종가 기준 신호 가격). `limit_entry` 권장값 있으면 지정가, 없으면 시장가
+2. **가격**: `trade_plan.entry` (EOD 종가 기준 신호 가격). `limit_entry` 권장값 있으면 지정가. 없으면 `max_chase`(신호가 +3%, tick 내림) **상한 지정가** — T+1 시가가 max_chase 초과 갭상승이면 진입 보류 (WF 검증: 갭 추격 trade 는 순손실 집단, `docs/audit/trading_system_audit.md` F6)
 3. **차단**: Detail 페이지에 **"진입 비추천 (강한 하락 추세)"** 표시되면 매수 X (per_ticker_regime = DOWNTREND_STRONG)
 4. **국면 가중치**: `weights.yml` 의 `strategy_weights_by_regime` 매트릭스로 BULL/NEUTRAL/BEAR 자동 조정. BEAR 에서 S5=0.0 자동 차단
 

@@ -148,6 +148,7 @@ export interface CardProps {
   // PR-C (P1-1): 주문 타입 의도
   orderTypeIntent: string | null;
   orderTypeLabel: string | null;
+  maxChase: number | null;       // 감사 F6: 갭상승 추격 상한 (limit 부재 + IMMEDIATE 한정)
   // PR-B (P0-2): 상품 유형 + 풀
   productType: string | null;
   pool: string | null;
@@ -492,6 +493,7 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     signalStatus: signal.signal_status ?? 'VALID',
     orderTypeIntent: tp.order_type_intent ?? null,
     orderTypeLabel: tp.order_type_label_ko ?? null,
+    maxChase: tp.max_chase ?? null,
     productType: signal.product_type ?? null,
     pool: signal.pool ?? null,
     tradabilityScore: signal.tradability_score ?? null,

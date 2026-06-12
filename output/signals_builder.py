@@ -37,6 +37,10 @@ from output.holding_recommender import (
     recommend_holding as _recommend_holding,
 )
 from output.signal_components import build_signal_components
+from strategies.price_utils import floor_to_tick
+
+# 감사 F6 갭상승 추격 상한 비율 — WF 검증 고정값 (threshold 튜닝은 unstable FAIL, 4da6020)
+_MAX_CHASE_GAP_PCT = 0.03
 
 # 모듈 cache — data/holding_recommendations.json 한 번 로드.
 # 파일 부재 시 빈 dict (recommend_holding 이 LOW_CONFIDENCE 반환).
@@ -843,6 +847,13 @@ def build_signals_payload(
             order_intent = OrderTypeIntent.IMMEDIATE
         order_label_ko = korean_label(order_intent)
 
+        # 감사 F6 (WF 검증 4da6020): limit 부재 + 시장가 의도 → 갭상승 추격 상한.
+        # T+1 시가가 max_chase 초과면 진입 보류 — '시장가' 대신 상한 지정가 안내
+        max_chase: int | None = None
+        if limit_entry is None and order_intent == OrderTypeIntent.IMMEDIATE:
+            max_chase = floor_to_tick(float(entry) * (1 + _MAX_CHASE_GAP_PCT))
+            order_label_ko = "상한 지정가"
+
         # Task 2: asset_class 분류 — candidate.metadata 의 product_type + 종목명 사용
         asset_class_value: str | None = None
         try:
@@ -868,6 +879,7 @@ def build_signals_payload(
                 limit_entry=limit_entry, limit_stop=limit_stop,
                 order_type_intent=order_intent.value,
                 order_type_label_ko=order_label_ko,
+                max_chase=max_chase,
             ),
             ranking=Ranking(
                 score=round(r_score, 1),

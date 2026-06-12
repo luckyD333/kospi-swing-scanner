@@ -81,7 +81,11 @@ class TradePlan(BaseModel):
     # PR-C (P1-1): 주문 타입 의도 + 한국어 UI 라벨.
     # entry vs current 비율 기반 분류 — 발주 client 부재이므로 출력 표시 한정.
     order_type_intent: Optional[str] = None      # BREAKOUT / PULLBACK / IMMEDIATE
-    order_type_label_ko: Optional[str] = None    # 역지정가 / 지정가 / 시장가
+    order_type_label_ko: Optional[str] = None    # 역지정가 / 지정가 / 시장가 / 상한 지정가
+
+    # 감사 F6: limit_entry 부재 + IMMEDIATE 시 갭상승 추격 상한 (entry×1.03 tick 내림).
+    # T+1 시가가 이 값 초과 갭상승이면 진입 보류 (WF 검증: 갭 추격 trade 순손실 집단)
+    max_chase: Optional[int] = None
 
     @model_validator(mode="after")
     def compute_derived(self) -> TradePlan:

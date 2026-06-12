@@ -49,7 +49,9 @@ export interface TradePlan {
   rr_band_limit?: string | null;
   // PR-C (P1-1): 주문 타입 의도
   order_type_intent?: string | null;    // BREAKOUT | PULLBACK | IMMEDIATE
-  order_type_label_ko?: string | null;  // 역지정가 | 지정가 | 시장가
+  order_type_label_ko?: string | null;  // 역지정가 | 지정가 | 시장가 | 상한 지정가
+  // 감사 F6: limit 부재 + IMMEDIATE 시 갭상승 추격 상한 (entry×1.03 tick 내림)
+  max_chase?: number | null;
 }
 
 export interface DecisionFactor {
