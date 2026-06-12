@@ -44,6 +44,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     productType, confirmationLevel, strategyId,
     currentPrice, signalDate, signalComponents,
     rsi, perTickerRegime, atrBucket,
+    orderTypeLabel, maxChase,
     recommendedHoldingBars, holdingConfidence, holdingStatus } = card;
 
   const statusBadge = (() => {
@@ -259,6 +260,16 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
               <div style={{ fontFamily: 'var(--f-mono-stack)', fontSize: '15px', color }}>
                 {fmtNum(val)}
               </div>
+              {i === 0 && orderTypeLabel && (
+                <div style={{
+                  ...ts('caption-sm', maxChase != null ? 'var(--link)' : 'var(--muted-soft)'),
+                  marginTop: '4px',
+                  lineHeight: 1.2,
+                }}>
+                  {orderTypeLabel}
+                  {maxChase != null ? ` ${fmtNum(maxChase)}` : ''}
+                </div>
+              )}
             </div>
           ))}
         </div>

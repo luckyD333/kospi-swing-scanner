@@ -70,6 +70,8 @@ export interface DetailProps {
     target2: number | null;
     rrRatio: number | null;
     rrBand: string | null;
+    orderTypeLabel: string | null;   // 역지정가 / 지정가 / 시장가 / 상한 지정가
+    maxChase: number | null;         // 감사 F6: 갭상승 추격 상한
   } | null;
   matches: MatchProps[];
   marketCapDisplay_detail?: string | null;
@@ -275,6 +277,8 @@ export function adaptDetailV2(raw: any): DetailProps {
           target2: firstMatch.trade_plan.target_2 ?? null,
           rrRatio: firstMatch.trade_plan.rr_ratio ?? null,
           rrBand: firstMatch.trade_plan.rr_band ?? null,
+          orderTypeLabel: firstMatch.trade_plan.order_type_label_ko ?? null,
+          maxChase: firstMatch.trade_plan.max_chase ?? null,
         }
       : null,
     matches,
@@ -353,6 +357,8 @@ export function adaptDetailLegacy(raw: any): DetailProps {
       target2: card.target2,
       rrRatio: card.rrRatio,
       rrBand: card.rrBand,
+      orderTypeLabel: card.orderTypeLabel,
+      maxChase: card.maxChase,
     },
     matches: [match],
     rsi1d: card.rsi1d,

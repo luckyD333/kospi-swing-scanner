@@ -277,3 +277,45 @@ describe('adaptDetailLegacy — signal_components', () => {
     ]);
   });
 });
+
+describe('주문 타입 라벨 + max_chase 매핑 (감사 F6)', () => {
+  test('adaptSignal: order_type_label_ko / max_chase 를 카드에 매핑', () => {
+    const sig: Signal = {
+      ...minimal,
+      trade_plan: {
+        ...minimal.trade_plan,
+        order_type_intent: 'IMMEDIATE',
+        order_type_label_ko: '상한 지정가',
+        max_chase: 7330,
+      },
+    };
+    const c = adaptSignal(sig, '2026-06-12');
+    expect(c.orderTypeLabel).toBe('상한 지정가');
+    expect(c.maxChase).toBe(7330);
+  });
+
+  test('adaptDetailV2: topTradePlan 에 주문 타입 + max_chase 노출', () => {
+    const raw = {
+      ticker: '005930',
+      name: '삼성전자',
+      matches: [{
+        strategy: { id: 's', label: 'S', category: 'X', timeframe: '1D' },
+        trade_plan: {
+          entry: 7120, stop: 6820, target_1: 7580,
+          order_type_intent: 'IMMEDIATE',
+          order_type_label_ko: '상한 지정가',
+          max_chase: 7330,
+        },
+      }],
+      live_quote: { current_price: 7120, change_pct: 0.5, volume: 100, market_cap_krw: null },
+    };
+    const detail = adaptDetailV2(raw);
+    expect(detail.topTradePlan?.orderTypeLabel).toBe('상한 지정가');
+    expect(detail.topTradePlan?.maxChase).toBe(7330);
+  });
+
+  test('max_chase 부재 시 null (기존 동작 보존)', () => {
+    const c = adaptSignal(minimal, '2026-06-12');
+    expect(c.maxChase).toBeNull();
+  });
+});

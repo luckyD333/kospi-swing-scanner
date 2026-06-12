@@ -174,6 +174,8 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
   const target2 = topTradePlan?.target2 ?? null;
   const rrRatio = topTradePlan?.rrRatio ?? null;
   const rrBand = topTradePlan?.rrBand ?? null;
+  const orderTypeLabel = topTradePlan?.orderTypeLabel ?? null;
+  const maxChase = topTradePlan?.maxChase ?? null;
 
   // 신호 신선도 (matches[0] 기반)
   const signalFreshness = matches?.[0]?.signalFreshness;
@@ -361,6 +363,26 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
               {sub && (
                 <div style={SUBLABEL}>
                   {sub}
+                </div>
+              )}
+              {i === 0 && orderTypeLabel && (
+                <div style={{ marginTop: '10px' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '3px 9px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    background: maxChase != null ? 'rgba(41,151,255,0.10)' : 'rgba(128,128,128,0.10)',
+                    color: maxChase != null ? 'var(--accent)' : 'var(--muted)',
+                  }}>
+                    {orderTypeLabel}
+                  </span>
+                  {maxChase != null && (
+                    <div style={{ ...SUBLABEL, marginTop: '6px' }}>
+                      추격 상한 {maxChase.toLocaleString('ko-KR')} · 초과 갭상승 시 진입 보류
+                    </div>
+                  )}
                 </div>
               )}
             </div>
