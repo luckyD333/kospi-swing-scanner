@@ -31,6 +31,7 @@ class ScanPnlConfig:
     commission_pct: float = 0.0030  # 왕복 0.30% (BacktestConfig 기본과 일치)
     lookback_buffer_days: int = 60  # S3·S4 lookback 30 + 여유 (S1=45, S3·S4 더 필요)
     market: str = "KOSPI"
+    max_entry_gap_pct: float | None = None  # T+1 open 갭상승 한도 — 초과 시 체결 skip (감사 F6). None=무제한
 
 
 def _build_ctx(
@@ -56,6 +57,28 @@ def _build_ctx(
         market_caps={t: 10_000.0 for t in universe},  # fragility 측정에는 무관
         market=market,
     )
+
+
+def _gap_exceeds(
+    full_df: pd.DataFrame,
+    signal_date: pd.Timestamp,
+    entry_price: float,
+    max_gap_pct: float | None,
+) -> bool:
+    """T+1 open(entry_price) 이 시그널 시점 마지막 close 대비 한도 초과 갭상승인지.
+
+    WF 검증 (2026-06-12, scripts/wf_validate_gap_filter.py): threshold 튜닝은
+    unstable FAIL — 고정값(예: 0.03) 사용 전제. 갭하락은 제한하지 않음 (음수 갭 허용).
+    """
+    if max_gap_pct is None:
+        return False
+    prior = full_df[full_df.index <= signal_date]
+    if prior.empty:
+        return False
+    signal_close = float(prior.iloc[-1]["close"])
+    if signal_close <= 0:
+        return False
+    return entry_price / signal_close - 1.0 > max_gap_pct
 
 
 def make_scan_pnl_scorer(
@@ -127,6 +150,8 @@ def make_scan_pnl_scorer(
                 exit_price = float(future.iloc[cfg.holding_bars]["close"])
                 if entry_price <= 0:
                     continue
+                if _gap_exceeds(full_df, d, entry_price, cfg.max_entry_gap_pct):
+                    continue  # 갭상승 추격 체결 제한 (감사 F6)
                 gross = (exit_price - entry_price) / entry_price
                 trades_pnl.append(gross - cfg.commission_pct)
 
@@ -161,6 +186,7 @@ class ScanBarConfig:
     market: str = "KOSPI"
     emit_stats: bool = False  # True 시 scorer.last_stats 로 exit_reason 분포 노출
     emit_per_trade: bool = False  # True 시 scorer.per_trade_records 로 trade 단위 기록 노출
+    max_entry_gap_pct: float | None = None  # T+1 open 갭상승 한도 — 초과 시 체결 skip (감사 F6). None=무제한
 
 
 def _track_position(
@@ -292,6 +318,8 @@ def make_scan_bartracker_scorer(
                 entry_price = float(future.iloc[0]["open"])
                 if entry_price <= 0:
                     continue
+                if _gap_exceeds(full_df, d, entry_price, cfg.max_entry_gap_pct):
+                    continue  # 갭상승 추격 체결 제한 (감사 F6)
 
                 exit_price, bars_held, reason = _track_position(
                     future,

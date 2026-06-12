@@ -448,3 +448,70 @@ class TestBarTrackerScorer:
         # 두 scorer 결과가 달라야 함 — BarTracker 가 stop/target 을 본다는 증거
         assert n_pnl > 1 and n_bt > 1
         assert sh_pnl != sh_bt
+
+
+# ---------- 갭상승 체결 제한 (감사 F6) ---------------------------------------
+
+
+def _make_gap_df(gap_pct: float, n_pre: int = 10, n_post: int = 7) -> pd.DataFrame:
+    """signal 봉까지 flat 100, T+1 open 이 100×(1+gap_pct) 로 갭상승 후 flat."""
+    n = n_pre + n_post
+    idx = pd.date_range("2025-01-01", periods=n, freq="B")
+    opens = np.full(n, 100.0)
+    closes = np.full(n, 100.0)
+    gapped = 100.0 * (1 + gap_pct)
+    opens[n_pre:] = gapped
+    closes[n_pre:] = gapped
+    return pd.DataFrame(
+        {
+            "open": opens,
+            "high": np.maximum(opens, closes) + 0.5,
+            "low": np.minimum(opens, closes) - 0.5,
+            "close": closes,
+            "volume": [1_000_000] * n,
+        },
+        index=idx,
+    )
+
+
+class TestMaxEntryGap:
+    """max_entry_gap_pct — T+1 open 이 시그널 close 대비 초과 갭상승 시 체결 skip."""
+
+    def _run(self, scorer_factory, config, gap_pct: float):
+        df = _make_gap_df(gap_pct)
+        scorer = scorer_factory(lambda _p: _AlwaysFirstStrategy(), config)
+        d = df.index[9]  # 마지막 flat 봉 (close=100)
+        return scorer({"AAA": df}, {}, d, d)
+
+    def test_bartracker_gap_above_threshold_skipped(self):
+        _sh, n = self._run(
+            make_scan_bartracker_scorer,
+            ScanBarConfig(top_n=1, lookback_buffer_days=0, max_entry_gap_pct=0.03),
+            gap_pct=0.05,
+        )
+        assert n == 0
+
+    def test_bartracker_gap_below_threshold_filled(self):
+        _sh, n = self._run(
+            make_scan_bartracker_scorer,
+            ScanBarConfig(top_n=1, lookback_buffer_days=0, max_entry_gap_pct=0.03),
+            gap_pct=0.02,
+        )
+        assert n == 1
+
+    def test_bartracker_default_none_keeps_gapped_entry(self):
+        """기본값 None — 기존 동작(무조건 체결) 보존."""
+        _sh, n = self._run(
+            make_scan_bartracker_scorer,
+            ScanBarConfig(top_n=1, lookback_buffer_days=0),
+            gap_pct=0.05,
+        )
+        assert n == 1
+
+    def test_pnl_scorer_gap_above_threshold_skipped(self):
+        _sh, n = self._run(
+            make_scan_pnl_scorer,
+            ScanPnlConfig(top_n=1, lookback_buffer_days=0, max_entry_gap_pct=0.03),
+            gap_pct=0.05,
+        )
+        assert n == 0
