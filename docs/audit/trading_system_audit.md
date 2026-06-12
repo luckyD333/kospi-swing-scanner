@@ -27,6 +27,12 @@
 - **참고**: S2~S5의 WF 검증 경로(`scan_adapter.py:126,292`)는 **T+1 open 진입**으로 올바름. 이 결함은 `BacktestEngine` 기반 S1 결과에만 해당.
 - **수정**: `BacktestConfig.next_bar_entry=True` 옵션 추가, T+1 open 체결 후 기존 결과와 delta 보고.
 - **방지 테스트**: same-bar vs next-bar gap 정량 테스트 (§9 제안 T-1).
+- **후속 조치 (2026-06-12)**: `next_bar_entry` 구현 완료 + T-1 테스트 3종
+  (`backtest_engine/tests/test_audit_next_bar_entry.py`). 측정 delta
+  (`scripts/audit_f1_entry_timing.py`, .cache_wf 341종목 2025-05-19~2026-05-19, 기본 config):
+  수익률 -0.022%p (-1.290→-1.312%), Sharpe -0.103 (-0.307→-0.411), 승률 -4.17%p (24 trades 중 1건 반전).
+  "+0.5~2%p/년 낙관" 추정 대비 포트폴리오 수준 영향 미미 — 단 24 trades 소표본·생존편향(F2) 데이터 한정.
+  이후 S1 WF/백테스트는 `next_bar_entry=True` 사용 권장.
 
 ### F2. [HIGH] Survivor bias — 현재 universe로 과거 1년 백테스트
 
@@ -215,13 +221,18 @@
   tests/test_audit_expanding_percentile.py \
   backtest_engine/tests/test_audit_negative_controls.py -v
 # → 6 passed in 2.89s
+
+# F1 후속 (2026-06-12): S1 진입 타이밍 delta 측정
+.venv/bin/python scripts/audit_f1_entry_timing.py --cache-root .cache_wf
+# → trades 24/24 동일, return -1.290%→-1.312% (-0.022%p), sharpe -0.307→-0.411 (-0.103),
+#   win_rate 45.83%→41.67% (-4.17%p), mdd -3.775%→-2.868% (+0.907%p)
 ```
 
 검증 근거 수집에 사용한 주요 명령: `grep "make_scan_pnl_scorer|make_scan_bartracker_scorer" scripts/` (WF scorer 사용처), `grep -l regime scripts/optimize_*.py scripts/wf_*.py` (0건 — regime 순환 오염 기각 근거), `git log -- weights.yml` (가중치 수기 작성 확인), WebSearch (2026 증권거래세·농특세율).
 
 ## 13. 라이브 트레이딩 전 최소 조건
 
-1. **F1**: `next_bar_entry` 구현 → S1 백테스트 재실행, same-bar 대비 delta를 수치로 공표. delta가 전략 edge보다 크면 S1 재평가.
+1. **F1**: `next_bar_entry` 구현 → S1 백테스트 재실행, same-bar 대비 delta를 수치로 공표. delta가 전략 edge보다 크면 S1 재평가. — ✅ 완료 (2026-06-12, F1 후속 조치 참조). delta 미미(수익률 -0.022%p)로 진입 타이밍은 S1 재평가 사유 아님. 단 측정 구간에서 S1 기본 config 자체가 음수 수익(-1.29%)인 점은 별도 모니터링 필요.
 2. **F4**: stop/target 의존 파라미터의 WF 결과를 bartracker로 전수 재검증. scorer 선택 정책 문서화.
 3. **F5/F6**: 슬리피지 0.1/0.2/0.3% 및 갭상승 체결 제한 시나리오에서 5전략 성과가 양(+)으로 유지되는지 민감도 표 작성.
 4. **F2**: 신규 WF부터 universe 스냅샷 적용. 기존 수치 인용 시 생존 편향 주석 의무화.

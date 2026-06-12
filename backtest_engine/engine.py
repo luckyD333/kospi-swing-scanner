@@ -31,6 +31,7 @@ class BacktestConfig:
     min_cash_pct: float = 0.10                  # 최소 현금 비율 10%
     commission_pct: float = 0.0030              # 왕복 0.30% (거래세 + 슬리피지, paper trading 실측 기반)
     allocation_mode: str = "conservative"       # "conservative" or "aggressive"
+    next_bar_entry: bool = False                # True: 시그널 다음 봉 open 체결 (감사 F1). False: 시그널 봉 close 체결 (기존)
 
 
 class AllocationStrategy(ABC):
@@ -151,9 +152,39 @@ class BacktestEngine:
         positions: dict[str, Position] = {}
         trades: list[Trade] = []
         equity_points: list[tuple[pd.Timestamp, float]] = []
+        pending_signals: dict[str, TradeSignal] = {}  # next_bar_entry: 다음 봉 open 체결 대기
 
         # 4) 각 시간대별 순회
         for t in all_times:
+            # 4-0) next_bar_entry: 직전 봉 시그널을 이 봉 open 에 체결.
+            #      청산 체크(4-1)보다 먼저 처리 — 진입 봉부터 bars_held=1 로 모니터링되어
+            #      same-bar 모드와 청산 체크 스케줄이 동일 (차이는 체결 가격·시점만)
+            if pending_signals:
+                holdings_value = sum(
+                    pos.shares * self._current_price(prepared, tk, t, fallback=pos.entry_price)
+                    for tk, pos in positions.items()
+                )
+                total_capital = cash + holdings_value
+                fill_order = sorted(
+                    pending_signals.items(), key=lambda kv: kv[1].confidence, reverse=True
+                )
+                for ticker, signal in fill_order:
+                    df = prepared[ticker]
+                    if t not in df.index:
+                        continue  # 이 ticker 의 다음 봉이 아직 아님 — 대기 유지
+                    del pending_signals[ticker]
+                    if ticker in positions:
+                        continue
+                    idx = df.index.get_loc(t)
+                    if isinstance(idx, slice):
+                        idx = idx.start
+                    fill_price = float(df.iloc[idx]["open"])
+                    new_cash = self._execute_entry(
+                        signal, fill_price, t, positions, cash, total_capital
+                    )
+                    if new_cash is not None:
+                        cash = new_cash
+
             # 4-1) 기존 포지션 청산 체크
             for ticker in list(positions.keys()):
                 df = prepared[ticker]
@@ -212,34 +243,16 @@ class BacktestEngine:
             total_capital = cash + holdings_value
 
             for signal in signals_this_bar:
-                can_enter, _ = self.allocator.should_enter(
-                    signal, positions, cash, total_capital, self.config
+                if self.config.next_bar_entry:
+                    # 다음 봉 open 체결 대기 (시그널 봉 체결 금지 — 감사 F1)
+                    pending_signals[signal.ticker] = signal
+                    continue
+
+                new_cash = self._execute_entry(
+                    signal, signal.entry_price, t, positions, cash, total_capital
                 )
-                if not can_enter:
-                    continue
-
-                # 진입 실행
-                position_value = total_capital * self.config.position_size_pct
-                shares = int(position_value / signal.entry_price)
-                if shares <= 0:
-                    continue
-
-                gross_cost = shares * signal.entry_price
-                net_cost = gross_cost * (1 + self.config.commission_pct / 2)
-
-                if cash - net_cost < total_capital * self.config.min_cash_pct:
-                    continue
-
-                cash -= net_cost
-                positions[signal.ticker] = Position(
-                    ticker=signal.ticker,
-                    entry_time=t,
-                    entry_price=signal.entry_price,
-                    shares=shares,
-                    stop_loss=signal.stop_loss,
-                    target_1=signal.target_1,
-                    target_2=signal.target_2,
-                )
+                if new_cash is not None:
+                    cash = new_cash
 
             # 4-4) equity curve 기록
             holdings_value = sum(
@@ -281,6 +294,47 @@ class BacktestEngine:
             final_capital=cash,
             equity_curve=equity_series,
         )
+
+    def _execute_entry(
+        self,
+        signal: TradeSignal,
+        fill_price: float,
+        t: pd.Timestamp,
+        positions: dict[str, Position],
+        cash: float,
+        total_capital: float,
+    ) -> float | None:
+        """체결 시도. 성공 시 비용 차감된 잔여 cash 반환, 거부 시 None.
+
+        stop/target 은 시그널 산출 시점 레벨 유지 (next-bar 체결이어도 재계산 안 함).
+        """
+        can_enter, _ = self.allocator.should_enter(
+            signal, positions, cash, total_capital, self.config
+        )
+        if not can_enter:
+            return None
+
+        position_value = total_capital * self.config.position_size_pct
+        shares = int(position_value / fill_price)
+        if shares <= 0:
+            return None
+
+        gross_cost = shares * fill_price
+        net_cost = gross_cost * (1 + self.config.commission_pct / 2)
+
+        if cash - net_cost < total_capital * self.config.min_cash_pct:
+            return None
+
+        positions[signal.ticker] = Position(
+            ticker=signal.ticker,
+            entry_time=t,
+            entry_price=fill_price,
+            shares=shares,
+            stop_loss=signal.stop_loss,
+            target_1=signal.target_1,
+            target_2=signal.target_2,
+        )
+        return cash - net_cost
 
     def _current_price(
         self,
