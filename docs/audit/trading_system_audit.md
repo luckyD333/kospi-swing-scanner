@@ -101,6 +101,18 @@
   백테스트를 낙관이 아니라 보수 쪽으로 끌었음 — 실제로 체결 불가(점상한가 등)였다면 성과는
   오히려 개선. 부수 발견: 갭>+3% 진입 제한이 S2/S3/S4 에 일관된 개선 (S4 양전) — 운영 반영
   전 별도 WF 검증 필요 (단일 데이터셋·생존편향(F2) 주의, 2026-05-14 단일 그리드 교훈).
+- **WF 검증 (2026-06-12)**: `scripts/wf_validate_gap_filter.py`, 9윈도우, per-trade 전 기간
+  수집 + threshold grid {0.01, 0.03, 0.05, 0.10, 무제한}.
+  - threshold train-best 선택(CPO)은 5전략 전부 **FAIL** — CV 0.50~1.03 unstable,
+    S2 decay 0.617·S4 2.265. threshold 재튜닝은 금지 (2026-05-14 교훈 재확인).
+  - 단 두 가지는 견고: (1) 45개 train 선택 중 "무제한" 이 best 인 윈도우 **0회** — 필터
+    존재 자체는 전 윈도우 일관. (2) 고정 +3% 의 윈도우별 OOS 개선: S2 **7/9** (+207→+587%),
+    S4 **6/9** (-50→+62% 양전), S3 4/9 (+268→+368%, 시점 의존), S5 3/9 (음수 유지),
+    S1 영향 없음 (갭상승 진입 0건).
+  - **권고**: 튜닝 없는 고정 +3% 를 S2·S4 한정 채택 후보로 (S3·S5 보류). trade_plan 의
+    limit 진입 필드(populate_limit_fields) 로 지정가 진입하는 운영 흐름에서는 갭상승 추격이
+    이미 차단되므로, 본 필터는 백테스트-운영 체결 방식 괴리의 정량화이기도 함 — scorer
+    레벨 옵션 반영이 우선, 전략 코드 변경은 별도 결정.
 
 ### F7. [MEDIUM] regime 가중치 매트릭스·fng_modifier가 hand-set 미검증 휴리스틱
 
@@ -260,6 +272,11 @@
 .venv/bin/python scripts/audit_f5_f6_cost_sensitivity.py --cache-root .cache_wf
 # → 표는 F5/F6 후속 조치 참조. S1/S3 slip0.3% 에도 양(+), S2 음전(-5.6%),
 #   S4/S5 현행 비용에서도 음수. 갭>+3% skip 은 S2/S3/S4 일관 개선 (S4 양전)
+
+# F6 갭 필터 WF 검증 (2026-06-12)
+.venv/bin/python scripts/wf_validate_gap_filter.py --cache-root .cache_wf
+# → threshold CPO 전 전략 FAIL (unstable). 고정 +3% 는 S2 7/9·S4 6/9 윈도우 OOS 개선,
+#   "무제한" 이 train best 인 윈도우 0/45 — 상세는 F6 후속 조치 참조
 ```
 
 검증 근거 수집에 사용한 주요 명령: `grep "make_scan_pnl_scorer|make_scan_bartracker_scorer" scripts/` (WF scorer 사용처), `grep -l regime scripts/optimize_*.py scripts/wf_*.py` (0건 — regime 순환 오염 기각 근거), `git log -- weights.yml` (가중치 수기 작성 확인), WebSearch (2026 증권거래세·농특세율).
