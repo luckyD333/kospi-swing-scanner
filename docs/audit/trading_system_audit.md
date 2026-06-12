@@ -113,6 +113,8 @@
     limit 진입 필드(populate_limit_fields) 로 지정가 진입하는 운영 흐름에서는 갭상승 추격이
     이미 차단되므로, 본 필터는 백테스트-운영 체결 방식 괴리의 정량화이기도 함 — scorer
     레벨 옵션 반영이 우선, 전략 코드 변경은 별도 결정.
+  - scorer 옵션 구현 완료 (2026-06-12): `ScanPnlConfig`/`ScanBarConfig.max_entry_gap_pct`
+    (기본 None=기존 동작). 이후 WF 는 운영 체결 방식 근사 시 0.03 고정값 사용.
 
 ### F7. [MEDIUM] regime 가중치 매트릭스·fng_modifier가 hand-set 미검증 휴리스틱
 
