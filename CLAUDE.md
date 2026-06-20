@@ -6,12 +6,19 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 - **Runtime**: Python 3.10+
 - **Core**: pandas, numpy, scipy
 - **Data sources**: 네이버 금융 — `sise_market_sum`(KOSPI/KOSDAQ 크롤링) + `etfItemList`(ETF) + `siseJson` API + `marketindex`(USD/KRW, WTI, 국고채3Y, VIX 매크로). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
-- **Test**: pytest (현재 1146개)
+- **Test**: pytest (현재 1210개)
 
 ## Project Structure
 - `cli.py` — CLI 진입점 (스캔 + Phase 2 가중치 인터뷰 모드 `--interview`)
 - `core/` — DataClient, OhlcvCache, universe, indicators, runner, dates
-- `core/decision/` — 의사결정 엔진 (aggregator, ensemble, market_regime HMM, market_axes, market_breadth, regret_scorer, atr_volatility, per_ticker_regime)
+- `core/decision/` — 의사결정 엔진 (운영 신호 경로 순):
+  - 기반: product_type(상품분류)·donchian(채널)·aggregator·ensemble(regime-aware)
+  - 시장 국면: market_regime(HMM)·market_axes·market_breadth·per_ticker_regime·atr_volatility·fear_greed(Job A 수집)
+  - 전략 공통: entry_gate(전략별 진입 게이트)·setup_quality(셋업 점수)·multi_timeframe·confirmation_strength(S1 한정)
+  - runner 후처리: tradability_filter(거래가능 hard filter)·max_filter(급등 가드 EXCLUDE/PENALTY)
+  - 출력/랭킹: regret_scorer·order_type_classifier(주문타입)·signal_status·factors/(momentum_3m·liquidity·signal_freshness)
+  - 오프라인: factor_performance(weights.yml 산출, scripts/compute_weights)
+  - 미배선(dormant): squeeze·donchian_levels(use_donchian_levels 기본 False)
 - `strategies/` — 전략 plug-in (Strategy Protocol). 5개 전략 × 다중 TF + fallback 변형(r1/r2)
 - `output/` — 포맷터 (table/json/csv/markdown/**signals_ui**) + signals_builder + snapshot_builder + holding_recommender
 - `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
@@ -55,7 +62,7 @@ python cli.py --interview
 - `strategy_five_bull_flag` (+ `_1h`/`_30m`) — Flagpole +8% → flag 거래량 수축 → 돌파
 
 ## Verification
-변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1146개 이상 통과해야 함.
+변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1210개 이상 통과해야 함.
 정적 분석: `.venv/bin/ruff check . --exclude .venv` 통과 유지.
 
 ## Conventions
@@ -75,6 +82,7 @@ python cli.py --interview
 - [Cron 자동화](./docs/cron_examples.md) — 수집/전략 schedule job 운영 예시
 - [VM 배포 가이드](./docs/deploy.md) — DigitalOcean Droplet + signal-api/web + nginx + 로컬 dev 모드
 - [Detailed README](./README.md) — CLI 옵션, 환경변수, 트러블슈팅
+- [Trading system audit](./docs/audit/trading_system_audit.md) — 거래 시스템 감사 (CONDITIONAL PASS, High/Medium 이슈 + F1~F6 민감도)
 
 *비핵심 문서는 필요 시에만 읽으세요.*
 
