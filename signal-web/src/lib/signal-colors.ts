@@ -1,7 +1,7 @@
 export function confirmationColor(level: string): string {
-  if (level === 'STRONG') return '#30d158';
-  if (level === 'MEDIUM') return '#ffc107';
-  return '#ff6b81';
+  if (level === 'STRONG') return 'var(--quality-good)';
+  if (level === 'MEDIUM') return 'var(--quality-warn)';
+  return 'var(--quality-bad)';
 }
 
 export function confirmationBg(level: string): string {
@@ -21,9 +21,9 @@ export function signalStatusBadge(
 ): SignalStatusBadgeStyle | null {
   switch (status) {
     case 'TARGET_REACHED':
-      return { label: '목표', color: '#30d158', bg: 'rgba(48,209,88,0.12)' };
+      return { label: '목표', color: 'var(--quality-good)', bg: 'rgba(48,209,88,0.12)' };
     case 'STOPPED_OUT':
-      return { label: '손절', color: '#ff6b81', bg: 'rgba(255,107,129,0.12)' };
+      return { label: '손절', color: 'var(--quality-bad)', bg: 'rgba(255,107,129,0.12)' };
     case 'STALE':
       return { label: '만료', color: 'var(--muted)', bg: 'rgba(128,128,128,0.12)' };
     default:

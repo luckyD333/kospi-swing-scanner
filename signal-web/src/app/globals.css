@@ -1,12 +1,12 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* Canvas — flat 디자인: 표면은 모두 canvas, 분리는 hairline border 로만 */
   --canvas:         #080808;
-  --surface-soft:   #0d0d0d;
-  --surface-card:   #141416;
-  --surface-elev:   #1f1f22;
   --hairline:       #262626;
   --hairline-strong:#3a3a3a;
+
+  /* Greyscale & 인터랙티브 */
   --ink:            #ffffff;
   --body:           #cccccc;
   --body-strong:    #e6e6e6;
@@ -14,15 +14,25 @@
   --muted-soft:     #666666;
   --link:           #c3d9f3;
   --accent:         #2997ff;
-  --gain:           #e8453c;
-  --loss:           #4488cc;
-  --flat:           #e6e6e6;
-  --warning:        #d4a017;
 
-  --radius-sm:   8px;
-  --radius-md:   11px;
-  --radius-lg:   18px;
-  --radius-pill: 9999px;
+  /* 가격·국면 도메인 = '방향' (한국 관례). 품질 도메인과 의도적으로 다른 색 언어 */
+  --gain:           #e8453c;  /* 상승·BULL (빨강) */
+  --loss:           #4488cc;  /* 하락·BEAR (파랑) */
+  --flat:           #e6e6e6;  /* 보합 */
+
+  /* 품질·평가 도메인 = '좋음/나쁨' (등급·목표·손절·RSI·confirmation) */
+  --quality-good:   #30d158;  /* 좋음·목표·과매도·✓·STRONG */
+  --quality-warn:   #ffc107;  /* 중간·주의·임박·MEDIUM·⚠ */
+  --quality-bad:    #ff6b81;  /* 나쁨·손절·과매수·약함·STOPPED */
+
+  /* 메타/공지 & 태그 (품질 등급 아님) */
+  --warning:        #d4a017;  /* 문서 강조·변동성 경고·갱신 시각 */
+  --tag:            #4c98b9;  /* 상품유형·전략 태그 */
+
+  /* radius — 인라인 실사용 값을 codify (sharp 카드 + 소량 라운딩 personality) */
+  --radius-sm:     4px;     /* 배지·배너·버튼 */
+  --radius-pill:   9999px;  /* pill 버튼 (NaverLink) */
+  --radius-circle: 50%;     /* 원형 아이콘 (AboutBtn ?) */
 
   /* Font 스택 — Apple 기기: SF Pro (system-ui), 그 외: Inter(--f-inter) fallback.
      --f-inter, --f-display-ko, --f-mono 는 layout.tsx에서 주입. */

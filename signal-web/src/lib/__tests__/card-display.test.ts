@@ -27,7 +27,7 @@ describe('card-display', () => {
       label: '근거',
       value: '15일 상대강도',
       sub: null,
-      tone: '#ffb74d',
+      tone: 'var(--quality-warn)',
     });
   });
 
@@ -66,7 +66,7 @@ describe('card-display', () => {
       label: '체크',
       value: '손절 임박',
       sub: '목표 +10.0%',
-      tone: '#ff6b81',
+      tone: 'var(--quality-bad)',
     });
   });
 

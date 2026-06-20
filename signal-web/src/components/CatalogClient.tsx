@@ -179,14 +179,14 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
         />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '40px 20px', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: '600', marginBottom: '20px', color: 'var(--text-primary)' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: '600', marginBottom: '20px', color: 'var(--ink)' }}>
             데이터 갱신 중
           </h1>
-          <p style={{ fontSize: '16px', color: 'var(--text-secondary)', marginBottom: '30px', maxWidth: '500px', lineHeight: '1.6' }}>
+          <p style={{ fontSize: '16px', color: 'var(--body)', marginBottom: '30px', maxWidth: '500px', lineHeight: '1.6' }}>
             가장 최근 스캔이 지연되어 신호를 표시할 수 없습니다. 신호 데이터의 정확성을 위해 갱신 후 다시 시도해주세요.
           </p>
           {generatedAt && (
-            <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '30px' }}>
+            <p style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '30px' }}>
               마지막 스캔: {generatedAt}
             </p>
           )}
@@ -197,9 +197,9 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
               fontSize: '14px',
               fontWeight: '500',
               backgroundColor: 'var(--accent)',
-              color: 'white',
+              color: 'var(--ink)',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
             }}
           >
@@ -246,7 +246,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
         <div style={{
           padding: '12px 20px',
           fontSize: '12px',
-          color: 'var(--text-tertiary)',
+          color: 'var(--muted)',
           background: 'var(--canvas)',
           borderTop: '1px solid var(--hairline)',
         }}>

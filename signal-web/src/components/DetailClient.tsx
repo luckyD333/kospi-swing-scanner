@@ -33,7 +33,7 @@ function NaverLink({ href }: { href: string }) {
       style={{
         ...ts('button'),
         border: '1px solid var(--accent)',
-        borderRadius: '9999px',
+        borderRadius: 'var(--radius-pill)',
         padding: '14px 32px',
         height: '44px',
         cursor: 'pointer',
@@ -72,8 +72,8 @@ interface RankRationaleRow {
   tone: string;
 }
 
-const C_OPP  = '#30d158';  // 매수 기회 (그린)
-const C_RISK = '#ff6b81';  // 위험/경고 (핑크)
+const C_OPP  = 'var(--quality-good)';  // 매수 기회 (그린)
+const C_RISK = 'var(--quality-bad)';   // 위험/경고 (핑크)
 
 function gradeTradability(s: number | null): { mark: RankRationaleRow['mark']; note: string; tone: string } {
   if (s == null) return { mark: '', note: '', tone: 'var(--muted-soft)' };
@@ -296,11 +296,11 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
         {/* Expired 배너 */}
         {signalFreshness?.plan_expired && (
           <div style={{
-            border: '1px solid var(--muted-soft)',
-            background: '#fef3c7',
-            color: '#92400e',
+            border: '1px solid var(--warning)',
+            background: 'rgba(212,160,23,0.12)',
+            color: 'var(--warning)',
             padding: '12px 16px',
-            borderRadius: '4px',
+            borderRadius: 'var(--radius-sm)',
             marginBottom: '16px',
             display: 'flex',
             alignItems: 'center',
@@ -341,12 +341,12 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                 <div style={{
                   display: 'inline-block',
                   padding: '4px 8px',
-                  borderRadius: '4px',
+                  borderRadius: 'var(--radius-sm)',
                   fontSize: '12px',
                   fontWeight: 500,
                   marginBottom: '8px',
-                  backgroundColor: Math.abs(signalFreshness.price_drift_pct) >= 10 ? '#fee2e2' : '#fef3c7',
-                  color: Math.abs(signalFreshness.price_drift_pct) >= 10 ? '#dc2626' : '#b45309',
+                  backgroundColor: Math.abs(signalFreshness.price_drift_pct) >= 10 ? 'rgba(255,107,129,0.12)' : 'rgba(255,193,7,0.12)',
+                  color: Math.abs(signalFreshness.price_drift_pct) >= 10 ? 'var(--quality-bad)' : 'var(--quality-warn)',
                 }}>
                   {signalFreshness.price_drift_pct >= 0 ? '+' : ''}{signalFreshness.price_drift_pct.toFixed(1)}% 진행
                 </div>
@@ -370,7 +370,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                   <span style={{
                     display: 'inline-block',
                     padding: '3px 9px',
-                    borderRadius: '4px',
+                    borderRadius: 'var(--radius-sm)',
                     fontSize: '12px',
                     fontWeight: 500,
                     background: maxChase != null ? 'rgba(41,151,255,0.10)' : 'rgba(128,128,128,0.10)',
@@ -581,7 +581,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                 </div>
                 {confirmationLevel && (
                   <span style={{
-                    padding: '2px 10px', borderRadius: '4px',
+                    padding: '2px 10px', borderRadius: 'var(--radius-sm)',
                     background: confirmationBg(confirmationLevel),
                     color: confirmationColor(confirmationLevel),
                     fontSize: '12px', fontWeight: 600,
@@ -798,7 +798,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                   return (
                     <span style={{
                       padding: '2px 8px',
-                      borderRadius: '4px',
+                      borderRadius: 'var(--radius-sm)',
                       fontSize: '11px',
                       fontWeight: 600,
                       color: badge.color,

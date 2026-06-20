@@ -42,7 +42,7 @@ export function buildReasonItem(
     label: '근거',
     value: displayComponents.map((c) => c.label).join(' · '),
     sub: null,
-    tone: okComponents.length > 0 ? 'var(--body)' : '#ffb74d',
+    tone: okComponents.length > 0 ? 'var(--body)' : 'var(--quality-warn)',
   };
 }
 
@@ -69,7 +69,7 @@ export function buildCheckItem(params: {
       label: '만료',
       value: expiryCountdown ?? '—',
       sub,
-      tone: expiryCountdown === '만료' ? '#ff6b81' : 'var(--body)',
+      tone: expiryCountdown === '만료' ? 'var(--quality-bad)' : 'var(--body)',
     };
   }
 
@@ -78,7 +78,7 @@ export function buildCheckItem(params: {
       label: '체크',
       value: '목표 통과',
       sub: stopRisk,
-      tone: '#ffb74d',
+      tone: 'var(--quality-warn)',
     };
   }
 
@@ -87,7 +87,7 @@ export function buildCheckItem(params: {
       label: '체크',
       value: '손절 통과',
       sub: target,
-      tone: '#ff6b81',
+      tone: 'var(--quality-bad)',
     };
   }
 
@@ -96,7 +96,7 @@ export function buildCheckItem(params: {
       label: '체크',
       value: '손절 임박',
       sub: target,
-      tone: '#ff6b81',
+      tone: 'var(--quality-bad)',
     };
   }
 

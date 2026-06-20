@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { CardProps } from '@/lib/adapt';
 import { ts } from '@/lib/typography';
-import { confirmationColor } from '@/lib/signal-colors';
+import { confirmationColor, signalStatusBadge } from '@/lib/signal-colors';
 import { formatTickerState } from '@/lib/ticker-state';
 import { buildCheckItem, buildReasonItem } from '@/lib/card-display';
 
@@ -47,18 +47,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     orderTypeLabel, maxChase,
     recommendedHoldingBars, holdingConfidence, holdingStatus } = card;
 
-  const statusBadge = (() => {
-    switch (signalStatus) {
-      case 'TARGET_REACHED':
-        return { label: '목표', color: '#30d158', bg: 'rgba(48,209,88,0.12)' };
-      case 'STOPPED_OUT':
-        return { label: '손절', color: '#ff6b81', bg: 'rgba(255,107,129,0.12)' };
-      case 'STALE':
-        return { label: '만료', color: 'var(--muted)', bg: 'rgba(128,128,128,0.12)' };
-      default:
-        return null;
-    }
-  })();
+  const statusBadge = signalStatusBadge(signalStatus);
   const cardOpacity = (signalStatus === 'VALID' && !signalFreshness?.plan_expired) ? 1 : 0.55;
 
   // 한국 주식 관례: 상승=빨강 / 하락=파랑 / 보합=화이트
@@ -148,7 +137,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
           top: '16px',
           right: '16px',
           padding: '2px 8px',
-          borderRadius: '4px',
+          borderRadius: 'var(--radius-sm)',
           background: statusBadge.bg,
           color: statusBadge.color,
           fontSize: '10px',
@@ -166,9 +155,9 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
           top: '16px',
           right: statusBadge ? '80px' : '16px',
           padding: '2px 8px',
-          borderRadius: '4px',
-          background: 'rgba(255,183,77,0.12)',
-          color: '#ffb74d',
+          borderRadius: 'var(--radius-sm)',
+          background: 'rgba(255,193,7,0.12)',
+          color: 'var(--quality-warn)',
           fontSize: '10px',
           fontWeight: 600,
           letterSpacing: '0',
@@ -206,10 +195,10 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
       {/* 상품 유형 배지 (STOCK·UNKNOWN 이외만 표시) */}
       {productType && !['STOCK', 'UNKNOWN'].includes(productType) && (
         <span style={{
-          ...ts('caption-sm', '#4c98b9'),
+          ...ts('caption-sm', 'var(--tag)'),
           border: '1px solid rgba(76,152,185,0.4)',
           padding: '2px 8px',
-          borderRadius: '3px',
+          borderRadius: 'var(--radius-sm)',
           alignSelf: 'flex-start',
         }}>
           {productType}
@@ -245,8 +234,8 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         }}>
           {([
             ['진입', entry,   'var(--link)'],
-            ['손절', stop,    '#ff6b81'],
-            ['목표', target1, '#30d158'],
+            ['손절', stop,    'var(--quality-bad)'],
+            ['목표', target1, 'var(--quality-good)'],
           ] as [string, number | null, string][]).map(([label, val, color], i) => (
             <div key={label} style={{
               flex: 1,
@@ -395,8 +384,8 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
             return [strategyLabel, timeframe];
           })().map(tag => (
             <span key={tag} style={{
-              ...ts('caption-sm', '#4c98b9'),
-              border: '1px solid #4c98b9',
+              ...ts('caption-sm', 'var(--tag)'),
+              border: '1px solid var(--tag)',
               padding: '4px 10px',
             }}>
               {tag}

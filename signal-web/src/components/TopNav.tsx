@@ -48,7 +48,7 @@ function AboutBtn({ onOpen }: { onOpen: () => void }) {
         width: '16px',
         height: '16px',
         border: `1px solid ${hov ? 'var(--body)' : 'var(--muted)'}`,
-        borderRadius: '50%',
+        borderRadius: 'var(--radius-circle)',
         fontSize: '10px',
         lineHeight: 1,
         transition: 'border-color 150ms',
@@ -68,7 +68,7 @@ const regimeColor = (regime: string): string =>
 
 // 변동성 축 배지 — LOW/MID 는 노이즈 방지를 위해 비표시
 const VOL_BADGE: Record<string, { label: string; color: string } | undefined> = {
-  HIGH: { label: '변동성 높음', color: '#ff9f0a' },
+  HIGH: { label: '변동성 높음', color: 'var(--warning)' },
   CRISIS: { label: '이벤트 장세 — 갭 리스크 주의', color: 'var(--loss)' },
 };
 
@@ -159,7 +159,7 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
             padding: '2px 8px',
             marginLeft: borderless ? 0 : '12px',
             border: `1px solid ${volBadge.color}`,
-            borderRadius: '3px',
+            borderRadius: 'var(--radius-sm)',
             letterSpacing: '0.05em',
           }}>
             {volBadge.label}
@@ -211,7 +211,7 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
 
         {/* 업데이트 시각 */}
         <span style={{
-          ...ts('caption-sm', '#ff9f0a'),
+          ...ts('caption-sm', 'var(--warning)'),
           flexShrink: 0,
           whiteSpace: 'nowrap',
           paddingLeft: '12px',

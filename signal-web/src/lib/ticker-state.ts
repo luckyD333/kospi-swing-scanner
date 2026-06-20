@@ -17,10 +17,10 @@ function tickerStateByRsi(rsi: number | null): TickerStateDisplay {
   if (!isFiniteNumber(rsi)) {
     return { label: '확인중', sub: null, tone: 'var(--muted)' };
   }
-  if (rsi <= 30) return { label: '과매도', sub: null, tone: '#ffb74d' };
-  if (rsi <= 35) return { label: '반등대기', sub: null, tone: '#ffb74d' };
+  if (rsi <= 30) return { label: '과매도', sub: null, tone: 'var(--quality-warn)' };
+  if (rsi <= 35) return { label: '반등대기', sub: null, tone: 'var(--quality-warn)' };
   if (rsi >= 75) return { label: '과열심화', sub: null, tone: 'var(--gain)' };
-  if (rsi >= 70) return { label: '과열주의', sub: null, tone: '#ffb74d' };
+  if (rsi >= 70) return { label: '과열주의', sub: null, tone: 'var(--quality-warn)' };
   return { label: '중립권', sub: null, tone: 'var(--body)' };
 }
 
@@ -46,16 +46,16 @@ export function formatTickerState(
       break;
     case 'RANGE_TIGHT':
       display = isFiniteNumber(rsi) && rsi <= 35
-        ? { label: '압축반등', sub: null, tone: '#ffb74d' }
+        ? { label: '압축반등', sub: null, tone: 'var(--quality-warn)' }
         : { label: '압축대기', sub: null, tone: 'var(--body)' };
       break;
     case 'RANGE':
       display = rsiState.label === '과열심화'
-        ? { label: '과열주의', sub: null, tone: '#ffb74d' }
+        ? { label: '과열주의', sub: null, tone: 'var(--quality-warn)' }
         : rsiState;
       break;
     case 'DOWNTREND_WEAK':
-      display = { label: '약세주의', sub: null, tone: '#ffb74d' };
+      display = { label: '약세주의', sub: null, tone: 'var(--quality-warn)' };
       break;
     case 'DOWNTREND_STRONG':
       display = { label: '하락위험', sub: null, tone: 'var(--loss)' };

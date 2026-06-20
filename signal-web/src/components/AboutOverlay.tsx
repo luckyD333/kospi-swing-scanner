@@ -9,9 +9,9 @@ interface Props {
 }
 
 const STEPS = [
-  { num: '01', title: '장 열기 전 확인', desc: '전날 종가 기준으로 뽑은 후보 목록입니다. 장 시작 전 미리 검토하세요.', accent: '#4A9EFF' },
-  { num: '02', title: '오전 중 진입', desc: '시초가 전후 오전 시간대가 진입에 유리합니다. 이미 크게 오른 상태라면 넘기세요.', accent: '#5FD4A8' },
-  { num: '03', title: '1~7일 안에 정리', desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. Detail 페이지의 "권장 보유" 가 종목별 적정 기간을 알려줘요.', accent: '#D4A017' },
+  { num: '01', title: '장 열기 전 확인', desc: '전날 종가 기준으로 뽑은 후보 목록입니다. 장 시작 전 미리 검토하세요.', accent: 'var(--accent)' },
+  { num: '02', title: '오전 중 진입', desc: '시초가 전후 오전 시간대가 진입에 유리합니다. 이미 크게 오른 상태라면 넘기세요.', accent: 'var(--quality-good)' },
+  { num: '03', title: '1~7일 안에 정리', desc: '목표가 도달 시 분할 익절, 손절가 이탈 시 즉시 매도. Detail 페이지의 "권장 보유" 가 종목별 적정 기간을 알려줘요.', accent: 'var(--warning)' },
 ] as const;
 
 const STRATEGIES = [
@@ -111,7 +111,7 @@ export default function AboutOverlay({ open, onClose }: Props) {
               ...ts('caption', 'var(--muted)'),
               background: 'none',
               border: '1px solid var(--hairline)',
-              borderRadius: '4px',
+              borderRadius: 'var(--radius-sm)',
               padding: '6px 14px',
               cursor: 'pointer',
               display: 'flex',
