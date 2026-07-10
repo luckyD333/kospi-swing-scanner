@@ -45,6 +45,9 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 # Job B: 일봉 신호 스캔 (평일 16:40 KST)
 40 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals.log 2>&1
 
+# Job E: 최근 6개월 전략 성과 갱신 (Job B 직후)
+45 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> /opt/apps/logs/kospi-scanner/performance.log 2>&1
+
 # Job C: 장중 현재가 경량 갱신 (2분 주기, 09:00-14:58 KST)
 */2 9-14 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect_live.py >> /opt/apps/logs/kospi-scanner/live.log 2>&1
 
@@ -58,6 +61,7 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 |-----|--------|------|
 | A | 평일 16:10 | 장 마감 후 전체 OHLCV 수집 (1D 1W 1h 30m) |
 | B | 평일 16:40 | 일봉 기준 전략 전체 스캔 → signals.json |
+| E | 평일 16:45 | 전일 signal의 다음 거래일 종가 성과 집계 → strategy_performance.json |
 | C | 평일 09:00-14:58, 2분 주기 | 시그널 종목 현재가만 경량 패치 |
 | D | 평일 09:01-15:31, 30분 주기 | 1m 분봉 포함 전체 수집 + 전략 재스캔 |
 

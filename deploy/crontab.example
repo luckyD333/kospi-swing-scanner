@@ -21,6 +21,9 @@ LOCK=/tmp/kospi-scanner.lock
 # weights.yml 존재 시 → 모든 종목 regret score 계산 후 signals.json 에 포함 + ranking_report.md 생성
 40 16 * * 1-5 cd $APP_DIR && ([ -f weights.yml ] || echo "[WARNING] weights.yml 없음 → 후회값 미계산" >> $LOG_DIR/signals.log) && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1
 
+# Job E (최근 6개월 전략 성과): Job B 직후 (평일 16:45 KST)
+45 16 * * 1-5 cd $APP_DIR && flock -n $LOCK $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1
+
 # Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
 # flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)
 # weights.yml 존재 시 후회값 자동 계산 (signals.json ranking.decision.max_regret)

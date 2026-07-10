@@ -40,6 +40,14 @@ python cli.py --strategy all --cache-root .cache --format signals_ui --output-di
 
 출력: `data/signals.json` — UI 직접 소비 포맷 (Pydantic 검증 통과)
 
+성과 집계:
+
+```bash
+python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json
+```
+
+출력: `data/strategy_performance.json` — 1D signal 종가 대비 다음 거래일 종가 성과의 최근 6개월 rolling 집계. ABOUT/가이드에서 `/api/strategy-performance`를 통해 표시합니다.
+
 #### Job C: 실시간 현재가 갱신
 
 ```bash
@@ -58,6 +66,9 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 
 # Job B (일봉): 수집 완료 후 1D/1W 전략 실행
 30 16 * * 1-5 /path/to/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data
+
+# Job E: 일봉 성과 집계 (Job B 직후)
+45 16 * * 1-5 /path/to/.venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json
 
 # Job B (장중): 30m/1h 전략 — bar close + 1분 지연 (09:01, 09:31, …, 15:31)
 1,31 9-15 * * 1-5 /path/to/scripts/run_30m.sh

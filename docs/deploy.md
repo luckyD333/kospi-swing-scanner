@@ -6,13 +6,14 @@
 
 ## 0. 데이터 흐름 (SSOT)
 
-운영 데이터는 **`data/signals.json`**(전략 결과·SSOT) + **`data/market_snapshot.json`**(시장 raw·overlay 소스) 2-파일이에요. 프론트는 이 파일을 직접 import하지 않고 signal-api 경유로 fetch만 합니다.
+운영 데이터는 **`data/signals.json`**(전략 결과·SSOT) + **`data/market_snapshot.json`**(시장 raw·overlay 소스)이며, ABOUT 성과 화면은 별도 rolling 파일인 **`data/strategy_performance.json`**을 사용해요. 프론트는 파일을 직접 import하지 않고 signal-api 경유로 fetch만 합니다.
 
 ```
 [cron Job A] 16:10 KST   scripts/collect.py            → .cache/{tf}/<ticker>.parquet  (OHLCV)
                                                          + data/market_snapshot.json    (KOSPI/KOSDAQ + ETF + 매크로)
 [cron Job B] 16:40 KST   cli.py --format signals_ui    → data/signals.json             ★ 전략 SSOT
              09:01,31~   동일 (intraday 30분 간격, collect → cli 페어링)
+[cron Job E] 16:45 KST   aggregate_strategy_performance.py → data/strategy_performance.json (최근 6개월)
 [cron Job C] */2 09-15   scripts/collect_live.py        → data/market_snapshot.json    (현재가 + 시장지수 부분 갱신)
                                           ↓
 [signal-api  :8000]   FastAPI 응답 시점 조인 (signal-api/app/services/join.py)
@@ -33,6 +34,7 @@
 **의존 파일 정리** (운영 시 `data/`/`.cache/`/프로젝트 루트에 존재해야 함):
 - `data/signals.json` — Job B 산출물. 없으면 `/api/signals` 가 `503 signals_not_generated` 반환.
 - `data/market_snapshot.json` — Job A 산출물. 없으면 fundamentals/flow overlay skip(stale 데이터 노출).
+- `data/strategy_performance.json` — Job E 산출물. 없으면 `/api/strategy-performance`가 `not_ready`를 반환하고 ABOUT에 준비 중 상태 표시.
 - `weights.yml` (프로젝트 루트) — `--decide` 와 ranking.decision 채움. 없으면 FACTOR BREAKDOWN 미노출.
 - `.cache/regime_analysis.json` — `core.decision.market_regime.save_regime_analysis` 산출물. 없으면 MarketRegimePanel 누락.
 
@@ -301,6 +303,9 @@ LOCK=/tmp/kospi-scanner.lock
 # Job B (일봉 신호): 수집 30분 후 (평일 16:40 KST)
 40 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1
 
+# Job E (최근 6개월 전략 성과): Job B 직후 (평일 16:45 KST)
+45 16 * * 1-5 cd $APP_DIR && flock -n $LOCK $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1
+
 # Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
 # flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)
 1,31 9-15 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1h 30m >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
@@ -319,6 +324,7 @@ LOCK=/tmp/kospi-scanner.lock
 |-----|------|------|
 | Job A | 16:10 | `collect.py` — 1D/1W/1h/30m OHLCV 수집 |
 | Job B | 16:40 | `cli.py` — 일봉 기준 signals.json 갱신 |
+| Job E | 16:45 | `aggregate_strategy_performance.py` — 최근 6개월 성과 갱신 |
 | Job C30 | 1,31분 (09~15시) | collect(1h/30m) → cli 페어링. `flock`으로 Job B14와 직렬화 |
 | Job B14 | 14:00 | 1D 포함 강제 갱신 (`--no-smart-skip`). 오늘 14:00 현재가를 1D close로 반영 |
 | Job C | 2분 주기 (09~15시) | `collect_live.py` — 현재가·시장지수만 부분 갱신 |
@@ -390,7 +396,7 @@ cp -r public .next/standalone/public
 
 | 변경 내용 | 필요한 작업 | 재시작 필요 여부 |
 |------|------|------|
-| `data/signals.json`, `data/market_snapshot.json`, `.cache/` 만 갱신 | `scripts/collect.py` 또는 `cli.py` 재실행 | **불필요**. signal-api 는 요청마다 파일을 다시 읽어요. |
+| `data/signals.json`, `data/market_snapshot.json`, `data/strategy_performance.json`, `.cache/` 만 갱신 | 해당 collect/cli/성과 집계 명령 재실행 | **불필요**. signal-api 는 요청마다 파일을 다시 읽어요. |
 | `signal-api/app/**`, `signal-api/requirements.txt`, API 관련 Python 코드 | 의존성 재설치(필요 시) 후 `sudo systemctl restart signal-api` | **signal-api만 필요** |
 | `signal-web/src/**`, `signal-web/package*.json`, `NEXT_PUBLIC_API_URL` | `cd signal-web && npm ci && npm run build` 후 `sudo systemctl restart signal-web` | **signal-web만 필요** |
 | `deploy/*.service` 수정 | `/etc/systemd/system/` 재복사 후 `sudo systemctl daemon-reload` + 해당 서비스 restart | **해당 서비스 필요** |
@@ -454,6 +460,7 @@ signal-api는 `data/signals.json` 파일이 있어야 응답해요. 없으면 `5
 ```bash
 # OHLCV 캐시가 이미 있다고 가정 (.cache/)
 .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui
+.venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json
 
 # 캐시도 없는 첫 실행이면
 .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache
