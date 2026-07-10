@@ -1,4 +1,5 @@
 import type { Signal, SignalsResponse } from '@/types/signal';
+import type { StrategyPerformanceResponse } from '@/types/performance';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -18,4 +19,12 @@ export async function fetchSignal(ticker: string): Promise<Signal> {
   });
   if (!res.ok) throw new Error(`API ${res.status}: /api/signals/${ticker}`);
   return res.json() as Promise<Signal>;
+}
+
+export async function fetchStrategyPerformance(): Promise<StrategyPerformanceResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/strategy-performance`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: /api/strategy-performance`);
+  return res.json() as Promise<StrategyPerformanceResponse>;
 }

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.signals import router as signals_router
 from .api.market import router as market_router
+from .api.performance import router as performance_router
 
 app = FastAPI(title="Signal API", version="1.0.0")
 
@@ -18,3 +19,4 @@ app.add_middleware(
 
 app.include_router(signals_router, prefix="/api")
 app.include_router(market_router, prefix="/api")
+app.include_router(performance_router, prefix="/api")

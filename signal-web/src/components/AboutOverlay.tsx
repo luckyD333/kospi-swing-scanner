@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { ts } from '@/lib/typography';
+import { fetchStrategyPerformance } from '@/lib/api';
+import type { StrategyPerformanceResponse } from '@/types/performance';
+import StrategyPerformanceChart from './StrategyPerformanceChart';
 
 interface Props {
   open: boolean;
@@ -34,6 +37,9 @@ const TERMS = [
 export default function AboutOverlay({ open, onClose }: Props) {
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [performance, setPerformance] = useState<StrategyPerformanceResponse | null>(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [performanceError, setPerformanceError] = useState<string | null>(null);
 
   // mount/unmount 제어 — fade 완료 후 unmount
   useEffect(() => {
@@ -45,6 +51,25 @@ export default function AboutOverlay({ open, onClose }: Props) {
       const t = setTimeout(() => setMounted(false), 340);
       return () => clearTimeout(t);
     }
+  }, [open]);
+
+  // 성과는 ABOUT을 열 때만 요청한다. catalog의 2분 signal refresh payload에는 포함하지 않는다.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setPerformanceLoading(true);
+    setPerformanceError(null);
+    fetchStrategyPerformance()
+      .then(data => {
+        if (!cancelled) setPerformance(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPerformanceError('performance_fetch_failed');
+      })
+      .finally(() => {
+        if (!cancelled) setPerformanceLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [open]);
 
   // ESC 닫기
@@ -133,6 +158,21 @@ export default function AboutOverlay({ open, onClose }: Props) {
           }}>
             매일 장 마감 후 KOSPI/KOSDAQ 전 종목을 분석해 다음 날 주목할 만한 종목 후보를 정리합니다. 5가지 전략이 각자의 기준으로 신호를 포착하고, 점수·손익비 순으로 정렬합니다. 매수 추천이 아닌 관찰 명세서입니다. 최종 판단은 직접 하세요.
           </p>
+        </div>
+
+        {/* 최근 6개월 성과 */}
+        <div style={{ marginBottom: '80px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '20px', marginBottom: '24px' }}>
+            <p style={{ ...ts('caption', 'var(--muted)'), letterSpacing: '0.1em', margin: 0 }}>
+              PERFORMANCE / LAST 6 MONTHS
+            </p>
+            <span style={ts('caption-sm', 'var(--muted-soft)')}>실제 signal 결과</span>
+          </div>
+          <StrategyPerformanceChart
+            data={performance}
+            loading={performanceLoading}
+            error={performanceError}
+          />
         </div>
 
         {/* 3-스텝 그리드 */}

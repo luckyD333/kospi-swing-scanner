@@ -94,6 +94,12 @@ log "signals.json 생성"
   --output-dir "$OUTPUT_DIR" \
   --format signals_ui
 
+log "최근 6개월 전략 성과 생성"
+"$VENV_PYTHON" scripts/aggregate_strategy_performance.py \
+  --data-dir "$OUTPUT_DIR" \
+  --cache-root "$CACHE_ROOT" \
+  --output "$OUTPUT_DIR/strategy_performance.json"
+
 log "signal-web 의존성/빌드"
 pushd signal-web >/dev/null
 case "$NPM_INSTALL" in

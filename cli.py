@@ -468,7 +468,10 @@ def _handle_signals_ui_format(args, result) -> int:
 
     archive_dir = data_dir / "archive"
     archive_dir.mkdir(exist_ok=True)
-    archive_path = archive_dir / f"signals_{date.today().isoformat()}.json"
+    archive_date = payload.target_date or result.target_date
+    if len(archive_date) == 8 and archive_date.isdigit():
+        archive_date = f"{archive_date[:4]}-{archive_date[4:6]}-{archive_date[6:]}"
+    archive_path = archive_dir / f"signals_{archive_date}.json"
     archive_path.write_text(json_str, encoding="utf-8")
 
     logger.info(f"[cli] signals.json 저장 → {out_path} ({payload.stats['total_signals']}개 시그널)")
