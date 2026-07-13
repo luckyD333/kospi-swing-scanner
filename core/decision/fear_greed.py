@@ -200,14 +200,10 @@ def _load_vix_history(cache_root: Path) -> pd.Series:
         return pd.Series(dtype=float)
 
 
-def _compute_breadth_history(cache_root: Path, tickers: list[str], top_n: int = 200) -> pd.Series:
-    """universe top-N ticker 의 1D close 로 daily breadth 시계열 backfill.
-
-    breadth = (up_ratio + above_ma20_ratio) / 2  (각 0-1)
-    """
-    if not tickers:
-        return pd.Series(dtype=float)
-
+def _load_universe_closes(
+    cache_root: Path, tickers: list[str], top_n: int = 200
+) -> pd.DataFrame:
+    """universe top-N ticker 의 1D close 시계열을 로드한다."""
     closes: dict[str, pd.Series] = {}
     for ticker in tickers[:top_n]:
         path = cache_root / "1D" / f"{ticker}.parquet"
@@ -224,14 +220,20 @@ def _compute_breadth_history(cache_root: Path, tickers: list[str], top_n: int = 
             continue
 
     if not closes:
+        return pd.DataFrame()
+
+    return pd.DataFrame(closes).sort_index()
+
+
+def _compute_breadth_from_closes(close_df: pd.DataFrame) -> pd.Series:
+    """1D close 로 daily breadth 시계열을 계산한다."""
+    if close_df.empty:
         return pd.Series(dtype=float)
 
-    close_df = pd.DataFrame(closes).sort_index()
     up_ratio = (close_df.pct_change() > 0).mean(axis=1)
     ma20 = close_df.rolling(window=20, min_periods=20).mean()
     above_ma20 = (close_df > ma20).mean(axis=1)
-    breadth = (up_ratio + above_ma20) / 2.0
-    return breadth.dropna()
+    return ((up_ratio + above_ma20) / 2.0).dropna()
 
 
 def build_fear_greed_payload(
@@ -248,7 +250,7 @@ def build_fear_greed_payload(
     cache_root = Path(cache_root)
     momentum = _load_momentum_history(cache_root)
     vix = _load_vix_history(cache_root)
-    breadth = _compute_breadth_history(cache_root, tickers)
+    breadth = _compute_breadth_from_closes(_load_universe_closes(cache_root, tickers))
 
     if momentum.empty or vix.empty or breadth.empty:
         logger.info(

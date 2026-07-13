@@ -126,6 +126,33 @@ def test_composite_equal_weight():
     assert composite({"momentum": 100, "breadth": 100, "volatility": 100}) == 100.0
 
 
+def test_load_universe_closes_and_breadth_golden(tmp_path):
+    """1D close 로딩과 breadth 계산이 손계산 golden 값과 일치한다."""
+    from core.decision.fear_greed import (
+        _compute_breadth_from_closes,
+        _load_universe_closes,
+    )
+
+    cache_root = tmp_path
+    (cache_root / "1D").mkdir()
+    idx = pd.date_range("2026-01-01", periods=25, freq="D")
+    pd.DataFrame({"close": np.linspace(100, 148, 25)}, index=idx).to_parquet(
+        cache_root / "1D" / "AAA.parquet"
+    )
+    pd.DataFrame({"close": np.linspace(200, 152, 25)}, index=idx).to_parquet(
+        cache_root / "1D" / "BBB.parquet"
+    )
+
+    close_df = _load_universe_closes(cache_root, ["AAA", "BBB"])
+
+    assert list(close_df.columns) == ["AAA", "BBB"]
+    assert len(close_df) == 25
+    breadth = _compute_breadth_from_closes(close_df)
+    assert breadth.iloc[0] == 0.0
+    assert breadth.iloc[1] == 0.25
+    assert breadth.iloc[-1] == 0.5
+
+
 def test_build_fear_greed_payload_with_fixtures(tmp_path):
     """regime_analysis.json + vix.parquet + 1D parquet → payload dict 생성."""
     import json as _json
