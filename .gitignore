@@ -42,6 +42,7 @@ signal-web/src/data/
 
 # Local orchestration state (oh-my-claudecode etc.)
 .omc/
+.worktrees/
 
 # Next.js 빌드 산출물
 signal-web/.next/
