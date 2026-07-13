@@ -2,7 +2,7 @@
 
 3 components (Momentum + Breadth + Volatility) 동일가중 평균으로 0-100 단일 score
 를 산출한다. 각 component 는 90 일 시계열의 percentile rank 로 정규화 (Volatility 는
-역방향: VIX 상승 = fear). 단계 라벨 (Extreme Fear / Fear / Neutral / Greed /
+역방향: 변동성 상승 = fear). 단계 라벨 (Extreme Fear / Fear / Neutral / Greed /
 Extreme Greed) 은 CNN F&G 와 동일한 구간을 사용.
 """
 from __future__ import annotations
@@ -79,7 +79,7 @@ def _last_and_history(s: pd.Series, lookback: int) -> tuple[float, np.ndarray]:
 def compute_components(
     momentum_series: pd.Series,
     breadth_series: pd.Series,
-    vix_series: pd.Series,
+    volatility_series: pd.Series,
     *,
     lookback: int = 90,
 ) -> dict[str, float]:
@@ -87,17 +87,17 @@ def compute_components(
 
     - momentum_series: HMM regime score (0-100)
     - breadth_series: (up_ratio + above_ma20_ratio) / 2 (0-1 또는 0-100)
-    - vix_series: VIX close
+    - volatility_series: 시장 실현변동성
 
-    Volatility 는 invert (`100 − rank`) — VIX↑ = fear.
+    Volatility 는 invert (`100 − rank`) — 변동성↑ = fear.
     """
     mom_t, mom_hist = _last_and_history(momentum_series, lookback)
     brd_t, brd_hist = _last_and_history(breadth_series, lookback)
-    vix_t, vix_hist = _last_and_history(vix_series, lookback)
+    vol_t, vol_hist = _last_and_history(volatility_series, lookback)
 
     momentum = percentile_rank(mom_hist, mom_t)
     breadth = percentile_rank(brd_hist, brd_t)
-    volatility = 100.0 - percentile_rank(vix_hist, vix_t)
+    volatility = 100.0 - percentile_rank(vol_hist, vol_t)
 
     return {
         "momentum": round(momentum, 1),
@@ -114,7 +114,7 @@ def composite(components: dict[str, float]) -> float:
 def compute_with_history(
     momentum_series: pd.Series,
     breadth_series: pd.Series,
-    vix_series: pd.Series,
+    volatility_series: pd.Series,
     *,
     lookback: int = 90,
     history_window: int = 30,
@@ -126,7 +126,7 @@ def compute_with_history(
     """
     common = momentum_series.index
     common = common.intersection(breadth_series.index)
-    common = common.intersection(vix_series.index)
+    common = common.intersection(volatility_series.index)
     common = common.sort_values()
 
     if len(common) == 0:
@@ -145,7 +145,7 @@ def compute_with_history(
         comps = compute_components(
             momentum_series.loc[:d],
             breadth_series.loc[:d],
-            vix_series.loc[:d],
+            volatility_series.loc[:d],
             lookback=lookback,
         )
         score_d = composite(comps)
@@ -184,23 +184,6 @@ def _load_momentum_history(cache_root: Path) -> pd.Series:
         return pd.Series(scores, index=dates).sort_index()
     except Exception as e:
         logger.warning(f"momentum history 로드 실패: {e}")
-        return pd.Series(dtype=float)
-
-
-def _load_vix_history(cache_root: Path) -> pd.Series:
-    """.cache/macro/vix.parquet 의 close 시계열 (TZ-naive 일자 단위)."""
-    path = cache_root / "macro" / "vix.parquet"
-    if not path.exists():
-        return pd.Series(dtype=float)
-    try:
-        df = pd.read_parquet(path)
-        if df.empty or "close" not in df.columns:
-            return pd.Series(dtype=float)
-        s = df["close"].copy()
-        s.index = _normalize_dates(s.index)
-        return s.sort_index()
-    except Exception as e:
-        logger.warning(f"VIX history 로드 실패: {e}")
         return pd.Series(dtype=float)
 
 
@@ -263,21 +246,23 @@ def build_fear_greed_payload(
 ) -> dict | None:
     """cache_root + universe tickers 로 fear/greed payload (snapshot 용 dict) 생성.
 
-    필수 입력 (regime_analysis.json · vix.parquet · 1D close) 중 하나라도 부족하면 None.
+    필수 입력 (regime_analysis.json · 1D close) 중 하나라도 부족하면 None.
     """
     cache_root = Path(cache_root)
     momentum = _load_momentum_history(cache_root)
-    vix = _load_vix_history(cache_root)
-    breadth = _compute_breadth_from_closes(_load_universe_closes(cache_root, tickers))
+    close_df = _load_universe_closes(cache_root, tickers)
+    breadth = _compute_breadth_from_closes(close_df)
+    volatility = _compute_market_volatility_history(close_df)
 
-    if momentum.empty or vix.empty or breadth.empty:
+    if momentum.empty or breadth.empty or volatility.empty:
         logger.info(
-            f"[fear_greed] 입력 부족: momentum={len(momentum)} vix={len(vix)} breadth={len(breadth)}"
+            f"[fear_greed] 입력 부족: momentum={len(momentum)} "
+            f"breadth={len(breadth)} volatility={len(volatility)}"
         )
         return None
 
     snap = compute_with_history(
-        momentum, breadth, vix,
+        momentum, breadth, volatility,
         lookback=lookback, history_window=history_window,
     )
     return {
