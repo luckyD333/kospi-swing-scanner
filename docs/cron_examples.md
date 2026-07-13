@@ -69,6 +69,8 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 - Job C: `collect_live.py` — 네트워크 호출 최소화. 시그널 종목의 현재가·등락률만 갱신
 - Job D: `collect.py` + `cli.py` — 1m 분봉 수집으로 `minute_close` 설정 → `current_price ≠ entry_price` 보장. 30분 주기로 전략 시그널 전체 재계산
 
+F&G의 Volatility는 국내 1D 실현변동성이므로, 장중 30분 단위 F&G 갱신은 Job D(30분 full collect) 활성화 시에만 적용된다. Job A 단독 운영 시 F&G는 장 마감 후 1회 갱신된다.
+
 ---
 
 ## 3. 옵션 설명
