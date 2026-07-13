@@ -18,6 +18,10 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# 실현변동성 rolling window(일). breadth 의 ma20 과 정합 + fng_modifier→랭킹으로 새는
+# label flip 노이즈 완화로 20 채택. 반응성이 더 필요하면 10 으로 override.
+_VOLATILITY_WINDOW = 20
+
 
 def percentile_rank(history: Iterable[float], target: float | None) -> float:
     """target 이 history 분포에서 차지하는 백분위 (0-100, ≤ 비율).
@@ -234,6 +238,20 @@ def _compute_breadth_from_closes(close_df: pd.DataFrame) -> pd.Series:
     ma20 = close_df.rolling(window=20, min_periods=20).mean()
     above_ma20 = (close_df > ma20).mean(axis=1)
     return ((up_ratio + above_ma20) / 2.0).dropna()
+
+
+def _compute_market_volatility_history(
+    close_df: pd.DataFrame, *, window: int = _VOLATILITY_WINDOW,
+) -> pd.Series:
+    """등가중 시장 일간수익률의 rolling 실현변동성(std) 시계열. 값↑ = fear.
+
+    percentile rank 로 정규화되므로 절대 스케일(분수)은 무관하고 상대 위치만 의미.
+    """
+    if close_df.empty:
+        return pd.Series(dtype=float)
+    market_return = close_df.pct_change().mean(axis=1)
+    vol = market_return.rolling(window=window, min_periods=window).std()
+    return vol.dropna()
 
 
 def build_fear_greed_payload(

@@ -153,6 +153,28 @@ def test_load_universe_closes_and_breadth_golden(tmp_path):
     assert breadth.iloc[-1] == 0.5
 
 
+def test_market_volatility_history_spikes_on_crash():
+    """마지막 구간에 큰 음의 수익률을 주입하면 실현변동성 마지막 값이 직전 분포보다 높다."""
+    from core.decision.fear_greed import _compute_market_volatility_history
+
+    idx = pd.date_range("2026-01-01", periods=60, freq="D")
+    calm = np.full((55, 3), 1000.0) * (1 + np.linspace(0, 0.02, 55)).reshape(-1, 1)
+    crash = np.array([[950], [900], [820], [760], [700]]) * np.ones((1, 3))
+    prices = np.vstack([calm, crash])
+    close_df = pd.DataFrame(prices, index=idx, columns=["a", "b", "c"])
+
+    vol = _compute_market_volatility_history(close_df, window=10)
+
+    assert not vol.empty
+    assert vol.iloc[-1] > vol.iloc[:-5].quantile(0.9)
+
+
+def test_market_volatility_history_empty_on_no_data():
+    from core.decision.fear_greed import _compute_market_volatility_history
+
+    assert _compute_market_volatility_history(pd.DataFrame()).empty
+
+
 def test_build_fear_greed_payload_with_fixtures(tmp_path):
     """regime_analysis.json + vix.parquet + 1D parquet → payload dict 생성."""
     import json as _json
