@@ -123,35 +123,33 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
           );
         })}
 
-        {hasFearGreed ? (
-          <FearGreedGauge data={fearGreed!} />
-        ) : (
-          sortedRegimes.map(([tf, r], i) => {
-            const isLast = i === sortedRegimes.length - 1;
-            return (
-              <div key={tf} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                flexShrink: 0,
-                ...itemStyle(!isLast),
+        {hasFearGreed && <FearGreedGauge data={fearGreed!} />}
+
+        {sortedRegimes.map(([tf, r], i) => {
+          const isLast = i === sortedRegimes.length - 1;
+          return (
+            <div key={tf} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexShrink: 0,
+              ...itemStyle(!isLast),
+            }}>
+              <span style={ts('caption-sm', 'var(--muted)')}>
+                {tf.toUpperCase()}
+              </span>
+              <span style={{
+                ...ts('caption', regimeColor(r.regime)),
+                letterSpacing: '0.5px',
               }}>
-                <span style={ts('caption-sm', 'var(--muted)')}>
-                  {tf.toUpperCase()}
-                </span>
-                <span style={{
-                  ...ts('caption', regimeColor(r.regime)),
-                  letterSpacing: '0.5px',
-                }}>
-                  {r.regime}
-                </span>
-                <span style={ts('caption-sm', 'var(--muted-soft)')}>
-                  {r.score}
-                </span>
-              </div>
-            );
-          })
-        )}
+                {r.regime}
+              </span>
+              <span style={ts('caption-sm', 'var(--muted-soft)')}>
+                {r.score}
+              </span>
+            </div>
+          );
+        })}
 
         {vKospi && <VKospiIndicator data={vKospi} />}
 

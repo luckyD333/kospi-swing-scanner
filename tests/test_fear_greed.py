@@ -155,6 +155,24 @@ def test_load_universe_closes_and_breadth_golden(tmp_path):
     assert breadth.iloc[-1] == 0.5
 
 
+def test_load_universe_closes_uses_first_100_stocks(tmp_path):
+    """F&G 구성 종목은 전달된 주식 유니버스의 선두 100개로 고정한다."""
+    from core.decision.fear_greed import _load_universe_closes
+
+    one_d_dir = tmp_path / "1D"
+    one_d_dir.mkdir()
+    tickers = [f"stock_{i:03d}" for i in range(101)]
+    for ticker in tickers:
+        pd.DataFrame(
+            {"close": [100.0]},
+            index=[pd.Timestamp("2026-01-01")],
+        ).to_parquet(one_d_dir / f"{ticker}.parquet")
+
+    closes = _load_universe_closes(tmp_path, tickers)
+
+    assert list(closes.columns) == tickers[:100]
+
+
 def test_breadth_ignores_missing_constituent_instead_of_counting_zero_return():
     """당일 값이 없는 종목은 보합/하락으로 간주하지 않고 분모에서 제외한다."""
     from core.decision.fear_greed import _compute_breadth_from_closes

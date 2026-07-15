@@ -67,6 +67,39 @@ def test_collect_defaults_to_100_stocks_and_30_etfs():
     assert cfg.max_etf_size == 30
 
 
+def test_collect_keeps_enough_daily_history_for_fng(tmp_path):
+    """짧은 scan lookback을 요청해도 F&G용 1D 이력은 180일 확보한다."""
+    from scripts.collect import CollectConfig, run_collect
+
+    cache = MagicMock()
+    cache.get_or_fetch.return_value = pd.DataFrame()
+    cfg = CollectConfig(
+        cache_root=tmp_path / ".cache",
+        max_universe_size=2,
+        base_tfs=["1D"],
+        lookback_days=60,
+        include_etf=False,
+        min_market_cap_bil=0.0,
+        max_market_cap_bil=999999.0,
+    )
+
+    with patch(
+        "scripts.collect.DataClient", return_value=_make_mock_client()
+    ), patch("scripts.collect.OhlcvCache", return_value=cache), patch(
+        "scripts.collect._update_dynamic_weights_status"
+    ), patch("scripts.collect._fetch_market_indices", return_value={}), patch(
+        "scripts.collect._fetch_vix_history", return_value=None
+    ):
+        run_collect(cfg, target_date="20260430")
+
+    daily_starts = {
+        call.args[1]
+        for call in cache.get_or_fetch.call_args_list
+        if call.kwargs["timeframe"] == "1D"
+    }
+    assert daily_starts == {"20251101"}
+
+
 def test_market_state_tickers_exclude_etf_and_etn():
     """시장 상태 계산 목록에서는 ETF/ETN 전체 명단을 제외한다."""
     from scripts.collect import _market_state_tickers

@@ -63,6 +63,9 @@ _VKOSPI_CANDLES_URL = (
     "KOREA-O2901P/day_candles.json"
 )
 
+# F&G 90일 percentile + 20일 rolling 준비 구간을 거래일 기준으로 확보한다.
+_DAILY_HISTORY_FLOOR_DAYS = 180
+
 
 @dataclass
 class CollectConfig:
@@ -191,7 +194,11 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         target_date = latest_business_day()
 
     target_dt = datetime.strptime(target_date, "%Y%m%d")
-    day_start = (target_dt - timedelta(days=cfg.lookback_days + 30)).strftime("%Y%m%d")
+    daily_history_days = max(
+        cfg.lookback_days + 30,
+        _DAILY_HISTORY_FLOOR_DAYS,
+    )
+    day_start = (target_dt - timedelta(days=daily_history_days)).strftime("%Y%m%d")
     # 분봉(1m) lookback. HMM 학습용 1h regime, 30m/1h RSI(14) 안정성을 위해 30일치.
     min_start = (target_dt - timedelta(days=30)).strftime("%Y%m%d")
 
@@ -893,7 +900,10 @@ def main() -> None:
         "--timeframes", nargs="+", default=["1D", "1W", "1h", "30m"],
         metavar="TF", help="1D 1W 1h 30m → 내부에서 base TF로 변환 (기본: 전 구간)",
     )
-    parser.add_argument("--lookback-days", type=int, default=90, help="최근 N일 (기본: 3개월)")
+    parser.add_argument(
+        "--lookback-days", type=int, default=90,
+        help="전략 lookback 최근 N일 (1D 시장지표는 최소 180일 수집)",
+    )
     parser.add_argument("--min-volume", type=int, default=50_000, help="최소 거래량 (기본: 중간)")
     parser.add_argument("--date", help="기준일 YYYYMMDD")
     parser.add_argument(

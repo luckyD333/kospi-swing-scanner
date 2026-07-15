@@ -258,6 +258,22 @@ class OhlcvCache:
             self._disk.write(ticker, timeframe, df)
             return df
 
+        # warm cache도 더 이른 시작일을 요청하면 왼쪽 누락 구간을 보충한다.
+        first = cached_disk.index.min()
+        if timeframe == "1m":
+            first_key = first.strftime("%Y%m%d%H%M")
+            leading_end = (first - pd.Timedelta(minutes=1)).strftime("%Y%m%d%H%M")
+        else:
+            first_key = first.strftime("%Y%m%d")
+            leading_end = (first - pd.Timedelta(days=1)).strftime("%Y%m%d")
+        if start < first_key:
+            leading_end = min(leading_end, end)
+            older = self._client.get_ohlcv(
+                ticker, start, leading_end, timeframe=timeframe
+            )
+            if not older.empty:
+                cached_disk = self._disk.append(ticker, timeframe, older)
+
         # warm: gap 만 fetch
         last = cached_disk.index.max()
         if timeframe == "1m":

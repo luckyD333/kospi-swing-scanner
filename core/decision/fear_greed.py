@@ -186,9 +186,9 @@ def _load_momentum_history(cache_root: Path) -> pd.Series:
 
 
 def _load_universe_closes(
-    cache_root: Path, tickers: list[str], top_n: int = 200
+    cache_root: Path, tickers: list[str], top_n: int = 100
 ) -> pd.DataFrame:
-    """universe top-N ticker 의 1D close 시계열을 로드한다."""
+    """주식 universe 선두 최대 100개 ticker의 1D close를 로드한다."""
     closes: dict[str, pd.Series] = {}
     for ticker in tickers[:top_n]:
         path = cache_root / "1D" / f"{ticker}.parquet"

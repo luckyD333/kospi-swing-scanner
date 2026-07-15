@@ -76,6 +76,25 @@ def test_disk_warm_does_incremental_fetch(tmp_path):
     assert args[1] >= "20260424"
 
 
+def test_disk_warm_backfills_earlier_requested_history(tmp_path):
+    """요청 시작일이 cache보다 이르면 과거 구간도 채워서 반환한다."""
+    disk = OhlcvDiskCache(root=tmp_path)
+    disk.write("005930", "1D", _make_df("2026-01-12", 10))
+    client = MagicMock()
+    client.get_ohlcv.return_value = _make_df("2026-01-02", 6)
+    cache = OhlcvCache(client, disk=disk)
+
+    df = cache.get_or_fetch(
+        "005930", "20260102", "20260123", timeframe="1D"
+    )
+
+    client.get_ohlcv.assert_called_once_with(
+        "005930", "20260102", "20260111", timeframe="1D"
+    )
+    assert len(df) == 16
+    assert df.index.min() == pd.Timestamp("2026-01-02")
+
+
 def test_disk_warm_no_gap_skips_fetch(tmp_path):
     """캐시가 이미 end 까지 채워져 있으면 fetch 호출 X."""
     disk = OhlcvDiskCache(root=tmp_path)
