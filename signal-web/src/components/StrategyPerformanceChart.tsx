@@ -65,6 +65,39 @@ function EmptyState({ children }: { children: string }) {
   );
 }
 
+function PartialWarning({ data }: { data: StrategyPerformanceResponse }) {
+  if (data.status !== 'partial') return null;
+  const summary = data.archive_summary;
+  const failedCount = summary?.failed_files_count ?? 0;
+  const failedFiles = summary?.failed_files ?? [];
+  return (
+    <aside
+      role="status"
+      style={{
+        border: '1px solid var(--hairline)',
+        borderLeft: '3px solid var(--warning)',
+        padding: '14px 16px',
+        marginBottom: '14px',
+        color: 'var(--body-strong)',
+        ...ts('body-md'),
+      }}
+    >
+      <strong>성과가 일부만 집계되었습니다.</strong>{' '}
+      {failedCount > 0
+        ? `${failedCount}개 archive 파일을 읽지 못했습니다.`
+        : '일부 archive 파일을 읽지 못했습니다.'}
+      {failedFiles.length > 0 && (
+        <details style={{ marginTop: '8px' }}>
+          <summary style={{ cursor: 'pointer' }}>실패 파일 보기</summary>
+          <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+            {failedFiles.map(filename => <li key={filename}>{filename}</li>)}
+          </ul>
+        </details>
+      )}
+    </aside>
+  );
+}
+
 function MetricCard({
   strategyKey,
   label,
@@ -130,17 +163,26 @@ export default function StrategyPerformanceChart({ data, loading, error }: Props
 
   if (loading) return <EmptyState>최근 6개월 성과를 불러오는 중입니다.</EmptyState>;
   if (error) return <EmptyState>성과 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</EmptyState>;
-  if (!data || data.status !== 'ready' || data.daily.length === 0) {
+  if (!data || data.status === 'not_ready') {
     return <EmptyState>아직 집계된 성과가 없습니다. 장 마감 후 첫 집계를 실행해주세요.</EmptyState>;
+  }
+  if (data.daily.length === 0) {
+    return (
+      <div>
+        <PartialWarning data={data} />
+        <EmptyState>아직 집계된 성과가 없습니다. 장 마감 후 첫 집계를 실행해주세요.</EmptyState>
+      </div>
+    );
   }
 
   const rows: PerformanceDailyRow[] = data.daily;
+  const visibleKeys = keys.filter(key => activeKeys.has(key));
   const width = 820;
   const height = 300;
   const padding = { top: 24, right: 18, bottom: 34, left: 52 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
-  const values = keys.flatMap(key => rows.map(row => (
+  const values = visibleKeys.flatMap(key => rows.map(row => (
     row.by_strategy[key]?.cumulative_return_pct ?? 0
   )));
   const minValue = Math.min(0, ...values);
@@ -166,6 +208,7 @@ export default function StrategyPerformanceChart({ data, loading, error }: Props
 
   return (
     <div>
+      <PartialWarning data={data} />
       <div style={{
         border: '1px solid var(--hairline)',
         background: 'rgba(255,255,255,0.015)',
@@ -183,7 +226,7 @@ export default function StrategyPerformanceChart({ data, loading, error }: Props
             <text x={padding.left - 10} y={zeroY + 4} textAnchor="end" fill="var(--muted-soft)" fontSize="10">0%</text>
             <text x={padding.left - 10} y={yFor(maxValue) + 4} textAnchor="end" fill="var(--muted-soft)" fontSize="10">{formatPct(maxValue)}</text>
             <text x={padding.left - 10} y={yFor(minValue) + 4} textAnchor="end" fill="var(--muted-soft)" fontSize="10">{formatPct(minValue)}</text>
-            {activeKeys.size > 0 && keys.map(key => {
+            {visibleKeys.map(key => {
               const points = rows.map((row, index) => (
                 `${xFor(index)},${yFor(row.by_strategy[key]?.cumulative_return_pct ?? 0)}`
               )).join(' ');
@@ -206,7 +249,7 @@ export default function StrategyPerformanceChart({ data, loading, error }: Props
                   y1={padding.top} y2={height - padding.bottom}
                   stroke={hoverIndex === index ? 'var(--hairline)' : 'transparent'}
                 />
-                {keys.filter(key => activeKeys.has(key)).map(key => (
+                {visibleKeys.map(key => (
                   <circle
                     key={key}
                     cx={xFor(index)}
@@ -231,7 +274,7 @@ export default function StrategyPerformanceChart({ data, loading, error }: Props
               pointerEvents: 'none',
             }}>
               <div style={ts('caption-sm', 'var(--muted)')}>{formatDate(hoverRow.evaluation_date)}</div>
-              {keys.filter(key => activeKeys.has(key)).map(key => (
+              {visibleKeys.map(key => (
                 <div key={key} style={{ display: 'flex', gap: '10px', justifyContent: 'space-between', marginTop: '3px' }}>
                   <span style={ts('caption-sm', STRATEGY_COLORS[key])}>{data.strategies[key]?.label ?? FALLBACK_LABELS[key]}</span>
                   <span style={ts('caption-sm', 'var(--body-strong)')}>
@@ -279,6 +322,43 @@ export default function StrategyPerformanceChart({ data, loading, error }: Props
           />
         ))}
       </div>
+
+      <details style={{ marginTop: '16px' }}>
+        <summary style={{ ...ts('caption', 'var(--body-strong)'), cursor: 'pointer' }}>
+          일별 누적수익률 표
+        </summary>
+        <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', ...ts('caption-sm') }}>
+            <caption style={{ textAlign: 'left', color: 'var(--muted)', marginBottom: '8px' }}>
+              날짜별 전략 누적수익률
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col" style={{ textAlign: 'left', padding: '7px 8px', borderBottom: '1px solid var(--hairline)' }}>평가일</th>
+                {keys.map(key => (
+                  <th key={key} scope="col" style={{ textAlign: 'right', padding: '7px 8px', borderBottom: '1px solid var(--hairline)' }}>
+                    {data.strategies[key]?.label ?? FALLBACK_LABELS[key]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.evaluation_date}>
+                  <th scope="row" style={{ textAlign: 'left', padding: '7px 8px', borderBottom: '1px solid var(--hairline)' }}>
+                    {formatDate(row.evaluation_date)}
+                  </th>
+                  {keys.map(key => (
+                    <td key={key} style={{ textAlign: 'right', padding: '7px 8px', borderBottom: '1px solid var(--hairline)' }}>
+                      {formatPct(row.by_strategy[key]?.cumulative_return_pct)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
 
       <p style={{ ...ts('caption-sm', 'var(--muted-soft)'), lineHeight: 1.6, margin: '16px 0 0' }}>
         최근 {formatDate(data.window.from)} ~ {formatDate(data.window.to)} · 1D signal 종가에서 다음 거래일 종가까지 · 비용 {data.evaluation.cost_pct.toFixed(2)}% 차감 · 실제 체결 PnL과는 별도입니다.

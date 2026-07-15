@@ -1,19 +1,3 @@
-export type PerformanceOutcome = 'WIN' | 'LOSS' | 'FLAT';
-
-export interface PerformanceSignal {
-  signal_date: string;
-  source_strategy_id: string;
-  source_file: string | null;
-  ticker: string;
-  name: string;
-  rank: number | null;
-  signal_close: number;
-  evaluation_close: number;
-  gross_return_pct: number;
-  net_return_pct: number;
-  outcome: PerformanceOutcome;
-}
-
 export interface PerformanceStats {
   signal_count: number;
   evaluated_count: number;
@@ -28,7 +12,6 @@ export interface PerformanceStats {
   daily_return_pct: number;
   cumulative_return_pct: number;
   profit_factor: number | null;
-  signals?: PerformanceSignal[];
 }
 
 export interface PerformanceStrategyDefinition {
@@ -43,7 +26,7 @@ export interface PerformanceDailyRow {
 
 export interface StrategyPerformanceResponse {
   schema_version: string;
-  status: 'ready' | 'not_ready';
+  status: 'ready' | 'partial' | 'not_ready';
   updated_at: string | null;
   window: { from: string | null; to: string | null };
   evaluation: {
@@ -55,4 +38,10 @@ export interface StrategyPerformanceResponse {
   strategies: Record<string, PerformanceStrategyDefinition>;
   daily: PerformanceDailyRow[];
   totals: Record<string, PerformanceStats>;
+  archive_summary?: {
+    discovered_files: number;
+    loaded_files: number;
+    failed_files_count: number;
+    failed_files: string[];
+  };
 }
