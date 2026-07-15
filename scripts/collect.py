@@ -398,7 +398,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         market_indices = _fetch_market_indices(target_date)
         market_indices_collected_at = datetime.now().isoformat()
 
-        # VIX 90일 close history → fear/greed Volatility 컴포넌트 입력
+        # VIX 90일 close history → market axes CRISIS 판정 입력
         vix_last: float | None = None  # axes CRISIS 판정 입력 (수집 실패 시 None 유지)
         try:
             vix_history = _fetch_vix_history()
@@ -753,7 +753,7 @@ def _vix_last_from_history(vix_history: pd.DataFrame | None) -> float | None:
 
 
 def _fetch_vix_history(period: str = "6mo"):
-    """yfinance ^VIX close history. fear/greed Volatility 컴포넌트의 90일 percentile 입력.
+    """yfinance ^VIX close history. market axes CRISIS 판정 입력.
 
     Returns: pandas.DataFrame(columns=['close'], index=date) or None on failure.
     """

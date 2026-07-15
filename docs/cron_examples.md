@@ -74,6 +74,8 @@ LOCK=/tmp/kospi-scanner.lock
 - 실패 파일을 복구하거나 제거한 뒤 Job E 명령을 다시 실행하면 전체 archive를 재검사하며, 실패가 없으면 `ready`로 복구됩니다.
 - Job B와 E는 같은 `flock`과 `&&` 체인에 있으므로 스캔 중 archive를 동시에 읽지 않고, Job B 실패 시 E를 실행하지 않습니다.
 
+F&G의 Volatility는 국내 1D 실현변동성이므로, 장중 30분 단위 F&G 갱신은 Job D(30분 full collect) 활성화 시에만 적용된다. Job A 단독 운영 시 F&G는 장 마감 후 1회 갱신된다.
+
 ---
 
 ## 3. 옵션 설명
