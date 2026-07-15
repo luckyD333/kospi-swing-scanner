@@ -125,7 +125,7 @@ def _build_unique_pool(
 
     regime: load_regime_analysis 결과 dict (current_score, current_regime 포함).
             None 시 metadata 에 regime_* 키 미주입.
-    fng_label: F&G 5-label (Extreme Fear/Fear/Neutral/Greed/Extreme Greed). None 시 modifier 비활성.
+    fng_label: 구형 호출 호환용. F&G는 정보 지표라 점수·메타데이터에 반영하지 않는다.
 
     Phase 3 (2026-05-19): compute_regime_aware_ensemble_score 로 전환. regime/fng_label 미지정 시
     정적 strategy_weights 와 동일 동작 (effective_strategy_weight fallback).
@@ -150,14 +150,10 @@ def _build_unique_pool(
             )
             regime_meta["regime_label"] = regime_label
 
-    if fng_label:
-        regime_meta["fng_label"] = fng_label
-
     weighted_scores = compute_regime_aware_ensemble_score(
         by_strategy,
         weight_config,
         regime=regime_label,
-        fng_label=fng_label,
     )
 
     chosen: dict[str, Candidate] = {}
@@ -169,29 +165,15 @@ def _build_unique_pool(
 
     for ticker, cand in chosen.items():
         ws = weighted_scores.get(ticker, 1.0)
+        base_metadata = dict(cand.metadata or {})
+        base_metadata.pop("fng_label", None)
         cand.metadata = {
-            **(cand.metadata or {}),
+            **base_metadata,
             "ensemble_count": int(round(ws)),   # 표시용 (decision_journal.py 기존 코드 호환)
             "ensemble_score": ws,               # aggregator percentile 정렬용 (float)
             **regime_meta,
         }
     return list(chosen.values())
-
-
-def _load_fng_label(snapshot_path: Path) -> str | None:
-    """data/market_snapshot.json 에서 F&G 라벨 추출. 없거나 파싱 실패 시 None."""
-    if not snapshot_path.exists():
-        return None
-    try:
-        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning(f"market_snapshot 읽기 실패 (F&G skip): {e}")
-        return None
-    fg = payload.get("fear_greed")
-    if not isinstance(fg, dict):
-        return None
-    label = fg.get("label")
-    return str(label) if label else None
 
 
 def run_decide_ranking(
@@ -226,12 +208,10 @@ def run_decide_ranking(
         except Exception as e:
             logger.warning(f"regime 로드 실패 (skip): {e}")
 
-    fng_label = _load_fng_label(Path("data/market_snapshot.json"))
     pool = _build_unique_pool(
         by_strategy,
         weight_config=weight_config,
         regime=regime,
-        fng_label=fng_label,
     )
     ranked = aggregate_candidates(pool, weight_config)
     # 비대칭 후회 점수 — "안 사면 가장 후회 남을 종목" 기준 정렬
@@ -285,12 +265,10 @@ def run_decide_journal(
         except Exception as e:
             logger.warning(f"regime 로드 실패 (skip): {e}")
 
-    fng_label = _load_fng_label(Path("data/market_snapshot.json"))
     pool = _build_unique_pool(
         by_strategy,
         weight_config=weight_config,
         regime=regime,
-        fng_label=fng_label,
     )
     ranked = aggregate_candidates(pool, weight_config)
     if ranked:

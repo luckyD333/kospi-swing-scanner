@@ -150,64 +150,126 @@ def test_load_universe_closes_and_breadth_golden(tmp_path):
     assert list(close_df.columns) == ["AAA", "BBB"]
     assert len(close_df) == 25
     breadth = _compute_breadth_from_closes(close_df)
-    assert breadth.iloc[0] == 0.0
-    assert breadth.iloc[1] == 0.25
+    assert len(breadth) == 6  # MA20 이 유효해진 시점부터 계산
+    assert breadth.iloc[0] == 0.5
     assert breadth.iloc[-1] == 0.5
 
 
-def test_market_volatility_history_spikes_on_crash():
-    """마지막 구간에 큰 음의 수익률을 주입하면 실현변동성 마지막 값이 직전 분포보다 높다."""
-    from core.decision.fear_greed import _compute_market_volatility_history
+def test_breadth_ignores_missing_constituent_instead_of_counting_zero_return():
+    """당일 값이 없는 종목은 보합/하락으로 간주하지 않고 분모에서 제외한다."""
+    from core.decision.fear_greed import _compute_breadth_from_closes
 
-    idx = pd.date_range("2026-01-01", periods=60, freq="D")
-    calm = np.full((55, 3), 1000.0) * (1 + np.linspace(0, 0.02, 55)).reshape(-1, 1)
-    crash = np.array([[950], [900], [820], [760], [700]]) * np.ones((1, 3))
-    prices = np.vstack([calm, crash])
-    close_df = pd.DataFrame(prices, index=idx, columns=["a", "b", "c"])
+    idx = pd.date_range("2026-01-01", periods=21, freq="D")
+    closes = pd.DataFrame(
+        {
+            **{f"active_{i}": np.linspace(100, 120, 21) for i in range(9)},
+            "missing": [100.0] * 20 + [np.nan],
+        },
+        index=idx,
+    )
 
-    vol = _compute_market_volatility_history(close_df, window=10)
+    breadth = _compute_breadth_from_closes(closes)
 
-    assert not vol.empty
-    assert vol.iloc[-1] > vol.iloc[:-5].quantile(0.9)
-
-
-def test_market_volatility_history_empty_on_no_data():
-    from core.decision.fear_greed import _compute_market_volatility_history
-
-    assert _compute_market_volatility_history(pd.DataFrame()).empty
+    assert breadth.iloc[-1] == 1.0
 
 
 def test_build_fear_greed_payload_no_vix_needed(tmp_path):
-    """regime_analysis.json + 1D close 만으로 payload 를 생성한다."""
+    """regime/breadth와 shared market volatility로 payload를 생성한다."""
     import json as _json
     from core.decision.fear_greed import build_fear_greed_payload
 
     cache_root = tmp_path
-    idx = pd.date_range("2026-01-01", periods=40, freq="D")
+    idx = pd.date_range("2026-01-01", periods=60, freq="D")
     rng = np.random.default_rng(1)
-    tickers = ["005930", "000660", "035420"]
+    tickers = [f"stock_{i}" for i in range(10)]
 
     history = [
         {"date": d.strftime("%Y-%m-%d"), "score": float(score)}
-        for d, score in zip(idx, rng.uniform(20, 80, 40))
+        for d, score in zip(idx, rng.uniform(20, 80, 60))
     ]
     (cache_root / "regime_analysis.json").write_text(_json.dumps({"history": history}))
 
     one_d_dir = cache_root / "1D"
     one_d_dir.mkdir()
     for ticker in tickers:
-        prices = 1000 * (1 + rng.normal(0, 0.012, 40)).cumprod()
+        prices = 1000 * (1 + rng.normal(0, 0.012, 60)).cumprod()
         pd.DataFrame({"close": prices}, index=idx).to_parquet(
             one_d_dir / f"{ticker}.parquet"
         )
 
+    volatility = pd.Series(rng.uniform(0.01, 0.03, 60), index=idx)
     payload = build_fear_greed_payload(
-        cache_root, tickers, lookback=30, history_window=10
+        cache_root,
+        tickers,
+        volatility_series=volatility,
+        lookback=30,
+        history_window=10,
     )
 
     assert payload is not None
     assert 0 <= payload["score"] <= 100
     assert set(payload["components"]) == {"momentum", "breadth", "volatility"}
+    assert payload["status"] == "informational"
+
+
+def test_build_fear_greed_payload_waits_for_full_lookback(tmp_path):
+    """공통 이력이 lookback+1보다 짧으면 불완전 percentile을 표시하지 않는다."""
+    import json as _json
+    from core.decision.fear_greed import build_fear_greed_payload
+
+    idx = pd.date_range("2026-01-01", periods=30, freq="D")
+    (tmp_path / "regime_analysis.json").write_text(_json.dumps({
+        "history": [
+            {"date": date.strftime("%Y-%m-%d"), "score": 50.0}
+            for date in idx
+        ]
+    }))
+    one_d_dir = tmp_path / "1D"
+    one_d_dir.mkdir()
+    tickers = [f"stock_{i}" for i in range(10)]
+    for ticker in tickers:
+        pd.DataFrame({"close": np.linspace(100, 130, 30)}, index=idx).to_parquet(
+            one_d_dir / f"{ticker}.parquet"
+        )
+
+    payload = build_fear_greed_payload(
+        tmp_path,
+        tickers,
+        volatility_series=pd.Series(np.linspace(0.01, 0.02, 30), index=idx),
+        lookback=30,
+    )
+
+    assert payload is None
+
+
+def test_build_fear_greed_payload_requires_ten_loaded_stocks(tmp_path):
+    """breadth 구성 종목이 10개 미만이면 대표성이 부족해 표시하지 않는다."""
+    import json as _json
+    from core.decision.fear_greed import build_fear_greed_payload
+
+    idx = pd.date_range("2026-01-01", periods=60, freq="D")
+    (tmp_path / "regime_analysis.json").write_text(_json.dumps({
+        "history": [
+            {"date": date.strftime("%Y-%m-%d"), "score": 50.0}
+            for date in idx
+        ]
+    }))
+    tickers = [f"stock_{i}" for i in range(9)]
+    one_d_dir = tmp_path / "1D"
+    one_d_dir.mkdir()
+    for ticker in tickers:
+        pd.DataFrame({"close": np.linspace(100, 130, 60)}, index=idx).to_parquet(
+            one_d_dir / f"{ticker}.parquet"
+        )
+
+    payload = build_fear_greed_payload(
+        tmp_path,
+        tickers,
+        volatility_series=pd.Series(np.linspace(0.01, 0.02, 60), index=idx),
+        lookback=30,
+    )
+
+    assert payload is None
 
 
 def test_build_fear_greed_payload_crash_moves_toward_fear(tmp_path):
@@ -218,7 +280,7 @@ def test_build_fear_greed_payload_crash_moves_toward_fear(tmp_path):
     cache_root = tmp_path
     idx = pd.date_range("2026-01-01", periods=60, freq="D")
     rng = np.random.default_rng(7)
-    tickers = ["005930", "000660", "035420"]
+    tickers = [f"stock_{i}" for i in range(10)]
 
     one_d_dir = cache_root / "1D"
     one_d_dir.mkdir()
@@ -233,7 +295,14 @@ def test_build_fear_greed_payload_crash_moves_toward_fear(tmp_path):
     (cache_root / "regime_analysis.json").write_text(_json.dumps({"history": history}))
 
     payload = build_fear_greed_payload(
-        cache_root, tickers, lookback=30, history_window=10
+        cache_root,
+        tickers,
+        volatility_series=pd.Series(
+            np.concatenate([np.full(57, 0.01), [0.02, 0.04, 0.08]]),
+            index=idx,
+        ),
+        lookback=30,
+        history_window=10,
     )
 
     assert payload is not None
@@ -248,5 +317,9 @@ def test_build_fear_greed_payload_missing_inputs_returns_none(tmp_path):
     cache_root = tmp_path / ".cache"
     cache_root.mkdir()
 
-    payload = build_fear_greed_payload(cache_root, ["005930"])
+    payload = build_fear_greed_payload(
+        cache_root,
+        ["005930"],
+        volatility_series=pd.Series(dtype=float),
+    )
     assert payload is None

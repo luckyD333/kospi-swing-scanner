@@ -4,7 +4,7 @@ core/decision/ensemble.py — 다중 전략 교집합 + Minimax Regret.
 기능:
   - compute_ensemble_count: ticker가 몇 개 전략에서 등장했는지 집계
   - compute_weighted_ensemble_score: strategy_weights 가산 (정적)
-  - compute_regime_aware_ensemble_score: regime + F&G CPO 가산 (Phase 3, 2026-05-19)
+  - compute_regime_aware_ensemble_score: regime별 strategy weight 가산
   - apply_minimax_regret: 후보별 시나리오 후회 매트릭스 → 최대 후회 최소 순
   - auto_volatility_scenarios: 후보 risk/reward 기반 bull/bear 시나리오 자동 생성
 
@@ -84,16 +84,16 @@ def compute_regime_aware_ensemble_score(
     regime: str | None = None,
     fng_label: str | None = None,
 ) -> dict[str, float]:
-    """ticker → regime + F&G CPO 가산 ensemble score.
+    """ticker → regime CPO 가산 ensemble score.
 
-    Phase 3 (2026-05-19): regime/F&G 미지정 시 정적 strategy_weights 동작과 동일하게
+    regime 미지정 시 정적 strategy_weights 동작과 동일하게
     fallback. effective_strategy_weight 가 0 이하면 해당 전략 신호 무시 (block).
 
     Args:
         candidates_by_strategy: {strategy_name: [Candidate, ...]}
-        weight_config: WeightConfig (strategy_weights_by_regime + fng_modifier 포함)
+        weight_config: WeightConfig (strategy_weights_by_regime 포함)
         regime: per-ticker regime 라벨 (UPTREND_STRONG, RANGE, ... 또는 None)
-        fng_label: F&G 5-label (Extreme Fear/Fear/Neutral/Greed/Extreme Greed 또는 None)
+        fng_label: 구형 호출 호환용. 점수에는 반영하지 않음.
 
     Returns:
         ticker → ensemble score (effective weight 합산)

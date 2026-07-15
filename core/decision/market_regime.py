@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -67,7 +68,11 @@ class RegimeAnalysis:
     state_covars: list = field(default_factory=list)
 
 
-def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame:
+def build_market_proxy(
+    cache_root: Path,
+    max_tickers: int = 100,
+    allowed_tickers: Collection[str] | None = None,
+) -> pd.DataFrame:
     """시장 전체 동향을 나타내는 마켓 프록시 DataFrame 구축.
 
     반환:
@@ -101,6 +106,13 @@ def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame
         logger.warning("tickers_meta 비어있음")
         return pd.DataFrame()
 
+    if allowed_tickers is not None:
+        allowed = set(allowed_tickers)
+        tickers_meta = {
+            ticker: meta for ticker, meta in tickers_meta.items()
+            if ticker in allowed
+        }
+
     # 시가총액 내림차순 정렬 → 상위 max_tickers개
     sorted_tickers = sorted(
         tickers_meta.items(),
@@ -132,6 +144,8 @@ def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame
 
     # 모든 log_return을 DataFrame으로 concat → 날짜별 평균
     all_returns = pd.concat(returns_list, axis=1)
+    coverage = all_returns.notna().sum(axis=1) / len(returns_list)
+    all_returns = all_returns.loc[coverage >= 0.80]
     mean_return = all_returns.mean(axis=1)
 
     if len(mean_return) < 30:
@@ -150,6 +164,7 @@ def build_market_proxy(cache_root: Path, max_tickers: int = 100) -> pd.DataFrame
     if proxy.empty:
         return pd.DataFrame()
 
+    proxy.attrs["n_tickers"] = len(returns_list)
     return proxy
 
 
@@ -285,7 +300,11 @@ def _fit_hmm_score(proxy: pd.DataFrame) -> tuple[float, float, float, list[dict]
     )
 
 
-def _build_proxy_1h(cache_root: Path, max_tickers: int = 30) -> pd.DataFrame:
+def _build_proxy_1h(
+    cache_root: Path,
+    max_tickers: int = 30,
+    allowed_tickers: Collection[str] | None = None,
+) -> pd.DataFrame:
     """1m 캐시에서 1h 리샘플링 → 마켓 프록시. 데이터 부족 시 빈 DataFrame."""
     root = Path(cache_root)
     manifest_path = root / "manifest.json"
@@ -296,6 +315,13 @@ def _build_proxy_1h(cache_root: Path, max_tickers: int = 30) -> pd.DataFrame:
         tickers_meta = manifest.get("tickers_meta", {})
     except Exception:
         return pd.DataFrame()
+
+    if allowed_tickers is not None:
+        allowed = set(allowed_tickers)
+        tickers_meta = {
+            ticker: meta for ticker, meta in tickers_meta.items()
+            if ticker in allowed
+        }
 
     sorted_tickers = sorted(
         tickers_meta.items(),
@@ -344,7 +370,10 @@ def _build_proxy_1h(cache_root: Path, max_tickers: int = 30) -> pd.DataFrame:
     return proxy
 
 
-def analyze_regime(cache_root: Path) -> RegimeAnalysis:
+def analyze_regime(
+    cache_root: Path,
+    allowed_tickers: Collection[str] | None = None,
+) -> RegimeAnalysis:
     """GaussianHMM(2-state)으로 BEAR/BULL 국면 추정.
 
     인자:
@@ -356,7 +385,7 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
     예외:
         ValueError: 캐시 부족 또는 HMM 학습 실패 시
     """
-    proxy_1d = build_market_proxy(cache_root)
+    proxy_1d = build_market_proxy(cache_root, allowed_tickers=allowed_tickers)
     if proxy_1d.empty:
         raise ValueError("캐시 부족: HMM 학습 불가")
 
@@ -367,7 +396,7 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
 
     timeframe_scores: dict = {"1d": score_1d}
     try:
-        proxy_1h = _build_proxy_1h(cache_root)
+        proxy_1h = _build_proxy_1h(cache_root, allowed_tickers=allowed_tickers)
         if not proxy_1h.empty:
             score_1h, _, _, _, _, _, _ = _fit_hmm_score(proxy_1h)
             timeframe_scores["1h"] = score_1h
@@ -392,9 +421,7 @@ def analyze_regime(cache_root: Path) -> RegimeAnalysis:
         history=history,
         bull_state_mean_return=bull_mean,
         bear_state_mean_return=bear_mean,
-        n_tickers=len(json.loads(
-            (Path(cache_root) / "manifest.json").read_text(encoding="utf-8")
-        ).get("tickers_meta", {})),
+        n_tickers=int(proxy_1d.attrs.get("n_tickers", 0)),
         n_days=len(proxy_1d),
         timeframe_scores=timeframe_scores,
         model_log_likelihood=best_ll,
@@ -455,7 +482,7 @@ def apply_regime_overlay(
         priorities=priorities,
         must_have=base_config.must_have,
         strategy_weights=base_config.strategy_weights,
-        # Phase 3 wiring: regime/F&G 매트릭스 보존 (없으면 signals.json wiring 정적 fallback)
+        # regime 매트릭스와 구형 F&G 설정의 라운드트립 호환을 보존한다.
         strategy_weights_by_regime=base_config.strategy_weights_by_regime,
         fng_modifier=base_config.fng_modifier,
     )
@@ -477,9 +504,12 @@ def _window_avg(history: list[dict], n: int) -> dict:
     return {"score": avg, "regime": get_regime_label(avg), "n_days": len(recent)}
 
 
-def save_regime_analysis(cache_root: Path) -> None:
+def save_regime_analysis(
+    cache_root: Path,
+    allowed_tickers: Collection[str] | None = None,
+) -> None:
     """HMM regime 계산 → {cache_root}/regime_analysis.json 저장."""
-    analysis = analyze_regime(cache_root)
+    analysis = analyze_regime(cache_root, allowed_tickers=allowed_tickers)
     history = [
         {
             "date": p.date,

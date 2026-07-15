@@ -75,6 +75,8 @@ async def get_signals(strategy: str | None = None):
         body["market_axes"] = market.axes
     if market and market.fear_greed:
         body["fear_greed"] = market.fear_greed
+    if market and market.v_kospi:
+        body["v_kospi"] = market.v_kospi
     if strategy:
         target = strategy.lower()
         body = {

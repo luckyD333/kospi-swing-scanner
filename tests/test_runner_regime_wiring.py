@@ -4,22 +4,17 @@
   - core.decision.runner._build_unique_pool: regime label/fng_label 전달 시
     compute_regime_aware_ensemble_score 가 호출되어 effective weight 가 ensemble_score 에
     반영되는지
-  - core.decision.runner._load_fng_label: data/market_snapshot.json 없음/None/정상 처리
 
 배경: 2026-05-19 Phase 3 wiring 전 runner 가 compute_weighted_ensemble_score 만 호출 →
-weights.yml 의 strategy_weights_by_regime / fng_modifier 가 의사결정에 미반영. 본 테스트로
-회귀 차단.
+weights.yml 의 strategy_weights_by_regime 가 의사결정에 미반영. F&G는 이후 정보용으로 전환.
 """
 from __future__ import annotations
-
-import json
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from core.decision.config import Priority, WeightConfig
-from core.decision.runner import _build_unique_pool, _load_fng_label
+from core.decision.runner import _build_unique_pool
 from core.strategy_base import Candidate
 
 
@@ -72,21 +67,22 @@ def test_wiring_applies_regime_effective_weights():
     assert aaa.metadata["regime_score"] == 80
 
 
-def test_wiring_applies_fng_modifier():
-    """fng_label 전달 시 fng_modifier 가 적용."""
+def test_wiring_keeps_fng_informational_only():
+    """fng_label을 전달해도 점수와 의사결정 메타데이터에 반영하지 않는다."""
     cfg = WeightConfig(
         priorities=_mk_priorities(),
         strategy_weights={"s_one": 1.0},
         strategy_weights_by_regime={"UPTREND_STRONG": {"s_one": 1.0}},
         fng_modifier={"extreme_greed": 0.6},
     )
-    by_strategy = {"s_one": [_mk_candidate("AAA", "s_one")]}
+    candidate = _mk_candidate("AAA", "s_one")
+    candidate.metadata["fng_label"] = "Extreme Fear"  # 구형 결과 파일에 남은 값
+    by_strategy = {"s_one": [candidate]}
     regime = {"current_score": 80, "current_regime": "UPTREND_STRONG"}
     pool = _build_unique_pool(by_strategy, weight_config=cfg, regime=regime, fng_label="Extreme Greed")
     aaa = pool[0]
-    # 1.0 * 0.6 = 0.6
-    assert aaa.metadata["ensemble_score"] == pytest.approx(0.6)
-    assert aaa.metadata["fng_label"] == "Extreme Greed"
+    assert aaa.metadata["ensemble_score"] == pytest.approx(1.0)
+    assert "fng_label" not in aaa.metadata
 
 
 def test_wiring_fallback_to_static_when_regime_none():
@@ -120,30 +116,3 @@ def test_wiring_blocks_strategy_when_effective_weight_zero():
     aaa = pool[0]
     # 차단 시 점수 누락 → fallback default 1.0 (compute_regime_aware_ensemble_score 의 `if w <= 0: continue`)
     assert aaa.metadata["ensemble_score"] == 1.0
-
-
-# -----------------------------------------------------------------------------
-# _load_fng_label
-# -----------------------------------------------------------------------------
-
-
-def test_load_fng_label_missing_file_returns_none(tmp_path: Path):
-    """파일 없음 → None (예외 X)."""
-    assert _load_fng_label(tmp_path / "no_such.json") is None
-
-
-def test_load_fng_label_returns_label(tmp_path: Path):
-    """fear_greed.label 정상 추출."""
-    p = tmp_path / "market_snapshot.json"
-    p.write_text(json.dumps({"fear_greed": {"score": 80, "label": "Extreme Greed"}}))
-    assert _load_fng_label(p) == "Extreme Greed"
-
-
-def test_load_fng_label_handles_none_fear_greed(tmp_path: Path):
-    """fear_greed=None 또는 키 부재 시 None."""
-    p1 = tmp_path / "snap1.json"
-    p1.write_text(json.dumps({"fear_greed": None}))
-    p2 = tmp_path / "snap2.json"
-    p2.write_text(json.dumps({}))
-    assert _load_fng_label(p1) is None
-    assert _load_fng_label(p2) is None

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
+import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot, VKospiSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
 import FearGreedGauge from './FearGreedGauge';
+import VKospiIndicator from './VKospiIndicator';
 
 interface Props {
   marketIndices: Record<string, MarketIndex>;
@@ -13,6 +14,7 @@ interface Props {
   marketBreadth?: Record<string, BreadthScore> | null;
   marketAxes?: Record<string, AxesScore> | null;
   fearGreed?: FearGreedSnapshot | null;
+  vKospi?: VKospiSnapshot | null;
   onHome?: () => void;
   onOpenAbout?: () => void;
 }
@@ -72,13 +74,13 @@ const VOL_BADGE: Record<string, { label: string; color: string } | undefined> = 
   CRISIS: { label: '이벤트 장세 — 갭 리스크 주의', color: 'var(--loss)' },
 };
 
-export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, onHome, onOpenAbout }: Props) {
+export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, vKospi, onHome, onOpenAbout }: Props) {
   const entries = Object.entries(marketIndices);
   const sortedRegimes = marketRegime
     ? REGIME_ORDER.filter((tf) => marketRegime[tf]).map((tf) => [tf, marketRegime[tf]] as const)
     : [];
   const hasFearGreed = fearGreed != null;
-  const hasRegime = hasFearGreed || sortedRegimes.length > 0;
+  const hasRegime = hasFearGreed || vKospi != null || sortedRegimes.length > 0;
   const volBadge = VOL_BADGE[marketAxes?.['1d']?.volatility_regime ?? ''];
 
   // 시장 지표 아이템 — borderless=true 이면 구분선·패딩 없이 gap만 사용 (서브열용)
@@ -150,6 +152,8 @@ export default function TopNav({ marketIndices, generatedAtDisplay, targetDateDi
             );
           })
         )}
+
+        {vKospi && <VKospiIndicator data={vKospi} />}
 
         {volBadge && (
           <span style={{

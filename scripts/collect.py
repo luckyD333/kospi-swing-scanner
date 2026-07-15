@@ -58,6 +58,11 @@ _TF_TO_BASE = {
     "30m": "1m", "1h": "1m", "2h": "1m", "4h": "1m",
 }
 
+_VKOSPI_CANDLES_URL = (
+    "https://mweb-api.stockplus.com/api/securities/"
+    "KOREA-O2901P/day_candles.json"
+)
+
 
 @dataclass
 class CollectConfig:
@@ -169,6 +174,18 @@ def _filter_swing_ineligible_etfs(
     return kept
 
 
+def _market_state_tickers(
+    client: DataClient,
+    target_date: str,
+    tickers: list[str],
+) -> list[str] | None:
+    """ETF/ETN을 제외한 시장 상태 계산용 주식 목록. 분류 실패 시 None."""
+    non_stocks = client.get_etf_list(target_date)
+    if not non_stocks:
+        return None
+    return [ticker for ticker in tickers if ticker not in non_stocks]
+
+
 def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     if target_date is None:
         target_date = latest_business_day()
@@ -244,6 +261,16 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         logger.info(f"유니버스 캐시 저장: {len(univ.tickers)}종목")
 
     logger.info(f"주식 유니버스: {len(univ.tickers)}종목")
+
+    market_state_ticker_list: list[str] | None = None
+    try:
+        market_state_ticker_list = _market_state_tickers(
+            client, target_date, univ.tickers
+        )
+        if market_state_ticker_list is None:
+            logger.warning("시장 상태용 ETF/ETN 분류 실패: F&G 계산 생략")
+    except Exception as e:
+        logger.warning(f"시장 상태용 ETF/ETN 분류 실패: {e}")
 
     # ETF 전종목 별도 fetch
     etf_tickers: list[str] = []
@@ -385,7 +412,10 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     # 시장 국면 저장 (weights.yml 불필요)
     try:
         from core.decision.market_regime import save_regime_analysis
-        save_regime_analysis(Path(cfg.cache_root))
+        save_regime_analysis(
+            Path(cfg.cache_root),
+            allowed_tickers=market_state_ticker_list,
+        )
         _patch_manifest(manifest_path, {"regime_collected_at": datetime.now().isoformat()})
     except Exception as e:
         logger.warning(f"시장 국면 계산 실패 (skip): {e}")
@@ -396,6 +426,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
     try:
         ohlcv_latest = _extract_ohlcv_latest(str(cfg.cache_root), tickers_meta)
         market_indices = _fetch_market_indices(target_date)
+        v_kospi_payload = _fetch_v_kospi(target_date)
         market_indices_collected_at = datetime.now().isoformat()
 
         # VIX 90일 close history → market axes CRISIS 판정 입력
@@ -427,6 +458,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         # breadth/axes 계산 (1D 기준)
         breadth_payload: dict | None = None
         axes_payload: dict | None = None
+        proxy_1d = pd.DataFrame()
         try:
             from core.decision.market_breadth import compute_market_breadth
             from core.decision.market_axes import (
@@ -439,7 +471,10 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             if breadth_1d:
                 breadth_payload = {"1d": breadth_1d}
 
-            proxy_1d = build_market_proxy(cfg.cache_root)
+            proxy_1d = build_market_proxy(
+                cfg.cache_root,
+                allowed_tickers=market_state_ticker_list,
+            )
             if not proxy_1d.empty:
                 trend_1d = compute_trend_score(proxy_1d["mean_return"])
                 vol_1d = compute_volatility_regime_with_vix(
@@ -453,9 +488,12 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         fear_greed_payload: dict | None = None
         try:
             from core.decision.fear_greed import build_fear_greed_payload
-            fear_greed_payload = build_fear_greed_payload(
-                cfg.cache_root, list(tickers_meta.keys())
-            )
+            if market_state_ticker_list is not None and not proxy_1d.empty:
+                fear_greed_payload = build_fear_greed_payload(
+                    cfg.cache_root,
+                    market_state_ticker_list,
+                    volatility_series=proxy_1d["rolling_std"],
+                )
         except Exception as e:
             logger.warning(f"fear/greed 계산 실패 (skip): {e}")
 
@@ -467,6 +505,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
             market_breadth=breadth_payload,
             market_axes=axes_payload,
             fear_greed=fear_greed_payload,
+            v_kospi=v_kospi_payload,
             signal_tickers=signal_tickers,
             cache_root=str(cfg.cache_root),
         )
@@ -739,6 +778,53 @@ def _fetch_vix() -> dict | None:
         return {"value": close, "change_pct": round(change_pct, 2)}
     except Exception as e:
         logger.warning(f"VIX 수집 실패 (skip): {e}")
+        return None
+
+
+def _fetch_v_kospi(target_date: str) -> dict | None:
+    """증권플러스 일봉 JSON에서 V-KOSPI 정보용 snapshot을 만든다."""
+    try:
+        import requests
+
+        target = datetime.strptime(target_date, "%Y%m%d").date()
+        exclusive_to = (target + timedelta(days=1)).isoformat()
+        response = requests.get(
+            _VKOSPI_CANDLES_URL,
+            params={"limit": 100, "to": exclusive_to},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=5,
+        )
+        response.raise_for_status()
+        rows = response.json().get("dayCandles", [])
+
+        by_date: dict[str, tuple[float, dict]] = {}
+        for row in rows:
+            try:
+                asof = datetime.fromisoformat(str(row["date"]).replace("Z", "+00:00")).date()
+                price = float(row["tradePrice"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if asof <= target and price > 0:
+                by_date[asof.isoformat()] = (price, row)
+
+        recent = sorted(by_date.items(), reverse=True)[:90]
+        if len(recent) < 90:
+            logger.warning(f"V-KOSPI 이력 부족: {len(recent)} < 90")
+            return None
+
+        asof, (value, latest) = recent[0]
+        change_pct = float(latest["changePriceRate"]) * 100.0
+        prices = [price for _, (price, _) in recent]
+        percentile = sum(price <= value for price in prices) / len(prices) * 100.0
+        return {
+            "value": value,
+            "change_pct": round(change_pct, 2),
+            "asof": asof,
+            "percentile_90d": round(percentile, 1),
+            "status": "informational",
+        }
+    except Exception as e:
+        logger.warning(f"V-KOSPI 수집 실패 (skip): {e}")
         return None
 
 

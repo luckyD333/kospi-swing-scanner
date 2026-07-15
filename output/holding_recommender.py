@@ -1,7 +1,7 @@
 """output/holding_recommender.py — 상황별 holding 추천 lookup.
 
 aggregate_holding_recommendations.py 가 생성한 data/holding_recommendations.json
-를 로드해 (strategy, market_regime, fng_label, per_ticker_regime, atr_bucket)
+를 로드해 (strategy, market_regime, per_ticker_regime, atr_bucket)
 조합에 대해 추천 보유 봉 수 + 신뢰도 반환.
 
 결합 규칙:
@@ -12,7 +12,7 @@ aggregate_holding_recommendations.py 가 생성한 data/holding_recommendations.
 스키마 버전:
   - v2.0: modifier_per_ticker / modifier_atr 가 {regime: {label: delta}} nested.
   - v1.0: 동 modifier 가 {label: delta} flat. 로드 시 deprecation warning + fallback.
-  - modifier_fng 는 두 버전 모두 flat (historical F&G 부재로 NOOP, runtime 만 작동).
+  - modifier_fng / fng_label 은 구형 파일·호출 호환용이며 의사결정에는 사용하지 않음.
 """
 from __future__ import annotations
 
@@ -118,7 +118,10 @@ def recommend_holding(
     atr_bucket: Optional[str],
     timeframe: str | None = None,
 ) -> HoldingRecommendation:
-    """결합 규칙 적용 후 추천 결과 반환."""
+    """결합 규칙 적용 후 추천 결과 반환.
+
+    ``fng_label``은 구형 호출 호환을 위해 받지만 정보 지표이므로 무시한다.
+    """
     if not recs:
         return HoldingRecommendation(None, 0.0, "LOW_CONFIDENCE")
 
@@ -145,11 +148,6 @@ def recommend_holding(
 
     # 3) modifier sum
     delta = 0
-    if fng_label is not None:
-        # modifier_fng 는 historical 부재로 flat 유지 (NOOP). runtime 만 작동.
-        v = recs.get("modifier_fng", {}).get(fng_label)
-        if isinstance(v, (int, float)):
-            delta += int(v)
     if per_ticker_regime is not None:
         v = _lookup_modifier(mod_per_raw, market_regime, per_ticker_regime)
         if isinstance(v, (int, float)):

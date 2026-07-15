@@ -138,7 +138,7 @@ def label_trade(
         "market_regime": snap["market_regime"],
         "per_ticker_regime": snap["per_ticker"].get(ticker, "MIXED"),
         "atr_bucket": atr_b,
-        "fng_label": None,  # historical F&G 부재 (TODO: VIX-proxy 백필 별도 ticket)
+        "fng_label": None,  # 구형 출력 스키마 호환용. runtime 의사결정에는 미사용.
     }
 
 
@@ -325,8 +325,7 @@ def main() -> None:
     baseline_holding = int(np.median(baselines)) if baselines else 5
 
     # v2.0: modifier_per_ticker / modifier_atr 는 regime-조건부 nested marginal.
-    # modifier_fng 는 historical 부재로 NOOP 유지 (flat).
-    # TODO: VIX-proxy 백필 도입 시 modifier_fng 도 _by_regime 으로 전환 (별도 ticket).
+    # modifier_fng 는 구형 파일 호환용으로만 유지한다. runtime 의사결정에는 사용하지 않는다.
     modifier_fng = modifier_table(trades, "fng_label", baseline_holding, args.min_trades)
     modifier_per_ticker = modifier_table_by_regime(
         trades, "per_ticker_regime", baseline_holding, args.min_trades,

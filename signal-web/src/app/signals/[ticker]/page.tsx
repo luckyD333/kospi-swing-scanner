@@ -24,6 +24,7 @@ export default async function Page({ params }: { params: Promise<{ ticker: strin
       marketBreadth={context.market_breadth}
       marketAxes={context.market_axes}
       fearGreed={context.fear_greed ?? null}
+      vKospi={context.v_kospi ?? null}
     />
   );
 }

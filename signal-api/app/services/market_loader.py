@@ -19,6 +19,7 @@ class LoadedMarket:
     breadth: dict[str, Any] | None  # timeframe → breadth metrics
     axes: dict[str, Any] | None    # timeframe → {trend_score, volatility_regime}
     fear_greed: dict[str, Any] | None  # {score, label, components, history}
+    v_kospi: dict[str, Any] | None  # 정보용 V-KOSPI snapshot
 
 
 class MarketLoader:
@@ -58,6 +59,7 @@ class MarketLoader:
                 breadth=data.get("market_breadth"),
                 axes=data.get("market_axes"),
                 fear_greed=data.get("fear_greed"),
+                v_kospi=data.get("v_kospi"),
             )
             self._cache_set_at = now
             return self._cache

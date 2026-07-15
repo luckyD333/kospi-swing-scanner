@@ -289,6 +289,31 @@ async def test_signals_no_fear_greed_when_market_missing(with_signals, with_no_m
     assert "fear_greed" not in r.json()
 
 
+async def test_signals_overlays_vkospi_separately(
+    signals_file, market_file, tmp_path, monkeypatch,
+):
+    """V-KOSPI는 F&G와 합치지 않고 독립 필드로 전달한다."""
+    import json as _json
+    base = _json.loads(market_file.read_text(encoding="utf-8"))
+    base["v_kospi"] = {
+        "value": 35.2,
+        "change_pct": 2.1,
+        "asof": "2026-07-15",
+        "percentile_90d": 88.9,
+        "status": "informational",
+    }
+    mf = tmp_path / "market_with_vkospi.json"
+    mf.write_text(_json.dumps(base), encoding="utf-8")
+    monkeypatch.setattr(signals_module, "_loader", SignalLoader(signals_file))
+    monkeypatch.setattr(signals_module, "_market_loader", MarketLoader(mf))
+
+    async with _make_client() as c:
+        r = await c.get("/api/signals")
+
+    assert r.status_code == 200
+    assert r.json()["v_kospi"] == base["v_kospi"]
+
+
 async def test_signals_no_strategy_query_returns_all_entries(
     signals_with_all_file, monkeypatch, with_no_market,
 ):
@@ -300,5 +325,4 @@ async def test_signals_no_strategy_query_returns_all_entries(
     ids = {s["strategy"]["id"] for s in r.json()["signals"]}
     assert "all" in ids
     assert "strategy_one_d_v2" in ids
-
 

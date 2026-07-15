@@ -94,6 +94,50 @@ def test_build_market_proxy_returns_two_features(mock_cache_cls, tmp_path):
 
 
 @patch("core.decision.market_regime.OhlcvDiskCache")
+def test_build_market_proxy_reads_only_allowed_tickers(mock_cache_cls, tmp_path):
+    """허용 목록 밖 ETF/ETN은 시가총액이 커도 proxy에서 제외한다."""
+    mock_disk = MagicMock()
+    mock_cache_cls.return_value = mock_disk
+    mock_disk.read.return_value = _make_ohlcv(60)
+
+    stocks = {f"00{i:04d}" for i in range(10)}
+    tickers_meta = {
+        "069500": {"market_cap_bil": 9999},
+        **{ticker: {"market_cap_bil": 100 - i} for i, ticker in enumerate(stocks)},
+    }
+    _make_manifest(tmp_path, tickers_meta)
+
+    result = build_market_proxy(tmp_path, allowed_tickers=stocks)
+
+    assert not result.empty
+    read_tickers = {call.args[0] for call in mock_disk.read.call_args_list}
+    assert read_tickers == stocks
+
+
+@patch("core.decision.market_regime.OhlcvDiskCache")
+def test_build_market_proxy_drops_dates_below_80_percent_coverage(mock_cache_cls, tmp_path):
+    """종목 수가 80% 미만인 날짜는 0수익률처럼 평균에 섞지 않는다."""
+    mock_disk = MagicMock()
+    mock_cache_cls.return_value = mock_disk
+    tickers = [f"00{i:04d}" for i in range(10)]
+    full = _make_ohlcv(60)
+
+    def read(ticker, _tf):
+        return full if ticker in tickers[:7] else full.iloc[:40]
+
+    mock_disk.read.side_effect = read
+    _make_manifest(
+        tmp_path,
+        {ticker: {"market_cap_bil": 100 - i} for i, ticker in enumerate(tickers)},
+    )
+
+    result = build_market_proxy(tmp_path)
+
+    assert not result.empty
+    assert result.index.max() == full.index[39]
+
+
+@patch("core.decision.market_regime.OhlcvDiskCache")
 def test_build_market_proxy_skips_failed_tickers(mock_cache_cls, tmp_path):
     """일부 ticker read 실패 시 skip (나머지로 계산)."""
     mock_disk = MagicMock()
@@ -199,6 +243,28 @@ def test_analyze_regime_returns_regime_analysis(mock_cache_cls, tmp_path):
     result = analyze_regime(tmp_path)
     assert isinstance(result, RegimeAnalysis)
     assert 1 <= result.current_score <= 100
+
+
+@patch("core.decision.market_regime.OhlcvDiskCache")
+def test_analyze_regime_respects_allowed_tickers(mock_cache_cls, tmp_path):
+    """1D/1h 국면 계산 모두 허용된 주식 목록 밖 상품을 읽지 않는다."""
+    mock_disk = MagicMock()
+    mock_cache_cls.return_value = mock_disk
+    stocks = {f"00{i:04d}" for i in range(10)}
+
+    def read(_ticker, tf):
+        return _make_ohlcv(100) if tf == "1D" else pd.DataFrame()
+
+    mock_disk.read.side_effect = read
+    _make_manifest(tmp_path, {
+        "069500": {"market_cap_bil": 9999},
+        **{ticker: {"market_cap_bil": 100 - i} for i, ticker in enumerate(stocks)},
+    })
+
+    result = analyze_regime(tmp_path, allowed_tickers=stocks)
+
+    assert result.n_tickers == len(stocks)
+    assert {call.args[0] for call in mock_disk.read.call_args_list} == stocks
     assert len(result.history) > 0
     assert result.current_score == result.history[-1].score
 
@@ -320,8 +386,7 @@ def test_regime_overlay_weights_sum_to_100():
 
 
 def test_regime_overlay_preserves_regime_and_fng_matrices():
-    """Phase 3 wiring 회귀: apply_regime_overlay 가 strategy_weights_by_regime +
-    fng_modifier 를 보존해야 signals.json 의 wiring 효과가 사라지지 않음."""
+    """regime 매트릭스와 구형 fng_modifier 라운드트립을 보존한다."""
     base_priorities = _make_weight_config().priorities
     from core.decision.config import WeightConfig
 

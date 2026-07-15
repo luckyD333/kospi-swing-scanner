@@ -77,10 +77,10 @@ export interface DecisionMeta {
   // 신규 — max_regret 의 명확한 alias (기회 점수)
   regret_score?: number | null;
   regret_factors?: RegretFactor[] | null;
-  // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
+  // regime-aware ensemble wiring 노출
   ensemble_score?: number | null;   // compute_regime_aware_ensemble_score 결과
   regime_label?: string | null;      // 가중치 적용 regime (BULL/NEUTRAL/BEAR)
-  fng_label?: string | null;         // F&G modifier 라벨 (Extreme Fear ~ Extreme Greed)
+  fng_label?: string | null;         // 구형 payload 역직렬화 호환 전용
   // 2026-05-20 상황별 최적 holding 추천 (plan: warm-percolating-cosmos.md)
   recommended_holding_bars?: number | null;   // 1~7일 권장 보유 봉 수 (null = SKIP/LOW_CONFIDENCE)
   holding_confidence?: number | null;          // 0.0~1.0 신뢰도
@@ -219,6 +219,15 @@ export interface FearGreedSnapshot {
   label: FearGreedLabel;
   components: FearGreedComponents;
   history: FearGreedHistoryPoint[];
+  status?: 'informational';
+}
+
+export interface VKospiSnapshot {
+  value: number;
+  change_pct: number;
+  asof: string;
+  percentile_90d: number;
+  status: 'informational';
 }
 
 export interface SignalsResponse {
@@ -233,6 +242,7 @@ export interface SignalsResponse {
   market_breadth?: Record<string, BreadthScore> | null;
   market_axes?: Record<string, AxesScore> | null;
   fear_greed?: FearGreedSnapshot | null;
+  v_kospi?: VKospiSnapshot | null;
   filters: Filters;
   signals: Signal[];
   stats: Stats;

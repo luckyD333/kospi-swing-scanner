@@ -52,6 +52,8 @@ class MarketSnapshot(BaseModel):
     #         "components": {"momentum": .., "breadth": .., "volatility": ..},
     #         "history": [{"date": "YYYY-MM-DD", "score": ..}, ...]}
     fear_greed: Optional[dict] = None
+    # 옵션시장이 예상하는 향후 변동성. F&G와 합치지 않는 정보용 지표.
+    v_kospi: Optional[dict] = None
 
 
 class TradePlanDerived(BaseModel):
@@ -140,10 +142,10 @@ class DecisionMeta(BaseModel):
     # 신규 — max_regret 의 명확한 alias. 의미: regret_scorer 의 후회 점수.
     regret_score: Optional[float] = None
     regret_factors: Optional[list[RegretFactor]] = None
-    # Phase 3 (2026-05-19) wiring 노출 — 시장 국면 + F&G 가중치 결과
+    # 시장 국면 가중치 결과. fng_label은 구형 snapshot 역직렬화 호환 전용.
     ensemble_score: Optional[float] = None   # compute_regime_aware_ensemble_score 결과 (raw float)
     regime_label: Optional[str] = None        # 가중치 적용에 사용된 시장 regime (BULL/NEUTRAL/BEAR)
-    fng_label: Optional[str] = None           # F&G modifier 적용된 라벨 (Extreme Fear/Fear/Neutral/Greed/Extreme Greed)
+    fng_label: Optional[str] = None
     # 2026-05-20 상황별 최적 holding 추천 (plan: warm-percolating-cosmos.md)
     recommended_holding_bars: Optional[int] = None   # 1~7일 권장 보유 봉 수 (None = SKIP 또는 LOW_CONFIDENCE)
     holding_confidence: Optional[float] = None       # 0.0~1.0 신뢰도 (primary cell trade count 기반)

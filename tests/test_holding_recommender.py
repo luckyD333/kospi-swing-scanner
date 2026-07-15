@@ -112,8 +112,7 @@ def test_recommend_clamp_to_bounds(mock_recs, tmp_path):
     p = tmp_path / "rec.json"
     p.write_text(json.dumps(mock_recs))
     recs = load_recommendations(p)
-    # S2/BULL primary=7, fng=Extreme_Fear(+1), per_ticker=UPTREND_STRONG(+1)
-    # → 7+1+1=9 → clamp 7
+    # S2/BULL primary=7, F&G는 무시, per_ticker=UPTREND_STRONG(+1) → clamp 7
     out = recommend_holding(
         recs,
         strategy="S2_CrossSectional",
@@ -139,6 +138,24 @@ def test_recommend_missing_modifier_treated_as_zero(mock_recs, tmp_path):
         per_ticker_regime="MIXED",  # mock 에 없음 → 0
         atr_bucket="MID",
     )
+    assert out.recommended_bars == 5
+
+
+def test_recommend_ignores_informational_fng_modifier(mock_recs, tmp_path):
+    """F&G는 legacy 추천표에 modifier가 있어도 보유기간을 바꾸지 않는다."""
+    p = tmp_path / "rec.json"
+    p.write_text(json.dumps(mock_recs))
+    recs = load_recommendations(p)
+
+    out = recommend_holding(
+        recs,
+        strategy="S1_MeanReversion",
+        market_regime="NEUTRAL",
+        fng_label="Extreme_Fear",
+        per_ticker_regime="RANGE",
+        atr_bucket="MID",
+    )
+
     assert out.recommended_bars == 5
 
 

@@ -18,9 +18,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# 실현변동성 rolling window(일). breadth 의 ma20 과 정합 + fng_modifier→랭킹으로 새는
-# label flip 노이즈 완화로 20 채택. 반응성이 더 필요하면 10 으로 override.
-_VOLATILITY_WINDOW = 20
+_MIN_CONSTITUENTS = 10
 
 
 def percentile_rank(history: Iterable[float], target: float | None) -> float:
@@ -217,47 +215,54 @@ def _compute_breadth_from_closes(close_df: pd.DataFrame) -> pd.Series:
     if close_df.empty:
         return pd.Series(dtype=float)
 
-    up_ratio = (close_df.pct_change() > 0).mean(axis=1)
+    returns = close_df.pct_change(fill_method=None)
+    up_ratio = returns.gt(0).where(returns.notna()).mean(axis=1)
     ma20 = close_df.rolling(window=20, min_periods=20).mean()
-    above_ma20 = (close_df > ma20).mean(axis=1)
-    return ((up_ratio + above_ma20) / 2.0).dropna()
-
-
-def _compute_market_volatility_history(
-    close_df: pd.DataFrame, *, window: int = _VOLATILITY_WINDOW,
-) -> pd.Series:
-    """등가중 시장 일간수익률의 rolling 실현변동성(std) 시계열. 값↑ = fear.
-
-    percentile rank 로 정규화되므로 절대 스케일(분수)은 무관하고 상대 위치만 의미.
-    """
-    if close_df.empty:
-        return pd.Series(dtype=float)
-    market_return = close_df.pct_change().mean(axis=1)
-    vol = market_return.rolling(window=window, min_periods=window).std()
-    return vol.dropna()
+    valid_ma20 = close_df.notna() & ma20.notna()
+    above_ma20 = close_df.gt(ma20).where(valid_ma20).mean(axis=1)
+    coverage_ok = (
+        returns.notna().mean(axis=1).ge(0.80)
+        & valid_ma20.mean(axis=1).ge(0.80)
+    )
+    return ((up_ratio + above_ma20) / 2.0).loc[coverage_ok].dropna()
 
 
 def build_fear_greed_payload(
     cache_root: Path,
     tickers: list[str],
     *,
+    volatility_series: pd.Series,
     lookback: int = 90,
     history_window: int = 30,
 ) -> dict | None:
-    """cache_root + universe tickers 로 fear/greed payload (snapshot 용 dict) 생성.
+    """주식 universe와 공유 시장 변동성으로 F&G snapshot을 생성한다.
 
-    필수 입력 (regime_analysis.json · 1D close) 중 하나라도 부족하면 None.
+    regime_analysis.json, 1D close, volatility_series 중 하나라도 부족하거나
+    세 시계열의 공통 이력이 lookback+1 미만이면 None을 반환한다.
     """
     cache_root = Path(cache_root)
     momentum = _load_momentum_history(cache_root)
     close_df = _load_universe_closes(cache_root, tickers)
+    if close_df.shape[1] < _MIN_CONSTITUENTS:
+        logger.info(
+            f"[fear_greed] 구성 종목 부족: {close_df.shape[1]} < {_MIN_CONSTITUENTS}"
+        )
+        return None
     breadth = _compute_breadth_from_closes(close_df)
-    volatility = _compute_market_volatility_history(close_df)
+    volatility = volatility_series
 
     if momentum.empty or breadth.empty or volatility.empty:
         logger.info(
             f"[fear_greed] 입력 부족: momentum={len(momentum)} "
             f"breadth={len(breadth)} volatility={len(volatility)}"
+        )
+        return None
+
+    common = momentum.dropna().index.intersection(breadth.dropna().index)
+    common = common.intersection(volatility.dropna().index)
+    if len(common) < lookback + 1:
+        logger.info(
+            f"[fear_greed] 공통 이력 부족: {len(common)} < {lookback + 1}"
         )
         return None
 
@@ -270,4 +275,5 @@ def build_fear_greed_payload(
         "label": snap.label,
         "components": snap.components,
         "history": snap.history,
+        "status": "informational",
     }

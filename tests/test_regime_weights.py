@@ -1,4 +1,4 @@
-"""tests/test_regime_weights.py — Phase 3 Regime + F&G CPO 단위 테스트.
+"""tests/test_regime_weights.py — regime 가중치와 구형 F&G 설정 호환 테스트.
 
 대상:
   - WeightConfig.effective_strategy_weight(strategy, regime, fng_label)
@@ -120,20 +120,20 @@ def test_effective_weight_unknown_regime_falls_back_to_static():
     assert cfg.effective_strategy_weight("s_one", regime="UNKNOWN_REGIME", fng_label=None) == 1.3
 
 
-def test_effective_weight_fng_modifier_applies():
-    """fng_modifier 가 base weight 에 곱해진다."""
+def test_effective_weight_ignores_deprecated_fng_modifier():
+    """F&G 라벨은 호환용으로 받아도 전략 가중치에 영향을 주지 않는다."""
     cfg = WeightConfig(
         priorities=_mk_priorities(),
         strategy_weights={"s_one": 1.0},
         fng_modifier={"extreme_fear": 0.3, "neutral": 1.0, "extreme_greed": 0.6},
     )
-    assert cfg.effective_strategy_weight("s_one", None, "Extreme Fear") == pytest.approx(0.3)
+    assert cfg.effective_strategy_weight("s_one", None, "Extreme Fear") == pytest.approx(1.0)
     assert cfg.effective_strategy_weight("s_one", None, "Neutral") == pytest.approx(1.0)
-    assert cfg.effective_strategy_weight("s_one", None, "Extreme Greed") == pytest.approx(0.6)
+    assert cfg.effective_strategy_weight("s_one", None, "Extreme Greed") == pytest.approx(1.0)
 
 
-def test_effective_weight_combines_regime_and_fng():
-    """regime base × fng modifier 동시 적용."""
+def test_effective_weight_uses_regime_and_ignores_fng():
+    """regime 가중치는 적용하고 구형 F&G modifier는 무시한다."""
     cfg = WeightConfig(
         priorities=_mk_priorities(),
         strategy_weights={"s_one": 1.0},
@@ -142,9 +142,9 @@ def test_effective_weight_combines_regime_and_fng():
         },
         fng_modifier={"extreme_greed": 0.6},
     )
-    # regime base = 1.5, fng modifier = 0.6 → 0.9
+    # regime base = 1.5, F&G modifier는 정보용 전환으로 미적용
     result = cfg.effective_strategy_weight("s_one", regime="UPTREND_STRONG", fng_label="Extreme Greed")
-    assert result == pytest.approx(0.9)
+    assert result == pytest.approx(1.5)
 
 
 def test_effective_weight_unknown_fng_label_no_modifier():
@@ -308,7 +308,7 @@ def test_ensemble_fallback_when_no_regime_provided():
     assert scores["AAA"] == pytest.approx(2.3)
 
 
-def test_ensemble_combines_regime_and_fng_in_practice():
+def test_ensemble_ignores_fng_in_practice():
     cfg = WeightConfig(
         priorities=_mk_priorities(),
         strategy_weights={"s_one": 1.0},
@@ -321,4 +321,4 @@ def test_ensemble_combines_regime_and_fng_in_practice():
     scores = compute_regime_aware_ensemble_score(
         cands, cfg, regime="UPTREND_STRONG", fng_label="Extreme Greed"
     )
-    assert scores["AAA"] == pytest.approx(0.9)  # 1.5 * 0.6
+    assert scores["AAA"] == pytest.approx(1.5)

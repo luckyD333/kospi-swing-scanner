@@ -483,17 +483,15 @@ def _handle_signals_ui_format(args, result) -> int:
     # ranking 보고서 생성 (weight_config 존재 시)
     if weight_config is not None:
         try:
-            from core.decision.runner import _build_unique_pool, _load_fng_label
+            from core.decision.runner import _build_unique_pool
             from core.decision.aggregator import aggregate_candidates
             from core.decision.regret_scorer import compute_regret_scores
             from output.decision_journal import format_ranking_report
 
-            fng_label = _load_fng_label(snap_path)
             pool = _build_unique_pool(
                 result.candidates_by_strategy,
                 weight_config=weight_config,
                 regime=regime_full,
-                fng_label=fng_label,
             )
             ranked = aggregate_candidates(pool, weight_config)
             if ranked:

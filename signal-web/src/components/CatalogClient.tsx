@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
+import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot, VKospiSnapshot } from '@/types/signal';
 import type { CardProps } from '@/lib/adapt';
 import { ASSET_GROUPS, DEFAULT_ASSET_GROUP, filterCardsByAssetGroup, type AssetGroup } from '@/lib/asset-filter';
 import TopNav from './TopNav';
@@ -20,11 +20,12 @@ interface Props {
   marketBreadth?: Record<string, BreadthScore> | null;
   marketAxes?: Record<string, AxesScore> | null;
   fearGreed?: FearGreedSnapshot | null;
+  vKospi?: VKospiSnapshot | null;
   scanFreshnessWarning?: boolean;
   generatedAt?: string;
 }
 
-export default function CatalogClient({ cards, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, scanFreshnessWarning, generatedAt }: Props) {
+export default function CatalogClient({ cards, marketIndices, generatedAtDisplay, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, vKospi, scanFreshnessWarning, generatedAt }: Props) {
   const router = useRouter();
   const [assetGroup, setAssetGroup] = useState<AssetGroup>(DEFAULT_ASSET_GROUP);
   const [strategy, setStrategy] = useState('ALL');
@@ -174,6 +175,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
           marketBreadth={marketBreadth}
           marketAxes={marketAxes}
           fearGreed={fearGreed}
+          vKospi={vKospi}
           onHome={() => router.push('/')}
           onOpenAbout={() => setAboutOpen(true)}
         />
@@ -223,6 +225,7 @@ export default function CatalogClient({ cards, marketIndices, generatedAtDisplay
         marketBreadth={marketBreadth}
         marketAxes={marketAxes}
         fearGreed={fearGreed}
+        vKospi={vKospi}
         onHome={() => router.push('/')}
         onOpenAbout={() => setAboutOpen(true)}
       />

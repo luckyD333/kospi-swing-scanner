@@ -153,13 +153,3 @@ strategy_weights_by_regime:
     strategy_three_trend_following: 0.7
     strategy_four_pullback_ma: 0.7
     strategy_five_bull_flag: 0.5
-
-# F&G index 5-label modifier (compute_components 결과의 score_to_label() 출력).
-# 라벨은 정규화되어 매칭 (e.g. 'Extreme Fear' → 'extreme_fear').
-# 미등록 라벨은 1.0 (modifier 미적용).
-fng_modifier:
-  extreme_fear: 0.3      # 0~24 — 패닉장, 전략 거의 차단
-  fear: 0.7              # 25~44
-  neutral: 1.0           # 45~55
-  greed: 1.0             # 56~74
-  extreme_greed: 0.6     # 75~100 — 과열장, 추격 매수 억제

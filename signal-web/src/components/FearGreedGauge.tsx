@@ -62,7 +62,7 @@ export default function FearGreedGauge({ data, showBorder = false }: Props) {
   const color = labelColor(data.label);
   const points = data.history.map((h) => h.score);
   const tooltip =
-    `Momentum ${data.components.momentum.toFixed(1)} · ` +
+    `정보용 · 매수 판단 미반영 · Momentum ${data.components.momentum.toFixed(1)} · ` +
     `Breadth ${data.components.breadth.toFixed(1)} · ` +
     `Volatility ${data.components.volatility.toFixed(1)}`;
   return (
@@ -79,6 +79,7 @@ export default function FearGreedGauge({ data, showBorder = false }: Props) {
       }}
     >
       <span style={ts('caption-sm', 'var(--muted)')}>F&amp;G</span>
+      <span style={ts('caption-sm', 'var(--muted)')}>정보용</span>
       <span style={{ ...ts('caption', color), letterSpacing: '0.5px' }}>
         {data.label}
       </span>

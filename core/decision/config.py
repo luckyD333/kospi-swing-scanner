@@ -112,7 +112,7 @@ class WeightConfig:
     priorities: list[Priority]
     must_have: list[str] = field(default_factory=list)
     strategy_weights: dict[str, float] = field(default_factory=dict)
-    # Phase 3 (2026-05-19): regime-conditional + F&G modifier
+    # fng_modifier는 구형 weights.yml 라운드트립 호환 전용이며 런타임에는 미적용.
     strategy_weights_by_regime: dict[str, dict[str, float]] = field(default_factory=dict)
     fng_modifier: dict[str, float] = field(default_factory=dict)
 
@@ -138,13 +138,11 @@ class WeightConfig:
         regime: str | None = None,
         fng_label: str | None = None,
     ) -> float:
-        """regime + F&G 결합 effective weight.
+        """regime 기반 effective weight. fng_label은 호출 호환용이며 무시한다.
 
         우선순위:
           1. strategy_weights_by_regime[regime][strategy] 가 있으면 사용 (regime CPO)
           2. 없으면 strategy_weights.get(strategy, 1.0) (기존 fallback)
-          3. fng_modifier[normalized_fng] 곱하기 (없으면 1.0)
-
         반환값 ≤ 0 이면 해당 전략을 비활성화한다는 의미.
         """
         if regime and self.strategy_weights_by_regime:
@@ -156,13 +154,7 @@ class WeightConfig:
         else:
             base = self.strategy_weights.get(strategy, 1.0)
 
-        if fng_label and self.fng_modifier:
-            key = _normalize_fng_label(fng_label)
-            modifier = self.fng_modifier.get(key, 1.0)
-        else:
-            modifier = 1.0
-
-        return float(base) * float(modifier)
+        return float(base)
 
     # -- yaml -------------------------------------------------------------
 

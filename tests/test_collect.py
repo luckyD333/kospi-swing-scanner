@@ -12,6 +12,13 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _prevent_vkospi_network_call(monkeypatch):
+    """run_collect 단위 테스트는 Stockplus 실제 네트워크를 호출하지 않는다."""
+    monkeypatch.setattr("scripts.collect._fetch_v_kospi", lambda _target_date: None)
 
 
 def _make_mock_client(tickers=("005930", "000660"), with_fundamentals=True):
@@ -58,6 +65,64 @@ def test_collect_defaults_to_100_stocks_and_30_etfs():
     cfg = CollectConfig()
     assert cfg.max_universe_size == 100
     assert cfg.max_etf_size == 30
+
+
+def test_market_state_tickers_exclude_etf_and_etn():
+    """시장 상태 계산 목록에서는 ETF/ETN 전체 명단을 제외한다."""
+    from scripts.collect import _market_state_tickers
+
+    client = MagicMock()
+    client.get_etf_list.return_value = {"069500", "700001"}
+
+    result = _market_state_tickers(
+        client,
+        "20260715",
+        ["005930", "069500", "700001", "000660"],
+    )
+
+    assert result == ["005930", "000660"]
+
+
+def test_market_state_tickers_fail_closed_without_product_list():
+    """상품 분류 명단이 없으면 혼합 proxy를 만들지 않는다."""
+    from scripts.collect import _market_state_tickers
+
+    client = MagicMock()
+    client.get_etf_list.return_value = set()
+
+    assert _market_state_tickers(client, "20260715", ["005930"]) is None
+
+
+def test_collect_writes_vkospi_as_separate_snapshot_field(tmp_path, monkeypatch):
+    """V-KOSPI는 market_indices나 F&G에 합치지 않고 별도 필드로 저장한다."""
+    from scripts.collect import CollectConfig, run_collect
+
+    monkeypatch.chdir(tmp_path)
+    payload = {
+        "value": 35.2,
+        "change_pct": 2.1,
+        "asof": "2026-04-30",
+        "percentile_90d": 88.9,
+        "status": "informational",
+    }
+    cfg = CollectConfig(
+        cache_root=tmp_path / ".cache",
+        max_universe_size=10,
+        base_tfs=["1D"],
+        include_etf=False,
+        min_market_cap_bil=0.0,
+        max_market_cap_bil=999999.0,
+    )
+    with patch("scripts.collect.DataClient", return_value=_make_mock_client()), patch(
+        "scripts.collect._fetch_market_indices", return_value={}
+    ), patch("scripts.collect._fetch_vix_history", return_value=None), patch(
+        "scripts.collect._fetch_v_kospi", return_value=payload
+    ):
+        run_collect(cfg, target_date="20260430")
+
+    snapshot = json.loads((tmp_path / "data" / "market_snapshot.json").read_text())
+    assert snapshot["v_kospi"] == payload
+    assert "v_kospi" not in snapshot["market_indices"]
 
 
 def test_collect_creates_manifest(tmp_path):

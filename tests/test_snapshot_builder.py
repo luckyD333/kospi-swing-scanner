@@ -38,6 +38,34 @@ def test_build_market_snapshot_structure():
     assert snapshot.tickers["001390"].fundamentals.per == 11.2
 
 
+def test_build_market_snapshot_keeps_informational_market_indicators():
+    fear_greed = {
+        "score": 42.0,
+        "label": "Fear",
+        "components": {"momentum": 40.0, "breadth": 30.0, "volatility": 56.0},
+        "history": [],
+        "status": "informational",
+    }
+    v_kospi = {
+        "value": 35.2,
+        "change_pct": 2.1,
+        "asof": "2026-07-15",
+        "percentile_90d": 88.9,
+        "status": "informational",
+    }
+
+    snapshot = build_market_snapshot(
+        universe=MOCK_UNIVERSE,
+        ohlcv_latest=MOCK_OHLCV,
+        market_indices={},
+        fear_greed=fear_greed,
+        v_kospi=v_kospi,
+    )
+
+    assert snapshot.fear_greed == fear_greed
+    assert snapshot.v_kospi == v_kospi
+
+
 def test_build_market_snapshot_52w():
     snapshot = build_market_snapshot(
         universe=MOCK_UNIVERSE,

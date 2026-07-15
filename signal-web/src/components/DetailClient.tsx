@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DetailProps, MatchProps } from '@/lib/adapt';
-import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot } from '@/types/signal';
+import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot, VKospiSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
 import { confirmationColor, confirmationBg, signalStatusBadge } from '@/lib/signal-colors';
 import TopNav from './TopNav';
@@ -19,6 +19,7 @@ interface Props {
   marketBreadth?: Record<string, BreadthScore> | null;
   marketAxes?: Record<string, AxesScore> | null;
   fearGreed?: FearGreedSnapshot | null;
+  vKospi?: VKospiSnapshot | null;
 }
 
 function NaverLink({ href }: { href: string }) {
@@ -141,7 +142,7 @@ function gradeForeign(p: number | null) {
 }
 
 
-export default function DetailClient({ detail, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed }: Props) {
+export default function DetailClient({ detail, marketIndices, targetDateDisplay, marketRegime, marketBreadth, marketAxes, fearGreed, vKospi }: Props) {
   const router = useRouter();
   const [aboutOpen, setAboutOpen] = useState(false);
   const onCloseAbout = useCallback(() => setAboutOpen(false), []);
@@ -163,7 +164,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
     atr14, changePct, currentPrice,
     naverUrl, generatedAtDisplay, signalDate,
     confirmationLevel, activeRegime, tradabilityScore,
-    ensembleScore, regimeLabel, fngLabel,
+    ensembleScore, regimeLabel,
     recommendedHoldingBars, holdingConfidence, holdingStatus,
   } = detail;
 
@@ -210,6 +211,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
         marketBreadth={marketBreadth}
         marketAxes={marketAxes}
         fearGreed={fearGreed}
+        vKospi={vKospi}
         onHome={() => router.push('/')}
         onOpenAbout={() => setAboutOpen(true)}
       />
@@ -614,7 +616,6 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
                     <span style={ts('caption-sm', 'var(--muted-soft)')}>
                       다전략 합의도
                       {regimeLabel ? ` · ${regimeLabel} 가중` : ''}
-                      {fngLabel ? ` · ${fngLabel}` : ''}
                     </span>
                   </div>
                 )}

@@ -22,6 +22,7 @@ def build_market_snapshot(
     market_breadth: dict | None = None,
     market_axes: dict | None = None,
     fear_greed: dict | None = None,
+    v_kospi: dict | None = None,
     signal_tickers: list[str] | None = None,
     cache_root: str | Path | None = None,
 ) -> MarketSnapshot:
@@ -143,4 +144,5 @@ def build_market_snapshot(
         market_breadth=market_breadth,
         market_axes=market_axes,
         fear_greed=fear_greed,
+        v_kospi=v_kospi,
     )
