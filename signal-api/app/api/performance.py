@@ -16,7 +16,7 @@ _PERFORMANCE_PATH = _DATA_DIR / "strategy_performance.json"
 
 def _not_ready_payload() -> dict[str, Any]:
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "status": "not_ready",
         "updated_at": None,
         "window": {"from": None, "to": None},
@@ -29,6 +29,12 @@ def _not_ready_payload() -> dict[str, Any]:
         "strategies": {},
         "daily": [],
         "totals": {},
+        "archive_summary": {
+            "discovered_files": 0,
+            "loaded_files": 0,
+            "failed_files_count": 0,
+            "failed_files": [],
+        },
     }
 
 

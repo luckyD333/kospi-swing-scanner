@@ -63,6 +63,7 @@ def test_build_payload_calculates_next_close_returns_and_strategy_totals():
 
     payload = build_performance_payload(snapshots, frames, retention_months=6)
 
+    assert payload["schema_version"] == "1.1"
     assert payload["status"] == "ready"
     assert payload["evaluation"]["cost_pct"] == 0.30
     assert set(payload["totals"]) == set(STRATEGY_DEFINITIONS)
@@ -75,10 +76,10 @@ def test_build_payload_calculates_next_close_returns_and_strategy_totals():
     improved = daily[0]["by_strategy"]["strategy_one_improved"]
     assert original["win_count"] == 1
     assert original["win_rate_pct"] == 100.0
-    assert original["signals"][0]["net_return_pct"] == 0.7
+    assert original["avg_net_return_pct"] == 0.7
+    assert "signals" not in original
     assert improved["loss_count"] == 1
     assert improved["win_rate_pct"] == 0.0
-    assert improved["signals"][0]["outcome"] == "LOSS"
 
 
 def test_old_rows_are_trimmed_relative_to_latest_evaluation_date():
@@ -103,10 +104,10 @@ def test_old_rows_are_trimmed_relative_to_latest_evaluation_date():
     payload = build_performance_payload(snapshots, frames, retention_months=6)
 
     assert [row["evaluation_date"] for row in payload["daily"]] == ["2026-07-02"]
-    assert payload["window"]["from"] == "2026-01-02"
+    assert payload["window"]["from"] == "2026-07-02"
 
 
-def test_duplicate_signal_uses_latest_snapshot_without_double_counting():
+def test_duplicate_signal_uses_first_snapshot_without_double_counting():
     dates = ["2026-07-01", "2026-07-02"]
     frames = {"R1": _frame([100, 102], dates)}
     signal = _signal("strategy_one_d_v2_r1", "R1", "2026-07-01", rank=3)
@@ -120,4 +121,79 @@ def test_duplicate_signal_uses_latest_snapshot_without_double_counting():
 
     stats = payload["daily"][0]["by_strategy"]["strategy_one_original"]
     assert stats["signal_count"] == 1
-    assert stats["signals"][0]["rank"] == 1
+    assert stats["avg_net_return_pct"] == 1.7
+
+
+def test_repeated_signal_is_evaluated_from_first_exposure_date():
+    dates = ["2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03"]
+    frames = {"R1": _frame([100, 200, 110, 121], dates)}
+    first = _signal("strategy_one_d_v2_r1", "R1", "2026-06-30", rank=3)
+    repeated = _signal("strategy_one_d_v2_r1", "R1", "2026-06-30", rank=1)
+    snapshots = [
+        _snapshot("2026-07-02", [first], "2026-07-02T16:40:00+09:00"),
+        _snapshot("2026-07-03", [repeated], "2026-07-03T16:40:00+09:00"),
+    ]
+
+    payload = build_performance_payload(snapshots, frames)
+
+    assert [row["evaluation_date"] for row in payload["daily"]] == ["2026-07-03"]
+    stats = payload["daily"][0]["by_strategy"]["strategy_one_original"]
+    assert stats["signal_count"] == 1
+    assert stats["avg_net_return_pct"] == 9.7
+
+
+def test_legacy_weekend_snapshot_uses_previous_and_next_trading_bars():
+    frames = {
+        "R1": _frame(
+            [100, 103],
+            ["2026-04-30", "2026-05-04"],
+        )
+    }
+    signal = _signal("strategy_one_d_v2_r1", "R1", "2026-04-30")
+    signal["signal_date"] = None
+    snapshots = [
+        _snapshot(None, [signal], "2026-05-03T16:40:00+09:00"),
+    ]
+
+    payload = build_performance_payload(snapshots, frames)
+
+    assert payload["daily"][0]["evaluation_date"] == "2026-05-04"
+    assert payload["totals"]["strategy_one_original"]["avg_net_return_pct"] == 2.7
+
+
+def test_snapshot_date_falls_back_to_strict_archive_filename():
+    frames = {"R1": _frame([100, 101], ["2026-07-03", "2026-07-06"])}
+    snapshot = _snapshot(
+        None,
+        [_signal("strategy_one_d_v2_r1", "R1", "2026-07-01")],
+        None,
+    )
+    snapshot["source_file"] = "signals_2026-07-05.json"
+
+    payload = build_performance_payload([snapshot], frames)
+
+    assert payload["daily"][0]["evaluation_date"] == "2026-07-06"
+    assert payload["totals"]["strategy_one_original"]["avg_net_return_pct"] == 0.7
+
+
+def test_nonfinite_or_nonpositive_closes_are_not_evaluated():
+    dates = ["2026-07-01", "2026-07-02"]
+    snapshots = [
+        _snapshot(
+            "2026-07-01",
+            [
+                _signal("strategy_one_d_v2_r1", "NAN", "2026-07-01"),
+                _signal("strategy_one_d_v2_r1", "ZERO", "2026-07-01"),
+            ],
+            "2026-07-01T16:40:00+09:00",
+        )
+    ]
+    frames = {
+        "NAN": _frame([100, float("nan")], dates),
+        "ZERO": _frame([100, 0], dates),
+    }
+
+    payload = build_performance_payload(snapshots, frames)
+
+    assert payload["status"] == "not_ready"
+    assert payload["daily"] == []

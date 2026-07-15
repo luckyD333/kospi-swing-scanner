@@ -6,13 +6,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+import math
+from pathlib import Path
+import re
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 
-PERFORMANCE_SCHEMA_VERSION = "1.0"
+PERFORMANCE_SCHEMA_VERSION = "1.1"
 DEFAULT_COST_PCT = 0.30
 
 # UI에 노출하는 canonical 전략 순서. strict base는 의도적으로 제외한다.
@@ -84,7 +87,22 @@ def _float_or_none(value: Any) -> float | None:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    return number if pd.notna(number) else None
+    return number if math.isfinite(number) else None
+
+
+def _snapshot_as_of(snapshot: dict[str, Any]) -> str | None:
+    """snapshot의 실제 노출일을 명시값 우선순위대로 결정한다."""
+    target_date = _date_key(snapshot.get("target_date"))
+    if target_date is not None:
+        return target_date
+
+    generated_date = _date_key(snapshot.get("generated_at"))
+    if generated_date is not None:
+        return generated_date
+
+    filename = Path(str(snapshot.get("source_file") or "")).name
+    match = re.fullmatch(r"signals_(\d{4}-\d{2}-\d{2})\.json", filename)
+    return _date_key(match.group(1)) if match else None
 
 
 def _normalised_index(df: pd.DataFrame) -> pd.DatetimeIndex:
@@ -96,27 +114,33 @@ def _normalised_index(df: pd.DataFrame) -> pd.DatetimeIndex:
 
 def _lookup_close_pair(
     df: pd.DataFrame,
-    signal_date: str,
+    exposure_date: str,
 ) -> tuple[float, float, str] | None:
-    """signal일 close와 다음 거래일 close를 찾는다."""
+    """최초 노출일 이하의 최근 close와 다음 거래일 close를 찾는다."""
     if df.empty or "close" not in df.columns:
         return None
 
-    target = pd.Timestamp(signal_date)
+    target = pd.Timestamp(exposure_date)
     dates = _normalised_index(df)
-    exact_positions = [i for i, value in enumerate(dates) if value == target]
-    if not exact_positions:
+    anchor_positions = [i for i, value in enumerate(dates) if value <= target]
+    if not anchor_positions:
         return None
 
-    signal_position = exact_positions[-1]
-    future_positions = [i for i, value in enumerate(dates) if value > target]
+    signal_position = max(anchor_positions, key=lambda i: dates[i])
+    anchor_date = dates[signal_position]
+    future_positions = [i for i, value in enumerate(dates) if value > anchor_date]
     if not future_positions:
         return None
 
-    evaluation_position = future_positions[0]
+    evaluation_position = min(future_positions, key=lambda i: dates[i])
     signal_close = _float_or_none(df.iloc[signal_position]["close"])
     evaluation_close = _float_or_none(df.iloc[evaluation_position]["close"])
-    if signal_close is None or evaluation_close is None or signal_close <= 0:
+    if (
+        signal_close is None
+        or evaluation_close is None
+        or signal_close <= 0
+        or evaluation_close <= 0
+    ):
         return None
 
     evaluation_date = dates[evaluation_position].date().isoformat()
@@ -189,16 +213,16 @@ def build_performance_payload(
     """archive snapshot과 OHLCV로 rolling 성과 payload를 생성한다.
 
     같은 ``signal_date + canonical_strategy + ticker``가 여러 snapshot에 있으면
-    generated_at이 가장 최신인 snapshot을 사용한다.
+    최초 노출 snapshot을 한 번만 사용한다.
     """
-    latest_signals: dict[tuple[str, str, str], dict[str, Any]] = {}
+    first_signals: dict[tuple[str, str, str], dict[str, Any]] = {}
     ordered_snapshots = sorted(
         snapshots,
         key=lambda snapshot: _timestamp_for_sort(snapshot.get("generated_at")),
     )
 
     for snapshot in ordered_snapshots:
-        snapshot_date = _date_key(snapshot.get("target_date"))
+        snapshot_date = _snapshot_as_of(snapshot)
         source_file = snapshot.get("source_file")
         for signal in snapshot.get("signals", []) or []:
             strategy = signal.get("strategy") or {}
@@ -208,20 +232,25 @@ def build_performance_payload(
             ticker = str(signal.get("ticker") or "")
             if strategy_key is None or signal_date is None or not ticker:
                 continue
-            latest_signals[(signal_date, strategy_key, ticker)] = {
+            first_signals.setdefault((signal_date, strategy_key, ticker), {
                 "signal": signal,
                 "strategy_key": strategy_key,
                 "signal_date": signal_date,
+                "exposure_date": snapshot_date,
                 "source_strategy_id": strategy_id,
                 "source_file": source_file,
                 "snapshot_date": snapshot_date,
-            }
+            })
 
     evaluated: list[dict[str, Any]] = []
-    for item in latest_signals.values():
+    for item in first_signals.values():
         ticker = str(item["signal"].get("ticker"))
         frame = ohlcv_by_ticker.get(ticker)
-        pair = _lookup_close_pair(frame, item["signal_date"]) if frame is not None else None
+        pair = (
+            _lookup_close_pair(frame, item["exposure_date"])
+            if frame is not None and item["exposure_date"] is not None
+            else None
+        )
         if pair is None:
             continue
         signal_close, evaluation_close, evaluation_date = pair
@@ -311,17 +340,6 @@ def build_performance_payload(
                 records,
                 (cumulative_factors[strategy_key] - 1.0) * 100,
             )
-            stats["signals"] = [
-                {
-                    key: record[key]
-                    for key in (
-                        "signal_date", "source_strategy_id", "source_file", "ticker",
-                        "name", "rank", "signal_close", "evaluation_close",
-                        "gross_return_pct", "net_return_pct", "outcome",
-                    )
-                }
-                for record in records
-            ]
             by_strategy[strategy_key] = stats
         daily.append({
             "evaluation_date": evaluation_date,
@@ -336,13 +354,14 @@ def build_performance_payload(
             records,
             (cumulative - 1.0) * 100,
         )
-        totals[strategy_key].pop("signals", None)
-
     return {
         "schema_version": PERFORMANCE_SCHEMA_VERSION,
         "status": "ready",
         "updated_at": generated_at or datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds"),
-        "window": {"from": cutoff, "to": latest_evaluation},
+        "window": {
+            "from": min(record["evaluation_date"] for record in retained),
+            "to": latest_evaluation,
+        },
         "evaluation": {
             "timeframe": "1D",
             "basis": "signal_close_to_next_close",

@@ -31,19 +31,29 @@ from core.strategy_performance import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
-def load_signal_snapshots(data_dir: Path) -> list[dict[str, Any]]:
-    """archive의 JSON snapshot을 최신 파일 순서로 읽는다."""
+def load_signal_snapshots(
+    data_dir: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """archive JSON snapshot과 파일별 로드 결과를 반환한다."""
     archive_dir = data_dir / "archive"
     snapshots: list[dict[str, Any]] = []
-    for path in sorted(archive_dir.glob("signals_*.json")):
+    failed_files: list[str] = []
+    paths = sorted(archive_dir.glob("signals_*.json"))
+    for path in paths:
         try:
             snapshot = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("signal archive 로드 실패 (%s): %s", path, exc)
+            logger.warning("signal archive 로드 실패 (%s): %s", path.name, exc)
+            failed_files.append(path.name)
             continue
         snapshot["source_file"] = path.name
         snapshots.append(snapshot)
-    return snapshots
+    return snapshots, {
+        "discovered_files": len(paths),
+        "loaded_files": len(snapshots),
+        "failed_files_count": len(failed_files),
+        "failed_files": failed_files,
+    }
 
 
 def _tickers_from_snapshots(snapshots: list[dict[str, Any]]) -> set[str]:
@@ -104,13 +114,16 @@ def update_performance_file(
     lock_path = output_path.with_suffix(output_path.suffix + ".lock")
 
     with _exclusive_lock(lock_path):
-        snapshots = load_signal_snapshots(data_dir)
+        snapshots, archive_summary = load_signal_snapshots(data_dir)
         frames = _load_ohlcv(cache_root, snapshots)
         payload = build_performance_payload(
             snapshots,
             frames,
             generated_at=datetime.now(ZoneInfo("Asia/Seoul")).isoformat(timespec="seconds"),
         )
+        payload["archive_summary"] = archive_summary
+        if archive_summary["failed_files_count"]:
+            payload["status"] = "partial"
         _write_atomic(output_path, payload)
         logger.info(
             "전략 성과 저장: %s (status=%s, daily=%d)",
