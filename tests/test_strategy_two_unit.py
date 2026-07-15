@@ -129,6 +129,12 @@ def test_volume_filter_excludes_low_volume_tickers():
     assert "WIN_OK_VOL" in tickers
 
 
+def test_volume_filter_excludes_all_zero_volume():
+    ctx = _make_ctx({"HALTED": _trend_df(100, 0.0, volume=0)})
+    candidates = StrategyTwoCrossSectionalMomentum().scan(ctx, top_n=5)
+    assert candidates == []
+
+
 def test_short_history_ticker_skipped():
     """lookback+1 봉 미만 ticker 는 스킵."""
     universe = {

@@ -115,12 +115,15 @@ class StrategyTwoCrossSectionalMomentum:
                 if pd.isna(mom):
                     continue
 
+                last_vol = float(vol.iloc[-1])
+                if last_vol <= 0:
+                    continue
+
                 # volume filter — 짧은 히스토리(< volume_filter_window)면 사용 가능한
                 # 기간만큼 평균 사용 (보수적 동작; lookback+1 봉은 이미 통과했으므로 안전).
                 if cfg.require_volume_above_avg:
                     vol_window = min(cfg.volume_filter_window, len(vol))
                     avg_vol = float(vol.iloc[-vol_window:].mean())
-                    last_vol = float(vol.iloc[-1])
                     if last_vol < avg_vol:
                         continue
             except Exception as e:
