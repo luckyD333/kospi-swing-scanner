@@ -104,6 +104,41 @@ def test_collect_creates_parquet_files(tmp_path):
     assert len(parquet_files) == 2  # 005930, 000660
 
 
+def test_collect_refreshes_only_today_daily_bar(tmp_path):
+    """오늘 수집의 1D만 마지막 봉 갱신을 요청하고 1m는 기존 증분 방식을 쓴다."""
+    from datetime import datetime
+
+    from scripts.collect import CollectConfig, run_collect
+
+    cache = MagicMock()
+    cache.get_or_fetch.return_value = pd.DataFrame()
+    cfg = CollectConfig(
+        market="KOSPI",
+        cache_root=tmp_path / ".cache",
+        max_universe_size=1,
+        base_tfs=["1D", "1m"],
+        lookback_days=60,
+        min_market_cap_bil=0.0,
+        max_market_cap_bil=999999.0,
+    )
+
+    with patch(
+        "scripts.collect.DataClient",
+        return_value=_make_mock_client(tickers=("005930",)),
+    ), patch("scripts.collect.OhlcvCache", return_value=cache), patch(
+        "scripts.collect._update_dynamic_weights_status"
+    ), patch("scripts.collect._fetch_market_indices", return_value={}), patch(
+        "scripts.collect._fetch_vix_history", return_value=None
+    ):
+        run_collect(cfg, target_date=datetime.now().strftime("%Y%m%d"))
+
+    calls_by_timeframe = {
+        call.kwargs["timeframe"]: call.kwargs for call in cache.get_or_fetch.call_args_list
+    }
+    assert calls_by_timeframe["1D"]["refresh_last_bar"] is True
+    assert calls_by_timeframe["1m"]["refresh_last_bar"] is False
+
+
 def test_collect_excludes_ineligible_etf_from_cache_and_manifest(tmp_path):
     """저변동/커버드콜 ETF는 수집 대상에서 제외."""
     from scripts.collect import CollectConfig, run_collect

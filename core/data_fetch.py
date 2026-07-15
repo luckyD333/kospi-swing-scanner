@@ -166,8 +166,8 @@ class OhlcvCache:
     ):
         self._client = client
         self._disk = disk
-        self._cache: dict[tuple[str, str, str, str], pd.DataFrame] = {}
-        self._source_cache: dict[tuple[str, str, str, str], str] = {}
+        self._cache: dict[tuple[str, str, str, str, bool], pd.DataFrame] = {}
+        self._source_cache: dict[tuple[str, str, str, str, bool], str] = {}
         self._fetch_count = 0
         self._hit_count = 0
 
@@ -177,19 +177,26 @@ class OhlcvCache:
         start: str,
         end: str,
         timeframe: str = "1D",
+        refresh_last_bar: bool = False,
     ) -> pd.DataFrame:
         """
         캐시 hit 시 사본 반환(원본 보호), miss 시 fetch 후 저장.
 
         반환되는 DataFrame 은 매번 새 사본이라 호출자가 수정해도 캐시 보존.
         """
-        key = (ticker, timeframe, start, end)
+        key = (ticker, timeframe, start, end, refresh_last_bar)
         cached = self._cache.get(key)
         if cached is not None:
             self._hit_count += 1
             return cached.copy()
 
-        df = self._fetch_with_disk(ticker, start, end, timeframe)
+        df = self._fetch_with_disk(
+            ticker,
+            start,
+            end,
+            timeframe,
+            refresh_last_bar=refresh_last_bar,
+        )
         self._cache[key] = df
         self._fetch_count += 1
         return df.copy()
@@ -205,7 +212,7 @@ class OhlcvCache:
         캐시 hit 시 사본과 소스명을 함께 반환, miss 시 fetch 후 저장.
         소스명도 함께 캐시하여 hit 시 소스 정보 유지.
         """
-        key = (ticker, timeframe, start, end)
+        key = (ticker, timeframe, start, end, False)
         cached = self._cache.get(key)
         if cached is not None:
             self._hit_count += 1
@@ -223,7 +230,13 @@ class OhlcvCache:
         return (source, df.copy())
 
     def _fetch_with_disk(
-        self, ticker: str, start: str, end: str, timeframe: str
+        self,
+        ticker: str,
+        start: str,
+        end: str,
+        timeframe: str,
+        *,
+        refresh_last_bar: bool = False,
     ) -> pd.DataFrame:
         """디스크 hit 이면 incremental, miss 이면 full fetch + 디스크 저장.
 
@@ -251,7 +264,11 @@ class OhlcvCache:
             gap_start_dt = last + pd.Timedelta(minutes=1)
             gap_start = gap_start_dt.strftime("%Y%m%d%H%M")
         else:
-            gap_start_dt = last + pd.Timedelta(days=1)
+            gap_start_dt = (
+                last
+                if timeframe == "1D" and refresh_last_bar
+                else last + pd.Timedelta(days=1)
+            )
             gap_start = gap_start_dt.strftime("%Y%m%d")
         if gap_start <= end:
             new = self._client.get_ohlcv(

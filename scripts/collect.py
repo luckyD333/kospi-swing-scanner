@@ -334,7 +334,13 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         success, failed = 0, 0
         for ticker in to_collect:
             try:
-                cache.get_or_fetch(ticker, start, target_date, timeframe=tf)
+                cache.get_or_fetch(
+                    ticker,
+                    start,
+                    target_date,
+                    timeframe=tf,
+                    refresh_last_bar=(tf == "1D" and target_is_today),
+                )
                 success += 1
             except Exception as e:
                 failed += 1

@@ -88,3 +88,33 @@ def test_disk_warm_no_gap_skips_fetch(tmp_path):
 
     # 200 영업일 = ~10/8 까지 → end=20260330 보다 큼 → fetch X
     assert client.get_ohlcv.call_count == 0
+
+
+def test_disk_warm_refresh_last_daily_bar(tmp_path):
+    """당일 수집은 디스크의 마지막 일봉을 API 응답으로 교체한다."""
+    disk = OhlcvDiskCache(root=tmp_path)
+    cached = _make_df("2026-04-23", 1)
+    cached.loc[:, "close"] = 100.0
+    disk.write("005930", "1D", cached)
+
+    refreshed = _make_df("2026-04-23", 1)
+    refreshed.loc[:, "close"] = 101.0
+    client = MagicMock()
+    client.get_ohlcv.return_value = refreshed
+    cache = OhlcvCache(client, disk=disk)
+
+    result = cache.get_or_fetch(
+        "005930",
+        "20260423",
+        "20260423",
+        timeframe="1D",
+        refresh_last_bar=True,
+    )
+
+    client.get_ohlcv.assert_called_once_with(
+        "005930", "20260423", "20260423", timeframe="1D"
+    )
+    assert result.loc[pd.Timestamp("2026-04-23"), "close"] == 101.0
+    assert disk.read("005930", "1D").loc[
+        pd.Timestamp("2026-04-23"), "close"
+    ] == 101.0
