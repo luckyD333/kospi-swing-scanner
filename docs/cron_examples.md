@@ -24,6 +24,7 @@ KOSPI 스윙 스캐너의 수집(collect) 및 전략 스캔(strategy scan)을 cr
 [장 마감 후]
   Job A (16:10): collect.py (1D 1W 1h 30m) → cache 채우기
   Job B (16:40): cli.py --strategy all → signals.json + market_snapshot.json 재빌드
+    └─ 성공 직후 Job E: aggregate_strategy_performance.py → strategy_performance.json
 ```
 
 수집이 먼저 완료되어야 스캔이 최신 데이터를 사용합니다.
@@ -38,15 +39,13 @@ LANG=ko_KR.UTF-8
 LC_ALL=ko_KR.UTF-8
 TZ=Asia/Seoul
 PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+LOCK=/tmp/kospi-scanner.lock
 
 # Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
 10 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1W 1h 30m >> /opt/apps/logs/kospi-scanner/collect.log 2>&1
 
-# Job B: 일봉 신호 스캔 (평일 16:40 KST)
-40 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals.log 2>&1
-
-# Job E: 최근 6개월 전략 성과 갱신 (Job B 직후)
-45 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> /opt/apps/logs/kospi-scanner/performance.log 2>&1
+# Job B + E: 일봉 신호 스캔 성공 직후 성과 갱신 (평일 16:40 KST)
+40 16 * * 1-5 cd /opt/apps/kospi-scanner && flock -n $LOCK sh -c ".venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals.log 2>&1 && .venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> /opt/apps/logs/kospi-scanner/performance.log 2>&1"
 
 # Job C: 장중 현재가 경량 갱신 (2분 주기, 09:00-14:58 KST)
 */2 9-14 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect_live.py >> /opt/apps/logs/kospi-scanner/live.log 2>&1
@@ -61,13 +60,19 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 |-----|--------|------|
 | A | 평일 16:10 | 장 마감 후 전체 OHLCV 수집 (1D 1W 1h 30m) |
 | B | 평일 16:40 | 일봉 기준 전략 전체 스캔 → signals.json |
-| E | 평일 16:45 | 전일 signal의 다음 거래일 종가 성과 집계 → strategy_performance.json |
+| E | Job B 성공 직후 | 최초 노출 signal의 다음 거래일 종가 성과 집계 → strategy_performance.json |
 | C | 평일 09:00-14:58, 2분 주기 | 시그널 종목 현재가만 경량 패치 |
 | D | 평일 09:01-15:31, 30분 주기 | 1m 분봉 포함 전체 수집 + 전략 재스캔 |
 
 **Job C vs D 역할 분리:**
 - Job C: `collect_live.py` — 네트워크 호출 최소화. 시그널 종목의 현재가·등락률만 갱신
 - Job D: `collect.py` + `cli.py` — 1m 분봉 수집으로 `minute_close` 설정 → `current_price ≠ entry_price` 보장. 30분 주기로 전략 시그널 전체 재계산
+
+**성과 archive 부분 성공과 복구:**
+
+- 읽을 수 없는 `data/archive/signals_*.json`이 있으면 정상 archive만 집계하고 `status: partial`과 `archive_summary.failed_files`를 기록합니다. API는 이 payload를 HTTP 200으로 반환합니다.
+- 실패 파일을 복구하거나 제거한 뒤 Job E 명령을 다시 실행하면 전체 archive를 재검사하며, 실패가 없으면 `ready`로 복구됩니다.
+- Job B와 E는 같은 `flock`과 `&&` 체인에 있으므로 스캔 중 archive를 동시에 읽지 않고, Job B 실패 시 E를 실행하지 않습니다.
 
 ---
 

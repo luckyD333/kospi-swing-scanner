@@ -12,8 +12,8 @@
 [cron Job A] 16:10 KST   scripts/collect.py            → .cache/{tf}/<ticker>.parquet  (OHLCV)
                                                          + data/market_snapshot.json    (KOSPI/KOSDAQ + ETF + 매크로)
 [cron Job B] 16:40 KST   cli.py --format signals_ui    → data/signals.json             ★ 전략 SSOT
+              성공 직후 aggregate_strategy_performance.py → data/strategy_performance.json (최근 6개월)
              09:01,31~   동일 (intraday 30분 간격, collect → cli 페어링)
-[cron Job E] 16:45 KST   aggregate_strategy_performance.py → data/strategy_performance.json (최근 6개월)
 [cron Job C] */2 09-15   scripts/collect_live.py        → data/market_snapshot.json    (현재가 + 시장지수 부분 갱신)
                                           ↓
 [signal-api  :8000]   FastAPI 응답 시점 조인 (signal-api/app/services/join.py)
@@ -34,7 +34,7 @@
 **의존 파일 정리** (운영 시 `data/`/`.cache/`/프로젝트 루트에 존재해야 함):
 - `data/signals.json` — Job B 산출물. 없으면 `/api/signals` 가 `503 signals_not_generated` 반환.
 - `data/market_snapshot.json` — Job A 산출물. 없으면 fundamentals/flow overlay skip(stale 데이터 노출).
-- `data/strategy_performance.json` — Job E 산출물. 없으면 `/api/strategy-performance`가 `not_ready`를 반환하고 ABOUT에 준비 중 상태 표시.
+- `data/strategy_performance.json` — Job B 성공 직후 실행되는 Job E 산출물. 없으면 `/api/strategy-performance`가 `not_ready`를 반환하고 ABOUT에 준비 중 상태 표시. 손상 archive가 있으면 정상 파일 결과와 `partial` 경고를 함께 반환.
 - `weights.yml` (프로젝트 루트) — `--decide` 와 ranking.decision 채움. 없으면 FACTOR BREAKDOWN 미노출.
 - `.cache/regime_analysis.json` — `core.decision.market_regime.save_regime_analysis` 산출물. 없으면 MarketRegimePanel 누락.
 
@@ -262,7 +262,7 @@ sudo systemctl restart signal-web
 ```
 
 또는 전체 배포 스크립트를 사용합니다. 이 스크립트는 최신 코드 반영, `collect.py`,
-`cli.py --format signals_ui`, web 재빌드, api/web 재시작을 모두 수행합니다.
+`cli.py --format signals_ui`, 전략 성과 집계, web 재빌드, api/web 재시작을 모두 수행합니다.
 
 ```bash
 cd "$APP_DIR"
@@ -300,11 +300,8 @@ LOCK=/tmp/kospi-scanner.lock
 # Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
 10 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache >> $LOG_DIR/collect.log 2>&1
 
-# Job B (일봉 신호): 수집 30분 후 (평일 16:40 KST)
-40 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1
-
-# Job E (최근 6개월 전략 성과): Job B 직후 (평일 16:45 KST)
-45 16 * * 1-5 cd $APP_DIR && flock -n $LOCK $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1
+# Job B + E: 일봉 신호 생성 성공 직후 최근 6개월 전략 성과 갱신 (평일 16:40 KST)
+40 16 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1 && $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1"
 
 # Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
 # flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)
@@ -324,19 +321,19 @@ LOCK=/tmp/kospi-scanner.lock
 |-----|------|------|
 | Job A | 16:10 | `collect.py` — 1D/1W/1h/30m OHLCV 수집 |
 | Job B | 16:40 | `cli.py` — 일봉 기준 signals.json 갱신 |
-| Job E | 16:45 | `aggregate_strategy_performance.py` — 최근 6개월 성과 갱신 |
+| Job E | Job B 성공 직후 | `aggregate_strategy_performance.py` — 최근 6개월 성과 갱신 |
 | Job C30 | 1,31분 (09~15시) | collect(1h/30m) → cli 페어링. `flock`으로 Job B14와 직렬화 |
 | Job B14 | 14:00 | 1D 포함 강제 갱신 (`--no-smart-skip`). 오늘 14:00 현재가를 1D close로 반영 |
 | Job C | 2분 주기 (09~15시) | `collect_live.py` — 현재가·시장지수만 부분 갱신 |
 
-**Job C30과 Job B14의 분리 이유**: C30은 1h/30m만 수집해 속도를 높이고, 14:00에만 1D를 강제 갱신해 오늘 시가·현재가를 일봉에 반영해요. `--no-smart-skip` 없이는 1D가 당일 캐시 유효 판정으로 skip될 수 있어요.
+**Job C30과 Job B14의 분리 이유**: C30은 1h/30m만 수집해 속도를 높이고, 14:00에는 1D도 함께 갱신해 오늘 시가·현재가를 일봉에 반영해요. 오늘 날짜의 1D 수집은 캐시 마지막 봉부터 다시 받아 미완료 종가를 교체합니다.
 
 | 항목 | 값 | 이유 |
 |------|-----|------|
 | 분 필드 | `1,31` (≠ `*/30`) | bar close 직후 데이터 도착 대기 (`*/30` 은 :00/:30 정시라 너무 빠름) |
 | 시 필드 | `9-15` | 09:01 첫 실행, 15:31 마지막 실행 |
-| `flock -n` | Job C30·B14 공유 | 두 job이 같은 시각에 겹치면 나중 job은 skip — manifest.json 충돌 방지 |
-| `&&` 체인 | `||` 아님 | collect 실패 시 cli 자동 skip, stale cache 위에 결과 덮어쓰기 회피 |
+| `flock -n` | Job B+E·C30·B14 공유 | 겹친 job은 skip — archive와 manifest 동시 읽기/쓰기 방지 |
+| `&&` 체인 | `||` 아님 | 앞 단계 실패 시 후속 단계 skip, stale 결과 위에 덮어쓰기 회피 |
 
 **기존 `*/30 9-15` entry와 병행 운영 금지** — 두 cron이 같은 manifest.json을 동시에 쓰면 충돌해요.
 
@@ -417,6 +414,7 @@ sudo journalctl -u signal-web -n 50 --no-pager
 # cron 작업 로그
 tail -f /opt/apps/logs/kospi-scanner/collect.log
 tail -f /opt/apps/logs/kospi-scanner/signals.log
+tail -f /opt/apps/logs/kospi-scanner/performance.log
 tail -f /opt/apps/logs/kospi-scanner/collect_intraday.log  # Job C30·B14
 tail -f /opt/apps/logs/kospi-scanner/live.log              # Job C 실시간 현재가
 ```
@@ -431,6 +429,7 @@ tail -f /opt/apps/logs/kospi-scanner/live.log              # Job C 실시간 현
 | Next.js 빌드 실패 (메모리 부족) | Droplet RAM 부족 | swap 추가: `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` |
 | cron 미실행 | 시간대 불일치 | `timedatectl set-timezone Asia/Seoul` 후 재설정 |
 | `permission denied` on log/ | 실행 계정이 로그 디렉토리 쓰기 불가 | `mkdir -p /opt/apps/logs/kospi-scanner && chmod -R o+rwX /opt/apps/logs/kospi-scanner` |
+| ABOUT 성과에 `partial` 경고 | `archive_summary.failed_files`의 archive JSON 손상 | 실패 파일을 복구/제거한 뒤 `cd /opt/apps/kospi-scanner && .venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json` 재실행. 실패가 없으면 `ready`로 복구 |
 | 디테일 페이지가 빈 데이터 / FACTOR BREAKDOWN 미노출 | 로컬에 signal-api 미실행 또는 `data/signals.json`에 decision 부재 | 9번 섹션의 로컬 dev 가이드대로 둘 다 띄우고, `cli.py --format signals_ui` 재실행 |
 
 ---

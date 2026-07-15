@@ -17,12 +17,10 @@ LOCK=/tmp/kospi-scanner.lock
 # Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
 10 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache >> $LOG_DIR/collect.log 2>&1
 
-# Job B (일봉 신호 + 후회값): 수집 30분 후 (평일 16:40 KST)
+# Job B + E: 일봉 신호 생성 성공 직후 최근 6개월 전략 성과 갱신 (평일 16:40 KST)
+# 같은 flock 안의 && 체인이므로 Job B 실패 시 Job E는 실행되지 않음.
 # weights.yml 존재 시 → 모든 종목 regret score 계산 후 signals.json 에 포함 + ranking_report.md 생성
-40 16 * * 1-5 cd $APP_DIR && ([ -f weights.yml ] || echo "[WARNING] weights.yml 없음 → 후회값 미계산" >> $LOG_DIR/signals.log) && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1
-
-# Job E (최근 6개월 전략 성과): Job B 직후 (평일 16:45 KST)
-45 16 * * 1-5 cd $APP_DIR && flock -n $LOCK $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1
+40 16 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "([ -f weights.yml ] || echo '[WARNING] weights.yml 없음 → 후회값 미계산' >> $LOG_DIR/signals.log) && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1 && $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1"
 
 # Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
 # flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)

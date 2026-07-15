@@ -18,6 +18,7 @@ pip install -r requirements.txt
 |-----|--------|------|------|
 | A: 시장 데이터 수집 | `python scripts/collect.py ...` | `.cache/{tf}/{ticker}.parquet` + `data/market_snapshot.json` | 매일 장 마감 후 1회 |
 | B-일봉 | `python cli.py --format signals_ui ...` | `data/signals.json` (SSOT) | Job A 완료 후 1회 |
+| E: 전략 성과 집계 | `python scripts/aggregate_strategy_performance.py ...` | `data/strategy_performance.json` | Job B 성공 직후 |
 | B-장중 (30m/1h) | `collect.py + cli.py 페어링` | `data/signals.json` | 장 중 30분마다 (09:01, 09:31 …) |
 | C: 실시간 현재가 | `python scripts/collect_live.py` | `data/market_snapshot.json` 부분 갱신 | 장 중 2분마다 (09:00~15:59) |
 
@@ -40,13 +41,13 @@ python cli.py --strategy all --cache-root .cache --format signals_ui --output-di
 
 출력: `data/signals.json` — UI 직접 소비 포맷 (Pydantic 검증 통과)
 
-성과 집계:
+Job B가 성공한 뒤 성과를 집계합니다:
 
 ```bash
 python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json
 ```
 
-출력: `data/strategy_performance.json` — 1D signal 종가 대비 다음 거래일 종가 성과의 최근 6개월 rolling 집계. ABOUT/가이드에서 `/api/strategy-performance`를 통해 표시합니다.
+출력: `data/strategy_performance.json` — 최초 노출 시점의 1D 종가 대비 다음 거래일 종가 성과의 최근 6개월 rolling 집계. ABOUT/가이드에서 `/api/strategy-performance`를 통해 표시합니다. 일부 archive가 손상되면 정상 파일 결과는 `partial` 상태로 제공되며, 파일을 복구하고 집계를 다시 실행하면 `ready`로 돌아옵니다.
 
 #### Job C: 실시간 현재가 갱신
 
@@ -62,19 +63,16 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 
 ```cron
 # Job A: 장 마감 후 시장 데이터 수집
-0 16 * * 1-5  /path/to/.venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache
+0 16 * * 1-5 cd /path/to/project && /path/to/project/.venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache
 
-# Job B (일봉): 수집 완료 후 1D/1W 전략 실행
-30 16 * * 1-5 /path/to/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data
-
-# Job E: 일봉 성과 집계 (Job B 직후)
-45 16 * * 1-5 /path/to/.venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json
+# Job B + E (일봉): 스캔 성공 직후 같은 lock 안에서 성과 집계
+30 16 * * 1-5 cd /path/to/project && flock -n /tmp/kospi-scanner.lock sh -c '/path/to/project/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data && /path/to/project/.venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json'
 
 # Job B (장중): 30m/1h 전략 — bar close + 1분 지연 (09:01, 09:31, …, 15:31)
-1,31 9-15 * * 1-5 /path/to/scripts/run_30m.sh
+1,31 9-15 * * 1-5 cd /path/to/project && /path/to/scripts/run_30m.sh
 
 # Job C: 실시간 현재가 — 2분 주기 경량 갱신 (09:00~15:59)
-*/2 9-15 * * 1-5 /path/to/.venv/bin/python scripts/collect_live.py
+*/2 9-15 * * 1-5 cd /path/to/project && /path/to/project/.venv/bin/python scripts/collect_live.py
 ```
 
 ---
