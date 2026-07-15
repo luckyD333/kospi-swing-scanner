@@ -146,8 +146,8 @@ def test_cli_verbose_flag_enables_debug_logging():
             assert debug_level <= logging.DEBUG
 
 
-def test_cli_max_universe_zero_means_unlimited():
-    """--max-universe 0은 무제한으로 처리."""
+def test_cli_max_universe_zero_uses_default():
+    """--max-universe 0은 기본값 100으로 정규화한다."""
     with tempfile.TemporaryDirectory() as _:
         with patch("cli.ScanRunner") as MockRunner:
             mock_result = RunResult(
@@ -166,18 +166,16 @@ def test_cli_max_universe_zero_means_unlimited():
                 "--max-universe", "0",
             ])
 
-            # RunnerConfig.max_universe_size가 500 (default)로 설정되었는지 확인
-            # (0 또는 음수 → None 정규화 → RunnerConfig default 500 사용)
+            # 0 또는 음수는 RunnerConfig 기본값 100으로 정규화
             call_args = MockRunner.call_args
             if call_args:
                 runner_config = call_args[1]["config"] if "config" in call_args[1] else None
                 if runner_config:
-                    # cap_limit = None이면 RunnerConfig는 default 500 사용
-                    assert runner_config.max_universe_size == 500
+                    assert runner_config.max_universe_size == 100
 
 
-def test_cli_max_universe_negative_normalized():
-    """--max-universe 음수도 무제한으로 처리."""
+def test_cli_max_universe_negative_uses_default():
+    """--max-universe 음수도 기본값 100으로 정규화한다."""
     with tempfile.TemporaryDirectory() as _:
         with patch("cli.ScanRunner") as MockRunner:
             mock_result = RunResult(
@@ -196,9 +194,9 @@ def test_cli_max_universe_negative_normalized():
                 "--max-universe", "-1",
             ])
 
-            # RunnerConfig.max_universe_size가 500 (default)로 처리
+            # RunnerConfig.max_universe_size가 100 (default)로 처리
             call_args = MockRunner.call_args
             if call_args:
                 runner_config = call_args[1]["config"] if "config" in call_args[1] else None
                 if runner_config:
-                    assert runner_config.max_universe_size == 500
+                    assert runner_config.max_universe_size == 100

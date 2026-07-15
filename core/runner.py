@@ -93,7 +93,8 @@ class RunnerConfig:
     min_daily_volume: int = 100_000
     lookback_days: int = 90
     top_n: int = 20
-    max_universe_size: int = 500
+    max_universe_size: int = 100
+    max_etf_size: int = 30
     min_etf_volatility_pct: float = 0.5
     timeframes: list[str] = field(default_factory=lambda: ["1D"])
     cache_root: Path | None = None  # 주어지면 .cache/ohlcv/ 디스크 영속
@@ -183,6 +184,7 @@ class ScanRunner:
                 min_daily_volume=self.config.min_daily_volume,
                 market=self.config.market,
                 max_universe_size=self.config.max_universe_size,
+                max_etf_size=self.config.max_etf_size,
             ),
         )
         logger.info(f"📊 유니버스: {len(univ.tickers)}종목")

@@ -52,6 +52,14 @@ def _make_mock_client(tickers=("005930", "000660"), with_fundamentals=True):
     return client
 
 
+def test_collect_defaults_to_100_stocks_and_30_etfs():
+    from scripts.collect import CollectConfig
+
+    cfg = CollectConfig()
+    assert cfg.max_universe_size == 100
+    assert cfg.max_etf_size == 30
+
+
 def test_collect_creates_manifest(tmp_path):
     from scripts.collect import CollectConfig, run_collect
 

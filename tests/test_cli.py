@@ -51,6 +51,12 @@ def test_invalid_date_format_errors():
     # 형식 오류는 main 내부에서 검증되므로 parser 단계에서는 통과.
 
 
+def test_max_universe_defaults_to_100():
+    args = cli.build_parser().parse_args([])
+    assert args.max_universe == 100
+    assert args.max_etf == 30
+
+
 def test_unknown_strategy_raises_systemexit():
     with pytest.raises(SystemExit):
         cli.resolve_strategies("does_not_exist")

@@ -2,7 +2,7 @@
 scripts/collect.py — OHLCV 데이터 수집 Job.
 
 사용:
-    python scripts/collect.py --market KOSPI --max-universe 500 \\
+    python scripts/collect.py --market KOSPI --max-universe 100 --max-etf 30 \\
         --cache-root .cache --timeframes 1D 1W 1h 30m
 
 TF 매핑: 1D/1W → base_tf=1D, 1h/30m/2h/4h → base_tf=1m
@@ -63,8 +63,8 @@ _TF_TO_BASE = {
 class CollectConfig:
     market: str = "KOSPI"
     cache_root: Path = Path(".cache")
-    max_universe_size: int = 300
-    max_etf_size: int = 50
+    max_universe_size: int = 100
+    max_etf_size: int = 30
     min_etf_volatility_pct: float = 0.5
     # 1D+1W는 base 1D로, 1h/30m는 base 1m으로 저장 후 리샘플링
     base_tfs: list[str] = field(default_factory=lambda: ["1D", "1m"])
@@ -185,7 +185,11 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
 
     uc = UniverseCache(cfg.cache_root)
     cached = uc.load(cfg.market, target_date)
-    if cached and len(cached["tickers"]) >= cfg.max_universe_size:
+    if (
+        cached
+        and cached.get("selection") == "volume"
+        and len(cached["tickers"]) >= cfg.max_universe_size
+    ):
         from core.universe import UniverseResult
         from core.decision.product_type import classify, ProductType
         logger.info(
@@ -227,6 +231,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
                 min_daily_volume=cfg.min_daily_volume,
                 market=cfg.market,
                 max_universe_size=cfg.max_universe_size,
+                max_etf_size=0,
             ),
         )
         uc.save(
@@ -786,8 +791,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="OHLCV 수집 Job")
     parser.add_argument("--market", default="KOSPI", choices=["KOSPI", "KOSDAQ"])
     parser.add_argument("--cache-root", default=".cache")
-    parser.add_argument("--max-universe", type=int, default=300)
-    parser.add_argument("--max-etf", type=int, default=50, help="ETF 상위 N개 제한 (0=전종목, 기본: 50)")
+    parser.add_argument("--max-universe", type=int, default=100)
+    parser.add_argument("--max-etf", type=int, default=30, help="ETF 상위 N개 제한 (0=전종목, 기본: 30)")
     parser.add_argument(
         "--min-etf-volatility-pct", type=float, default=0.5,
         help="ETF 1D 수익률 표준편차 최소값(%%). 미만이면 수집 제외 (기본: 0.5, 0=비활성화)",

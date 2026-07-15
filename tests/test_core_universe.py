@@ -18,10 +18,17 @@ class _MockSource(DailyDataSource):
     """네이버 스타일 mock — 시총 lookup 만 제공."""
     name = "mock"
 
-    def __init__(self, tickers: list[str], cap_lookup: dict[str, float], names: dict[str, str]):
+    def __init__(
+        self,
+        tickers: list[str],
+        cap_lookup: dict[str, float],
+        names: dict[str, str],
+        volumes: dict[str, int] | None = None,
+    ):
         self._tickers = tickers
         self._caps = cap_lookup
         self._names = names
+        self._volumes = volumes
 
     def get_tickers(self, market, target_date):
         return list(self._tickers)
@@ -33,10 +40,11 @@ class _MockSource(DailyDataSource):
         return pd.DataFrame()
 
     def get_market_cap(self, market, target_date):
-        rows = {
-            t: {"시가총액": self._caps[t], "종목명": self._names[t]}
-            for t in self._tickers
-        }
+        rows = {}
+        for ticker in self._tickers:
+            rows[ticker] = {"시가총액": self._caps[ticker], "종목명": self._names[ticker]}
+            if self._volumes is not None:
+                rows[ticker]["거래량"] = self._volumes[ticker]
         return pd.DataFrame(rows).T
 
 
@@ -65,6 +73,19 @@ def test_build_universe_filters_by_market_cap():
     )
     assert sorted(res.tickers) == ["B", "C"]
     assert res.cap_lookup["B"] == 5_000 * 1e8
+
+
+def test_build_universe_filters_by_daily_volume():
+    mock = _MockSource(
+        tickers=["HALTED", "ACTIVE"],
+        cap_lookup={"HALTED": 6_000 * 1e8, "ACTIVE": 6_000 * 1e8},
+        names={"HALTED": "거래정지", "ACTIVE": "정상종목"},
+        volumes={"HALTED": 0, "ACTIVE": 100_000},
+    )
+    res = build_universe(
+        _client_with_mock(mock), "20260418", UniverseFilter(min_daily_volume=100_000),
+    )
+    assert res.tickers == ["ACTIVE"]
 
 
 def test_build_universe_no_cap_data_returns_all_tickers():
@@ -102,13 +123,16 @@ def test_build_universe_inclusive_boundaries():
     assert sorted(res.tickers) == ["MAX", "MIN"]
 
 
-def test_build_universe_applies_top_n_cap_limit():
-    """cap range 통과 종목 12개 중 max_universe_size=5 시 시총 상위 5개만 반환."""
+def test_build_universe_applies_top_n_volume_limit():
+    """필터 통과 종목 12개 중 max_universe_size=5 시 거래량 상위 5개만 반환."""
     tickers = [f"T{i:02d}" for i in range(12)]
     cap_lookup = {t: 5_000 * 1e8 for t in tickers}
     names = {t: t for t in tickers}
+    volumes = {ticker: (i + 1) * 100_000 for i, ticker in enumerate(tickers)}
 
-    mock = _MockSource(tickers=tickers, cap_lookup=cap_lookup, names=names)
+    mock = _MockSource(
+        tickers=tickers, cap_lookup=cap_lookup, names=names, volumes=volumes,
+    )
     client = _client_with_mock(mock)
     res = build_universe(
         client, "20260418",
@@ -118,8 +142,27 @@ def test_build_universe_applies_top_n_cap_limit():
             max_universe_size=5,
         ),
     )
-    assert len(res.tickers) == 5
+    assert res.tickers == ["T11", "T10", "T09", "T08", "T07"]
     assert res.pre_cap_limit_size == 12
+
+
+def test_build_universe_limits_stocks_and_etfs_separately():
+    class _SplitSource(_MockSource):
+        def get_etf_list(self, target_date: str) -> set[str]:
+            return set(etfs)
+
+    stocks = [f"S{i:03d}" for i in range(120)]
+    etfs = [f"E{i:03d}" for i in range(40)]
+    tickers = stocks + etfs
+    mock = _SplitSource(
+        tickers=tickers,
+        cap_lookup={ticker: 6_000 * 1e8 for ticker in tickers},
+        names={ticker: ticker for ticker in tickers},
+        volumes={ticker: (i + 1) * 100_000 for i, ticker in enumerate(tickers)},
+    )
+    res = build_universe(_client_with_mock(mock), "20260418", UniverseFilter())
+    assert len([t for t in res.tickers if t.startswith("S")]) == 100
+    assert len([t for t in res.tickers if t.startswith("E")]) == 30
 
 
 def test_build_universe_no_limit_when_below_threshold():
@@ -204,12 +247,19 @@ def test_build_universe_excludes_covered_call_etf():
             "486290": "TIGER 미국나스닥100타겟데일리커버드콜",
             "069500": "KODEX 200",
         },
+        volumes={"005930": 200_000, "486290": 1_000_000, "069500": 500_000},
     )
     client = _client_with_mock(mock)
     res = build_universe(
         client, "20260418",
-        UniverseFilter(min_market_cap_bil=2000, max_market_cap_bil=30000),
+        UniverseFilter(
+            min_market_cap_bil=2000,
+            max_market_cap_bil=30000,
+            max_universe_size=2,
+            max_etf_size=2,
+        ),
     )
     assert "486290" not in res.tickers
+    assert "005930" in res.tickers
     assert "069500" in res.tickers
     assert res.product_type_lookup["486290"] == ProductType.ETF

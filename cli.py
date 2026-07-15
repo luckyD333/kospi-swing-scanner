@@ -88,8 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="DEBUG 로그 출력",
     )
     parser.add_argument(
-        "--max-universe", type=int, default=500,
-        help="시총 상위 N 종목으로 유니버스 제한. 0 또는 음수 입력 시 무제한",
+        "--max-universe", type=int, default=100,
+        help="일반 주식 거래량 상위 N개로 유니버스 제한",
+    )
+    parser.add_argument(
+        "--max-etf", type=int, default=30,
+        help="ETF 거래량 상위 N개로 유니버스 제한. 0이면 제외",
     )
     parser.add_argument(
         "--min-etf-volatility-pct", type=float, default=0.5,
@@ -568,7 +572,8 @@ def main(argv: list[str] | None = None) -> int:
             min_daily_volume=args.min_volume,
             lookback_days=args.lookback_days,
             top_n=args.top,
-            max_universe_size=cap_limit or 500,
+            max_universe_size=cap_limit or 100,
+            max_etf_size=max(args.max_etf, 0),
             min_etf_volatility_pct=args.min_etf_volatility_pct,
             timeframes=runner_timeframes,
             cache_root=cache_root,

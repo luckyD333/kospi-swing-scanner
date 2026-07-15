@@ -1,4 +1,4 @@
-"""유니버스(ticker 목록, 시총, 종목명) JSON 영속 캐시."""
+"""거래량 순 유니버스(ticker 목록, 시총, 종목명) JSON 영속 캐시."""
 from __future__ import annotations
 
 import json
@@ -24,6 +24,7 @@ class UniverseCache:
         payload = {
             "market": market,
             "date": date,
+            "selection": "volume",
             "tickers": tickers,
             "cap_lookup": cap_lookup,
             "name_lookup": name_lookup,

@@ -14,6 +14,7 @@ def test_save_and_load_roundtrip(tmp_path):
         name_lookup={"005930": "삼성전자", "000660": "SK하이닉스"},
     )
     loaded = cache.load(market="KOSPI", date="20260430")
+    assert loaded["selection"] == "volume"
     assert loaded["tickers"] == ["005930", "000660"]
     assert loaded["cap_lookup"]["005930"] == 500_000_000_000.0
     assert loaded["name_lookup"]["005930"] == "삼성전자"

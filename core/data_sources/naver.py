@@ -188,7 +188,7 @@ class NaverSource(DailyDataSource):
             return None
 
     def get_market_cap(self, market: str, target_date: str) -> pd.DataFrame:
-        """시가총액 DataFrame 반환 (컬럼: 시가총액, 종목명)"""
+        """시가총액 DataFrame 반환 (컬럼: 시가총액, 종목명, 거래량)"""
         self._crawl_market_sum(market)
         rows = {}
         for ticker, info in self._ticker_cache.items():
@@ -197,6 +197,7 @@ class NaverSource(DailyDataSource):
             rows[ticker] = {
                 "시가총액": info["market_cap"],  # 원 단위
                 "종목명": info["name"],
+                "거래량": info["volume"],
             }
         if not rows:
             return pd.DataFrame()
@@ -482,10 +483,12 @@ class NaverSource(DailyDataSource):
 
                 # PR-A: PER raw text 분기 — 적자 sentinel 식별
                 per_value, per_negative = _classify_per_raw(row.get("PER"))
+                volume = _to_optional_float(row.get("거래량"))
                 self._ticker_cache[code] = {
                     "name": name,
                     "market": market,
                     "market_cap": market_cap,
+                    "volume": int(volume) if volume is not None else None,
                     # 펀더멘털 (UI 표시 + 의사결정용). N/A → None
                     "per": per_value,
                     "per_negative": per_negative,  # 적자 종목 식별 플래그

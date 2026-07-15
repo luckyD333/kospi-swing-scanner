@@ -157,8 +157,10 @@ def test_get_market_cap_signature_unchanged():
 
     assert "시가총액" in df.columns
     assert "종목명" in df.columns
+    assert "거래량" in df.columns
     assert "005930" in df.index  # 삼성전자
     assert df.loc["005930", "종목명"] == "삼성전자"
+    assert df.loc["005930", "거래량"] == 20_519_819
 
 
 # ---------------------------------------------------------------------------
