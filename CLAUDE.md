@@ -89,7 +89,7 @@ python cli.py --interview
 ## Data Flow (SSOT)
 운영 데이터는 **`data/signals.json`**(전략 결과) + **`data/market_snapshot.json`**(시장 raw) 2-파일.
 signal-api 가 응답 시점에 `services/join.py`로 두 파일을 조인 — fundamentals/flow/external_links 는 latest snapshot 으로 override (live_quote/trade_plan 은 cli.py 동시점 freeze 유지).
-weights.yml(가중치)는 `--interview` 실행 또는 git 배포로 생성. `strategy_weights_by_regime` (3-label BULL/NEUTRAL/BEAR 매트릭스) + `fng_modifier` (5-label 곱셈) 로 regime-aware ensemble 적용. `.cache/regime_analysis.json`(시장 국면)은 `collect.py` 실행 시 HMM 분석으로 자동 생성.
+weights.yml(가중치)는 `--interview` 실행 또는 git 배포로 생성. `strategy_weights_by_regime` (3-label BULL/NEUTRAL/BEAR 매트릭스)로 regime-aware ensemble을 적용한다. 구형 `fng_modifier`는 설정 호환용이며 runtime에는 적용하지 않는다. `.cache/regime_analysis.json`(시장 국면)은 `collect.py` 실행 시 HMM 분석으로 자동 생성.
 `data/holding_recommendations.json`(상황별 최적 holding 추천)은 `scripts/aggregate_holding_recommendations.py` 로 WF 백테스트 결과를 marginal table 로 집계해 생성. signals_builder 가 응답 시점에 DecisionMeta.recommended_holding_bars/holding_confidence/holding_status 채움.
 
 ## Safety Note

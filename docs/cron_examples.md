@@ -75,6 +75,7 @@ LOCK=/tmp/kospi-scanner.lock
 - Job B와 E는 같은 `flock`과 `&&` 체인에 있으므로 스캔 중 archive를 동시에 읽지 않고, Job B 실패 시 E를 실행하지 않습니다.
 
 F&G의 Volatility는 국내 1D 실현변동성이므로, 장중 30분 단위 F&G 갱신은 Job D(30분 full collect) 활성화 시에만 적용된다. Job A 단독 운영 시 F&G는 장 마감 후 1회 갱신된다.
+V-KOSPI도 Job A/D의 full collect에서 증권플러스 일봉 JSON으로 갱신하며, F&G와 합산하거나 후보 순위·차단에 사용하지 않는다.
 
 ---
 

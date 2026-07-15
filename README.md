@@ -124,6 +124,8 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
   "schema_version": "1.0",
   "generated_at": "2026-05-03T18:00:00+09:00",
   "market_indices": {"kospi": {"value": 2641.32, "change_pct": 0.84}},
+  "fear_greed": {"score": 42.0, "label": "Fear", "status": "informational"},
+  "v_kospi": {"value": 35.2, "change_pct": 2.1, "asof": "2026-05-02", "percentile_90d": 88.9, "status": "informational"},
   "tickers": {
     "001390": {
       "ticker": "001390", "name": "KG케미칼",
@@ -310,6 +312,7 @@ kospi-swing-scanner/
 | 일봉/분봉 OHLCV | 네이버 `siseJson` API (수정주가) | timeframe=day 또는 minute |
 | 30m / 1h / 4h | 네이버 1m → 리샘플링 | core/runner.py 내부 처리 |
 | 매크로 지수 | 네이버 `marketindex` 스크래핑 | USD/KRW, WTI, 국고채3Y, VIX |
+| V-KOSPI | 증권플러스 `KOREA-O2901P` 일봉 JSON | F&G와 분리된 정보용 지표, 매수 판단 미반영 |
 
 ---
 
@@ -339,7 +342,7 @@ python cli.py --strategy all --format json --output-dir scan_results
 python cli.py --interview
 ```
 
-`weights.yml`은 ranking factor breakdown(`ensemble_score`, `momentum_pct`, `rr_ratio`, `roe`, `per`, `regime_score`)의 가중치를 정의해요. 또한 `strategy_weights_by_regime` (3-label BULL/NEUTRAL/BEAR 매트릭스) + `fng_modifier` (5-label 곱셈) 으로 regime-aware ensemble 적용 — 시장 국면에 따라 strategy 가중치가 자동 조정돼요. signals.json 의 `ranking.decision` 필드는 이 weights 로드 성공 시에만 채워져요.
+`weights.yml`은 ranking factor breakdown(`ensemble_score`, `momentum_pct`, `rr_ratio`, `roe`, `per`, `regime_score`)의 가중치를 정의해요. `strategy_weights_by_regime` 매트릭스로 시장 국면에 따라 strategy 가중치를 조정합니다. 구형 `fng_modifier`는 설정 호환을 위해 읽고 저장하지만 ranking에는 적용하지 않으며, F&G는 정보용 지표로만 표시합니다. signals.json 의 `ranking.decision` 필드는 이 weights 로드 성공 시에만 채워져요.
 
 ### 필터 조정
 

@@ -116,12 +116,13 @@
   - scorer 옵션 구현 완료 (2026-06-12): `ScanPnlConfig`/`ScanBarConfig.max_entry_gap_pct`
     (기본 None=기존 동작). 이후 WF 는 운영 체결 방식 근사 시 0.03 고정값 사용.
 
-### F7. [MEDIUM] regime 가중치 매트릭스·fng_modifier가 hand-set 미검증 휴리스틱
+### F7. [MEDIUM] regime 가중치 매트릭스가 hand-set 미검증 휴리스틱
 
 - **파일**: `weights.yml:87-109`, git `c0d6a59`/`2871fa3` (2026-05-19)
 - **증거**: BULL/NEUTRAL/BEAR × 5전략 배수(1.4/0.3/0.0 등)가 백테스트 산출이 아닌 수기 작성 (커밋 메시지·주석 확인). **hindsight 최적화는 아님** (이중 과최적화 아님 — §11 기각 참조). 그러나 검증도 안 됨.
 - **왜곡**: BEAR에서 bull_flag 0.0 차단 같은 강한 결정이 근거 없이 적용 — 좋을 수도 나쁠 수도 있는데 측정한 적 없음.
 - **수정**: regime별 전략 성과를 leakage-free 라벨(SMA proxy 또는 expanding HMM)로 분리 집계해 매트릭스 calibrate, weights.yml에 `metadata:` (산출 기간/방법/OOS 성과) 블록 추가.
+- **2026-07-15 변경**: `fng_modifier`는 runtime 점수·차단·보유기간 추천에서 제거하고 구형 설정 라운드트립 호환만 유지. F&G는 정보용 표시로 한정.
 
 ### F8. [MEDIUM] HMM 일일 재fit으로 history 점수 불안정 (train/serve drift)
 
@@ -186,7 +187,7 @@
 
 ## 7. Ensemble 가중치 감사
 
-- **계보**: weights.yml priorities(5-factor) ← `--interview` / 수기; `strategy_weights_by_regime` ← 수기 휴리스틱 (c0d6a59, 2871fa3); `fng_modifier` ← 수기. **optimize_full.py / wf_validate_* / wf_strategy_compare.py 어디에도 regime 소비 없음 (grep 확인)** → regime 라벨 in-sample 순환 오염 없음.
+- **계보**: weights.yml priorities(5-factor) ← `--interview` / 수기; `strategy_weights_by_regime` ← 수기 휴리스틱 (c0d6a59, 2871fa3). 구형 `fng_modifier`는 runtime 미적용. **optimize_full.py / wf_validate_* / wf_strategy_compare.py 어디에도 regime 소비 없음 (grep 확인)** → regime 라벨 in-sample 순환 오염 없음.
 - 5전략 알파 원천: S1(반등) vs S4(추세 내 반등)는 부분 중복, S2/S3/S5는 모두 상방 추세 노출 — BULL에서 동반 이익·급락 시 동반 손실 가능성. **전략 간 일별 PnL 상관·동시 drawdown·공동 보유 측정 이력 없음** — needs confirmation (per-trade 기록은 `emit_per_trade`로 수집 가능, §10 권장 분석).
 - 상위 5개 거래 제외 시 성과 변화 — 측정 이력 없음, needs confirmation.
 
