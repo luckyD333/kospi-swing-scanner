@@ -5,7 +5,9 @@ core/decision/entry_gate.py — 전략별 entry gate 정책 매트릭스.
 
 정책 액션:
   - "allow": 진입 허용
-  - "allow_strong_only": setup_score ≥ 60 일 때만 진입
+  - "allow_strong_only": setup_score 가 전략군 기준값 이상일 때만 진입
+    (추세 추종 60, 평균 회귀 50 — 셋업 만점이 90 과 70 으로 달라 분리)
+    setup_score 가 None 이면 차단한다 (데이터 없으면 보수적으로 막음)
   - "block": 진입 차단
 
 위계 원칙:
@@ -32,7 +34,7 @@ ENTRY_GATE_POLICY: dict[str, dict[str, GateAction]] = {
         "UPTREND_WEAK": "allow",
         "RANGE_TIGHT": "allow_strong_only",
         "RANGE": "allow",
-        "DOWNTREND_WEAK": "allow_strong_only",  # 강한 셋업만
+        "DOWNTREND_WEAK": "allow",  # 과매도 반등 — 평균 회귀 신호 정의와 일치
         "DOWNTREND_STRONG": "block",  # 모든 매수 차단
         "MIXED": "allow_strong_only",  # 보수
     },
@@ -74,8 +76,17 @@ ENTRY_GATE_POLICY: dict[str, dict[str, GateAction]] = {
     },
 }
 
-# Strong setup quality threshold (경계값 캘리브레이션)
+# Strong setup quality threshold (경계값 캘리브레이션) — 추세 추종 4개 전략 기본값
 STRONG_SETUP_THRESHOLD = 60
+
+# 평균 회귀 셋업 만점은 70, 추세 추종은 90 이라 같은 기준값을 쓰면 평균 회귀만 과도하게 막힌다.
+# 2026-09-16 운영 유니버스 100종목 실측: 60점 이상 2개, 50점 이상 18개.
+MEAN_REV_STRONG_SETUP_THRESHOLD = 50
+
+# 전략군별 강한 셋업 기준값. 미등록 전략군은 STRONG_SETUP_THRESHOLD 를 쓴다.
+STRONG_SETUP_THRESHOLD_BY_FAMILY: dict[str, int] = {
+    "strategy_one": MEAN_REV_STRONG_SETUP_THRESHOLD,
+}
 
 
 def is_strategy_allowed(
@@ -106,8 +117,9 @@ def is_strategy_allowed(
         return True
     if action == "block":
         return False
-    # allow_strong_only
-    return setup_score is not None and setup_score >= STRONG_SETUP_THRESHOLD
+    # allow_strong_only — 전략군별 기준값 적용, setup_score 없으면 차단
+    threshold = STRONG_SETUP_THRESHOLD_BY_FAMILY.get(family, STRONG_SETUP_THRESHOLD)
+    return setup_score is not None and setup_score >= threshold
 
 
 def _normalize_family(strategy_id: str) -> str:

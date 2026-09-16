@@ -13,7 +13,7 @@ from core.decision.donchian import DonchianFrame
 
 # 기본 임계값 (config 에서 override 가능)
 SETUP_SCORE_THRESHOLD_DEFAULT = 20  # Section 3-B-4 (Task 10 완화: 40 → 20, prod 카탈로그 풀 보장)
-SETUP_SCORE_STRONG = 60  # entry_gate 의 allow_strong_only 임계값과 일치
+SETUP_SCORE_STRONG = 60  # (미참조) 추세 추종 기준값. 실제 판정은 entry_gate 가 전략군별로 한다
 
 
 @dataclass(frozen=True)
@@ -78,6 +78,10 @@ def mean_rev_setup_quality(
       - abs(1h slope) < threshold (수평) → +15 '1h_flat'
 
     score 음수면 0 으로 clip.
+
+    주의: 1h 봉이 60개 미만이면 width_percentile_60 이 NaN 이라 +20 항목이 소멸해
+    실질 상한이 50 이 된다. entry_gate 의 평균 회귀 기준값(50) 은 이 경우에도
+    도달 가능하도록 정한 값이다 (추세 추종 기준값 60 과 분리).
     """
     score = 0
     reasons = []

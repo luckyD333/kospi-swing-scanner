@@ -7,8 +7,9 @@ fixture 패턴:
   - DOWNTREND_STRONG: position=0.10, slope<0 → 모든 전략 0건
   - UPTREND_STRONG: position=0.85, slope>0 → strategy_three 후보 정상
   - RANGE_TIGHT: position=0.50, width_percentile<0.4 → 특정 전략 통과
-  - DOWNTREND_WEAK + setup_score=70 → strategy_one 통과 (allow_strong_only)
-  - DOWNTREND_WEAK + setup_score=40 → strategy_one 차단
+  - DOWNTREND_WEAK → strategy_one 통과 (allow, setup_score 무관)
+  - MIXED + setup_score=50 → strategy_one 통과 (allow_strong_only, 평균 회귀 기준값 50)
+  - MIXED + setup_score=35 → strategy_one 차단
 """
 from __future__ import annotations
 
@@ -160,11 +161,13 @@ class TestEntryGateBasics:
         assert is_strategy_allowed("strategy_one_d_v2", "RANGE_TIGHT", 65)
 
     def test_allow_strong_only_respects_threshold(self):
-        """allow_strong_only 는 setup_score >= 60 만 통과."""
-        # DOWNTREND_WEAK + strategy_one = allow_strong_only
-        assert is_strategy_allowed("strategy_one_d_v2", "DOWNTREND_WEAK", 70)
-        assert not is_strategy_allowed("strategy_one_d_v2", "DOWNTREND_WEAK", 50)
-        assert not is_strategy_allowed("strategy_one_d_v2", "DOWNTREND_WEAK", None)
+        """allow_strong_only 는 전략군 기준값 이상만 통과 (평균 회귀 50)."""
+        # MIXED + strategy_one = allow_strong_only
+        assert is_strategy_allowed("strategy_one_d_v2", "MIXED", 50)
+        assert not is_strategy_allowed("strategy_one_d_v2", "MIXED", 35)
+        assert not is_strategy_allowed("strategy_one_d_v2", "MIXED", None)
+        # DOWNTREND_WEAK 는 allow 로 바뀌어 setup_score 와 무관하게 통과
+        assert is_strategy_allowed("strategy_one_d_v2", "DOWNTREND_WEAK", None)
 
 
 class TestIntegrationStrategyOne:

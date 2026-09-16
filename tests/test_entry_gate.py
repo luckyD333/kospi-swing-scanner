@@ -73,10 +73,11 @@ class TestIsStrategyAllowed:
         )
 
     def test_allow_strong_only_with_low_setup(self):
-        """action=allow_strong_only + setup_score < 60 → False."""
+        """action=allow_strong_only + setup_score 가 전략군 기준값 미만 → False."""
+        # 평균 회귀 기준값은 50 이므로 하단권 단독(35) 은 통과하지 못한다.
         assert (
             is_strategy_allowed(
-                "strategy_one_d_v2", "RANGE_TIGHT", setup_score=50
+                "strategy_one_d_v2", "RANGE_TIGHT", setup_score=35
             )
             is False
         )
@@ -86,23 +87,6 @@ class TestIsStrategyAllowed:
         assert (
             is_strategy_allowed("strategy_one_d_v2", "RANGE_TIGHT", setup_score=None)
             is False
-        )
-
-    def test_downtrend_weak_strategy_one(self):
-        """strategy_one + DOWNTREND_WEAK → allow_strong_only."""
-        # setup_score 70 미만 시 차단
-        assert (
-            is_strategy_allowed(
-                "strategy_one_30m_v2", "DOWNTREND_WEAK", setup_score=50
-            )
-            is False
-        )
-        # setup_score 70 이상 시 통과
-        assert (
-            is_strategy_allowed(
-                "strategy_one_30m_v2", "DOWNTREND_WEAK", setup_score=70
-            )
-            is True
         )
 
     def test_range_tight_strategy_three(self):
@@ -150,19 +134,19 @@ class TestIsStrategyAllowed:
         assert STRONG_SETUP_THRESHOLD == 60
 
     def test_boundary_setup_score_59(self):
-        """setup_score = 59 (경계값 - 1) → 미통과."""
+        """추세 추종 setup_score = 59 (경계값 - 1) → 미통과."""
         assert (
             is_strategy_allowed(
-                "strategy_one_d_v2", "DOWNTREND_WEAK", setup_score=59
+                "strategy_four_pullback_ma", "RANGE_TIGHT", setup_score=59
             )
             is False
         )
 
     def test_boundary_setup_score_60(self):
-        """setup_score = 60 (경계값) → 통과."""
+        """추세 추종 setup_score = 60 (경계값) → 통과."""
         assert (
             is_strategy_allowed(
-                "strategy_one_d_v2", "DOWNTREND_WEAK", setup_score=60
+                "strategy_four_pullback_ma", "RANGE_TIGHT", setup_score=60
             )
             is True
         )
@@ -210,3 +194,44 @@ class TestStrategyPolicies:
         """Strategy 5 (Bull Flag): RANGE_TIGHT → allow."""
         policy_action = ENTRY_GATE_POLICY["strategy_five"]["RANGE_TIGHT"]
         assert policy_action == "allow"
+
+
+class TestMeanReversionGate:
+    """전략 1(평균 회귀) 전용 게이트 동작."""
+
+    def test_전략일_하락약세는_무조건_허용(self):
+        """평균 회귀 신호는 정의상 하락 구간에서 나오므로 DOWNTREND_WEAK 를 허용한다."""
+        assert ENTRY_GATE_POLICY["strategy_one"]["DOWNTREND_WEAK"] == "allow"
+        assert is_strategy_allowed("strategy_one_d_v2", "DOWNTREND_WEAK") is True
+        assert (
+            is_strategy_allowed("strategy_one_d_v2", "DOWNTREND_WEAK", setup_score=0)
+            is True
+        )
+
+    def test_강한셋업_기준값은_전략군별로_다르다(self):
+        """평균 회귀 만점은 70, 추세 추종 만점은 90 이므로 기준값을 50 과 60 으로 나눈다."""
+        assert is_strategy_allowed("strategy_one_d_v2", "MIXED", setup_score=50) is True
+        assert is_strategy_allowed("strategy_one_d_v2", "MIXED", setup_score=35) is False
+        assert (
+            is_strategy_allowed("strategy_four_pullback_ma", "RANGE_TIGHT", setup_score=50)
+            is False
+        )
+        assert (
+            is_strategy_allowed("strategy_four_pullback_ma", "RANGE_TIGHT", setup_score=60)
+            is True
+        )
+
+    def test_하락강세는_여전히_차단(self):
+        """게이트를 완화해도 강한 하락 추세의 매수는 막는다."""
+        assert (
+            is_strategy_allowed("strategy_one_d_v2", "DOWNTREND_STRONG", setup_score=70)
+            is False
+        )
+
+    def test_전략_둘에서_다섯까지_정책_불변(self):
+        """이번 변경은 전략 1 외의 정책 셀을 건드리지 않는다."""
+        for family in ("strategy_two", "strategy_three", "strategy_four", "strategy_five"):
+            assert ENTRY_GATE_POLICY[family]["DOWNTREND_STRONG"] == "block"
+            assert ENTRY_GATE_POLICY[family]["UPTREND_STRONG"] == "allow"
+        assert ENTRY_GATE_POLICY["strategy_four"]["RANGE_TIGHT"] == "allow_strong_only"
+        assert ENTRY_GATE_POLICY["strategy_three"]["RANGE_TIGHT"] == "allow"
