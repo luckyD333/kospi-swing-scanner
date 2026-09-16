@@ -408,6 +408,13 @@ class NaverSource(DailyDataSource):
             if len(chunk) < page_size:
                 break
 
+        # ETF 합치기 전에 검사한다. 뒤에서 세면 주식이 0건이어도 ETF 수백 건이 합쳐져
+        # 예외 없이 지나가고, 유니버스가 ETF 만으로 조립된다.
+        if not items:
+            raise RuntimeError(
+                f"네이버 종목 목록 0건 ({market}) — API 응답 형식 변경 가능성"
+            )
+
         total = 0
         for item in items:
             code = item.get("itemcode")
@@ -448,11 +455,6 @@ class NaverSource(DailyDataSource):
                     total += 1
             except Exception as e:
                 logger.warning(f"  [네이버] ETF 목록 합치기 실패, 주식만 사용: {e}")
-
-        if total == 0:
-            raise RuntimeError(
-                f"네이버 종목 목록 0건 ({market}) — API 응답 형식 변경 가능성"
-            )
 
         self._market_cached[market] = True
         logger.info(f"  [네이버] {market} 종목 목록 완료: {total}종목")

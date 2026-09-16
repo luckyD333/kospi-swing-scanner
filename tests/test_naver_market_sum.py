@@ -146,6 +146,14 @@ def test_crawl_empty_response_raises():
             src._crawl_market_sum("KOSPI")
 
 
+def test_crawl_empty_stocks_raises_even_when_etf_merge_succeeds():
+    """주식이 0건이면 ETF 가 합쳐져도 예외 — ETF 만으로 유니버스가 조립되면 안 된다."""
+    src = NaverSource()
+    with _patch_requests([]):  # etf 는 기본 응답(KODEX 200 포함)
+        with pytest.raises(RuntimeError):
+            src._crawl_market_sum("KOSPI")
+
+
 def test_crawl_calls_stock_default_api_once_per_market():
     """시장별 1회만 fetch (캐시 히트 시 재호출 없음)."""
     src = NaverSource()
