@@ -94,7 +94,7 @@ class NaverSource(DailyDataSource):
     name = "naver"
     OHLCV_URL = "https://api.finance.naver.com/siseJson.naver"
     STOCK_LIST_URL = "https://stock.naver.com/api/domestic/market/stock/default"
-    INDEX_URL = "https://finance.naver.com/sise/sise_index.naver"
+    INDEX_URL = "https://m.stock.naver.com/api/index/{code}/basic"
     ETF_LIST_URL = "https://finance.naver.com/api/sise/etfItemList.nhn"
     MOBILE_BASIC_URL = "https://m.stock.naver.com/api/stock/{ticker}/basic"
     HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -171,34 +171,22 @@ class NaverSource(DailyDataSource):
         return ticker
 
     def get_market_index(self, market: str, target_date: str) -> dict | None:
-        """네이버 sise_index에서 시장 지수 값 + 등락률 수집. 실패 시 None."""
-        import re
-        from bs4 import BeautifulSoup
+        """m.stock index/basic JSON 에서 지수 종가 + 등락률 수집. 실패 시 None.
 
+        fluctuationsRatio 는 부호를 포함하므로 (하락 시 음수) 별도 부호 계산을 하지 않는다.
+        """
         code = self._INDEX_CODE.get(market)
         if not code:
             return None
         try:
             resp = requests.get(
-                self.INDEX_URL, params={"code": code}, headers=self.HEADERS, timeout=5
+                self.INDEX_URL.format(code=code), headers=self.HEADERS, timeout=5
             )
             resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
-
-            now_el = soup.find(id="now_value")
-            chg_el = soup.find(id="change_value_and_rate")
-            if now_el is None:
-                raise ValueError("now_value 요소를 찾을 수 없음")
-
-            close = float(now_el.get_text(strip=True).replace(",", ""))
-
-            chg = 0.0
-            if chg_el:
-                m = re.search(r"([+-]?\d+\.?\d*)%", chg_el.get_text(strip=True))
-                if m:
-                    chg = float(m.group(1))
-
-            return {"value": close, "change_pct": chg}
+            data = resp.json()
+            close = float(str(data["closePrice"]).replace(",", ""))
+            change_pct = float(str(data.get("fluctuationsRatio") or 0).replace(",", ""))
+            return {"value": close, "change_pct": round(change_pct, 2)}
         except Exception as e:
             logger.warning(f"시장 지수 조회 실패 ({market}): {e}")
             return None
