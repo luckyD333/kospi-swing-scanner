@@ -33,7 +33,7 @@ from .data_sources.naver import naver_detail_url
 from .decision.atr_volatility import bucket_atr, compute_atr_pct
 from .decision.factors.liquidity import compute_liquidity_score as _compute_liquidity_score
 from .decision.factors.momentum_3m import compute_momentum_3m as _compute_momentum_3m
-from .decision.product_type import ProductType
+from .decision.product_type import ProductType, is_inverse_product_name
 from .decision.max_filter import MaxFilterConfig, evaluate_surge
 from .decision.tradability_filter import enrich_metadata as _enrich_tradability
 from .strategy_base import Candidate, ScanContext, Strategy
@@ -56,6 +56,20 @@ def _apply_max_guard(cand, ohlcv_1d, cfg=_MAX_FILTER_CFG) -> bool:
     if v.action == "PENALTY":
         cand.score *= v.score_mult
     return True
+
+
+# 추세 추종 전략군 — 인버스 상품은 기초 지수와 반대로 움직여 진입 논리와 충돌한다.
+# 2026-09-16 측정: 전략 4 의 인버스 8건 평균 -4.31%, 승률 25%.
+_INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five")
+
+
+def _drop_inverse_for_trend(
+    strategy_name: str, candidates: list[Candidate],
+) -> list[Candidate]:
+    """추세 추종 전략의 후보에서 인버스 상품을 제거한다."""
+    if not strategy_name.startswith(_INVERSE_EXCLUDED_FAMILIES):
+        return candidates
+    return [c for c in candidates if not is_inverse_product_name(c.name)]
 
 
 def _none_if_nan(value):
@@ -389,6 +403,8 @@ class ScanRunner:
                 # MAX effect 가드 — 메타 주입 루프 종료 후 일괄 필터 (R1-1: 루프 내 변형 금지)
                 candidates = [c for c in candidates if _apply_max_guard(
                     c, ohlcv_by_tf.get("1D", {}).get(c.ticker))]
+                # 추세 추종 전략의 인버스 상품 제외 (방향 반대 → 진입 논리 충돌)
+                candidates = _drop_inverse_for_trend(strat.name, candidates)
                 result.candidates_by_strategy_tf[(strat.name, tf)] = candidates
                 # legacy 1D alias
                 if tf == "1D":
