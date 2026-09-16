@@ -90,7 +90,11 @@ strategy_weights_by_regime:
   # ----- 3-label (시장 전체 regime, runner 활성) -----
   BULL:
     # score >= 70 — 강세장. 추세 추종 강화, mean reversion 약화
+    # _r1/_r2 는 조회 키가 정확 일치라 명시하지 않으면 정적 strategy_weights(1.3) 로
+    # fallback 된다. 실제 후보를 내는 id 이므로 base 와 같은 값을 적는다.
     strategy_one_d_v2: 0.6
+    strategy_one_d_v2_r1: 0.6
+    strategy_one_d_v2_r2: 0.6
     strategy_two_cross_sectional_momentum: 1.4
     strategy_three_trend_following: 1.4
     strategy_four_pullback_ma: 1.2
@@ -98,6 +102,8 @@ strategy_weights_by_regime:
   NEUTRAL:
     # 30 <= score < 70 — 평형. 정적 strategy_weights 와 유사 + 추세 약간 약화
     strategy_one_d_v2: 1.1
+    strategy_one_d_v2_r1: 1.1
+    strategy_one_d_v2_r2: 1.1
     strategy_two_cross_sectional_momentum: 0.9
     strategy_three_trend_following: 0.8
     strategy_four_pullback_ma: 1.0
@@ -105,6 +111,8 @@ strategy_weights_by_regime:
   BEAR:
     # score < 30 — 약세. 모두 약화, bull flag 차단
     strategy_one_d_v2: 0.7
+    strategy_one_d_v2_r1: 0.7
+    strategy_one_d_v2_r2: 0.7
     strategy_two_cross_sectional_momentum: 0.3
     strategy_three_trend_following: 0.4
     strategy_four_pullback_ma: 0.5
