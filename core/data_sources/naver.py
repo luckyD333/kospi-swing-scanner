@@ -97,6 +97,7 @@ class NaverSource(DailyDataSource):
     INDEX_URL = "https://m.stock.naver.com/api/index/{code}/basic"
     ETF_LIST_URL = "https://finance.naver.com/api/sise/etfItemList.nhn"
     MOBILE_BASIC_URL = "https://m.stock.naver.com/api/stock/{ticker}/basic"
+    MARKET_INDEX_URL = "https://m.stock.naver.com/front-api/marketIndex/productDetail"
     HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     # 시장 코드: KOSPI=0, KOSDAQ=1
@@ -104,6 +105,14 @@ class NaverSource(DailyDataSource):
 
     # 시장 지수 코드
     _INDEX_CODE = {"KOSPI": "KOSPI", "KOSDAQ": "KOSDAQ"}
+
+    # 매크로 상품 (key, category, reutersCode, 변화량 필드).
+    # 국고채3Y 는 기존 의미를 유지해 절대 변화량(fluctuations)을 change_pct 자리에 담는다.
+    _MACRO_PRODUCTS = (
+        ("usd_krw", "exchange", "FX_USDKRW", "fluctuationsRatio"),
+        ("wti", "energy", "CLcv1", "fluctuationsRatio"),
+        ("kr_treasury_3y", "bond", "KR3YT=RR", "fluctuations"),
+    )
 
     # 타임프레임 → siseJson API 의 timeframe 파라미터 값
     # probe 결과 (Task 2): "minute" 만 인트라데이 지원. "1m"/"30m"/"1h" 토큰은 빈 응답.
@@ -241,82 +250,29 @@ class NaverSource(DailyDataSource):
         return df
 
     def get_macro_indices(self) -> dict[str, dict]:
-        """USD/KRW, WTI, 국고채3Y를 네이버 marketindex에서 스크래핑. 실패 항목은 skip."""
-        import re
-        from bs4 import BeautifulSoup
+        """USD/KRW, WTI, 국고채3Y 를 m.stock productDetail JSON 에서 수집. 실패 항목은 skip.
 
+        closePrice 와 변화량 모두 부호를 포함한 문자열이라 별도 부호 계산을 하지 않는다.
+        """
         result: dict[str, dict] = {}
-
-        # USD/KRW
-        try:
-            resp = requests.get(
-                "https://finance.naver.com/marketindex/exchangeDetail.naver",
-                params={"marketindexCd": "FX_USDKRW"},
-                headers=self.HEADERS, timeout=5,
-            )
-            soup = BeautifulSoup(resp.text, "html.parser")
-            today = soup.find(class_="today")
-            if today:
-                no_today = today.find(class_="no_today")
-                value_text = no_today.get_text(strip=True) if no_today else ""
-                value = float(re.sub(r"[^\d.]", "", value_text.replace(",", ""))) if value_text else None
-                exday = today.find(class_="no_exday")
-                chg_match = re.search(r"([\d.]+)%", exday.get_text()) if exday else None
-                change_pct = float(chg_match.group(1)) if chg_match else 0.0
-                if today.find("span", class_="ico down") or today.find("i", class_="down"):
-                    change_pct = -change_pct
-                if value:
-                    result["usd_krw"] = {"value": value, "change_pct": change_pct}
-        except Exception as e:
-            logger.warning(f"USD/KRW 수집 실패: {e}")
-
-        # WTI (최근 거래일 종가)
-        try:
-            resp = requests.get(
-                "https://finance.naver.com/marketindex/worldDailyQuote.naver",
-                params={"marketindexCd": "OIL_CL", "fdtc": "2"},
-                headers=self.HEADERS, timeout=5,
-            )
-            soup = BeautifulSoup(resp.text, "html.parser")
-            tbl = soup.find("table")
-            if tbl:
-                for row in tbl.find_all("tr")[1:]:
-                    cols = [td.get_text(strip=True) for td in row.find_all("td")]
-                    if len(cols) >= 4:
-                        try:
-                            value = float(cols[1].replace(",", ""))
-                            chg_str = cols[3].replace("%", "").replace("+", "").strip()
-                            change_pct = float(chg_str)
-                            if value > 0:
-                                result["wti"] = {"value": value, "change_pct": change_pct}
-                                break
-                        except ValueError:
-                            continue
-        except Exception as e:
-            logger.warning(f"WTI 수집 실패: {e}")
-
-        # 국고채 3Y (수익률, 전일대비 절대 변화)
-        try:
-            resp = requests.get(
-                "https://finance.naver.com/marketindex/interestDetail.naver",
-                params={"marketindexCd": "IRR_OWNBD03Y"},
-                headers=self.HEADERS, timeout=5,
-            )
-            soup = BeautifulSoup(resp.text, "html.parser")
-            for row in soup.select("table tr"):
-                cols = [td.get_text(strip=True) for td in row.find_all("td")]
-                if len(cols) >= 2 and cols[0]:
-                    try:
-                        value = float(cols[0].replace(",", ""))
-                        change_abs = float(cols[1].replace(",", ""))
-                        if value > 0:
-                            result["kr_treasury_3y"] = {"value": value, "change_pct": change_abs}
-                            break
-                    except ValueError:
-                        continue
-        except Exception as e:
-            logger.warning(f"국고채3Y 수집 실패: {e}")
-
+        for key, category, code, change_field in self._MACRO_PRODUCTS:
+            try:
+                resp = requests.get(
+                    self.MARKET_INDEX_URL,
+                    params={"category": category, "reutersCode": code},
+                    headers=self.HEADERS,
+                    timeout=5,
+                )
+                resp.raise_for_status()
+                payload = resp.json()
+                if not payload.get("isSuccess"):
+                    raise ValueError(payload.get("message") or "isSuccess=false")
+                detail = payload["result"]
+                value = float(str(detail["closePrice"]).replace(",", ""))
+                change = float(str(detail.get(change_field) or 0).replace(",", ""))
+                result[key] = {"value": value, "change_pct": change}
+            except Exception as e:
+                logger.warning(f"{key} 수집 실패: {e}")
         return result
 
     def get_current_quote(self, ticker: str) -> dict | None:
