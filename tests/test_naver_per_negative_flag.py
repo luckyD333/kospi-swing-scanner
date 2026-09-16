@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from core.data_sources.naver import _classify_per_raw
+from core.data_sources.naver import _classify_per, _classify_per_raw
 
 
 def test_em_dash_is_negative():
@@ -85,3 +85,28 @@ def test_pd_isna_handling():
     value, negative = _classify_per_raw(pd.NA)
     assert value is None
     assert negative is False
+
+
+# ---------------------------------------------------------------------------
+# _classify_per: JSON API 의 per/eps 조합 분기 (구형 페이지 폐쇄 대응)
+# ---------------------------------------------------------------------------
+
+def test_classify_per_null_with_negative_eps_is_negative():
+    """per null + eps 음수 → 적자 (새 JSON API 의 적자 표현)."""
+    assert _classify_per(None, "-7193.0") == (None, True)
+
+
+def test_classify_per_null_without_eps_is_missing():
+    """per null + eps 없음/양수 → 단순 누락."""
+    assert _classify_per(None, None) == (None, False)
+    assert _classify_per(None, "100.0") == (None, False)
+
+
+def test_classify_per_positive_string():
+    """정상 양수 문자열 → 값."""
+    assert _classify_per("11.34", "22292.0") == (11.34, False)
+
+
+def test_classify_per_negative_string_is_negative():
+    """음수 PER 문자열 → 적자 (기존 규칙 유지)."""
+    assert _classify_per("-3.2", "22292.0") == (None, True)

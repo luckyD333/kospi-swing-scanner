@@ -66,6 +66,20 @@ def _classify_per_raw(raw) -> tuple[float | None, bool]:
         return (None, False)
 
 
+def _classify_per(per_raw, eps_raw) -> tuple[float | None, bool]:
+    """주식 목록 JSON API 의 PER/EPS → (value, negative_flag).
+
+    API 는 적자 종목의 per 를 null 로 주고 eps 만 음수로 준다. per 값이 있으면
+    _classify_per_raw 규칙을 그대로 쓰고, per 가 없을 때만 eps 부호로 적자를 판정한다.
+    """
+    value, negative = _classify_per_raw(per_raw)
+    if value is None and not negative:
+        eps = _to_optional_float(eps_raw)
+        if eps is not None and eps < 0:
+            return (None, True)
+    return (value, negative)
+
+
 class NaverSource(DailyDataSource):
     """
     네이버 금융 전용 소스. 일봉 OHLCV + 전종목 리스트 모두 지원.
