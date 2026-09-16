@@ -2,13 +2,12 @@
 core/data_sources/naver.py — 네이버 금융 일봉 + 종목 리스트 소스.
 
 기존 daily_only_scanner.py L693-888에서 추출 (NaverSource).
+2026-09-10 구형 HTML 페이지 폐쇄로 종목 리스트 경로를 JSON API 로 교체.
 """
 from __future__ import annotations
 
-import io
 import json
 import logging
-import time
 
 import pandas as pd
 import requests
@@ -34,7 +33,7 @@ def _to_optional_float(value) -> float | None:
 
 
 def _classify_per_raw(raw) -> tuple[float | None, bool]:
-    """네이버 sise_market_sum PER raw 셀 → (value, negative_flag).
+    """네이버 PER raw 값 → (value, negative_flag).
 
     pd.read_html 동작 (probe 검증):
       - '—' / '-' (적자 sentinel) → string 그대로 보존
@@ -86,12 +85,15 @@ class NaverSource(DailyDataSource):
 
     데이터 경로:
       - 일봉: api.finance.naver.com/siseJson.naver (수정주가)
-      - 종목리스트/시총: finance.naver.com/sise/sise_market_sum.naver (페이지 크롤링)
+      - 종목리스트/시총/펀더멘털: stock.naver.com 주식 목록 JSON API
       - 시장 지수: finance.naver.com/sise/sise_index.naver (지수 크롤링)
+
+    2026-09-10 네이버가 구형 HTML 페이지(sise_market_sum)를 폐쇄하고 stock.naver.com
+    SPA 로 302 리다이렉트를 걸어, 표 파싱 경로를 JSON API 로 교체했다.
     """
     name = "naver"
     OHLCV_URL = "https://api.finance.naver.com/siseJson.naver"
-    MARKET_SUM_URL = "https://finance.naver.com/sise/sise_market_sum.naver"
+    STOCK_LIST_URL = "https://stock.naver.com/api/domestic/market/stock/default"
     INDEX_URL = "https://finance.naver.com/sise/sise_index.naver"
     ETF_LIST_URL = "https://finance.naver.com/api/sise/etfItemList.nhn"
     MOBILE_BASIC_URL = "https://m.stock.naver.com/api/stock/{ticker}/basic"
@@ -116,7 +118,7 @@ class NaverSource(DailyDataSource):
         네이버 시가총액 페이지에서 전종목 크롤링.
 
         market="ETF"이면 ETF 목록 JSON API를 사용.
-        그 외(KOSPI/KOSDAQ)는 sise_market_sum 페이지 크롤링.
+        그 외(KOSPI/KOSDAQ)는 주식 목록 JSON API 조회.
         결과는 _ticker_cache에 저장하여 시총/이름 조회에 재사용.
         """
         if market == "ETF":
@@ -226,7 +228,7 @@ class NaverSource(DailyDataSource):
 
         결측치는 None (JSON 호환). naver_url은 항상 채워짐 (단순 패턴).
         per_negative 는 PR-A 의 적자 sentinel 플래그 (default False).
-        sise_market_sum 페이지 1회 크롤링과 함께 추출되므로 추가 HTTP 비용 0.
+        주식 목록 JSON API 1회 조회와 함께 추출되므로 추가 HTTP 비용 0.
         """
         self._crawl_market_sum(market)
         rows = {}
@@ -422,118 +424,96 @@ class NaverSource(DailyDataSource):
 
     def _crawl_market_sum(self, market: str):
         """
-        sise_market_sum 페이지를 페이지 단위로 순회.
+        stock.naver.com 주식 목록 JSON API 로 시장 전종목을 _ticker_cache 에 채운다.
 
-        페이지 구조:
-          https://finance.naver.com/sise/sise_market_sum.naver?sosok=0&page=1
+        응답은 배열이고 한 항목이 itemcode / itemname / marketSum(원) / tradeVolume /
+        per(null 가능) / eps / roe / frgnHoldRate 를 담는다. KOSPI 945, KOSDAQ 1820 건이
+        pageSize=3000 한 페이지에 들어온다 (startIdx 는 offset 이 아니라 0 기반 페이지 번호).
 
-          - sosok=0: KOSPI, sosok=1: KOSDAQ
-          - 각 페이지에 ~50개 종목, KOSPI는 대략 20페이지 이내
-          - pd.read_html()로 테이블 파싱
+        KOSPI 는 구형 페이지처럼 ETF 가 섞여 있어야 runner 경로(max_etf 30)가 그대로
+        동작하므로 etfItemList 항목을 함께 합친다 (per/roe 없음, 시총 억→원 변환).
+
+        0건이면 RuntimeError 를 던진다. 2026-09-10 구형 페이지 폐쇄 당시 "0종목" 이
+        INFO 로만 남아 닷새 동안 발견이 늦었던 일을 막기 위한 장치다.
         """
         if self._market_cached.get(market):
             return
         if market not in self.MARKET_CODE:
             raise ValueError(f"unsupported market: {market}. KOSPI/KOSDAQ만 지원")
 
-        sosok = self.MARKET_CODE[market]
-        from bs4 import BeautifulSoup
-
-        logger.info(f"  [네이버] {market} 전종목 크롤링 시작...")
-
-        page = 1
-        total = 0
-        while True:
-            url = f"{self.MARKET_SUM_URL}?sosok={sosok}&page={page}"
-            try:
-                r = requests.get(url, headers=self.HEADERS, timeout=10)
-                r.raise_for_status()
-            except Exception as e:
-                logger.warning(f"  page {page} 실패: {e}")
-                break
-
-            # pd.read_html로 메인 테이블(시총 랭킹) 파싱.
-            # flavor='lxml' 명시: 빈 HTML 등에서 html5lib fallback 차단 (불필요 의존성 회피).
-            try:
-                tables = pd.read_html(io.StringIO(r.text), flavor="lxml")
-                # 시총 테이블은 보통 index=1 (or 2). "N" 컬럼(순번) 있는 것 선택
-                df = None
-                for t in tables:
-                    cols = list(t.columns)
-                    if "종목명" in cols and "현재가" in cols and "시가총액" in cols:
-                        df = t.dropna(subset=["종목명"])
-                        break
-                if df is None or df.empty:
-                    break
-            except ValueError:
-                break
-
-            # 각 행에서 종목코드 추출 (테이블에는 이름만 있어서 a 태그에서 파싱)
-            soup = BeautifulSoup(r.text, "html.parser")
-            code_pairs = []
-            for a in soup.select("table.type_2 a.tltle"):
-                href = a.get("href", "")
-                if "code=" in href:
-                    code = href.split("code=")[-1].split("&")[0]
-                    code_pairs.append((code, a.text.strip()))
-
-            if not code_pairs:
-                break
-
-            # DataFrame 행과 code_pairs 매칭
-            # (테이블 순서와 a 태그 순서가 일치)
-            if len(code_pairs) != len(df):
-                logger.warning(
-                    f"  [네이버] page {page}: code_pairs({len(code_pairs)}) != "
-                    f"df rows({len(df)}), 이 페이지 skip"
+        logger.info(f"  [네이버] {market} 종목 목록 조회...")
+        # 응답 길이가 pageSize 와 같으면 다음 페이지가 있다고 보고 이어 받는다.
+        # 서버가 나중에 pageSize 상한을 낮춰도 중형주가 조용히 잘리지 않게 하는 방어.
+        items: list[dict] = []
+        page_size = 3000
+        for page in range(50):  # 안전장치
+            r = requests.get(
+                self.STOCK_LIST_URL,
+                params={
+                    "tradeType": "KRX",
+                    "marketType": market,
+                    "orderType": "marketSum",
+                    "startIdx": page,
+                    "pageSize": page_size,
+                },
+                headers=self.HEADERS,
+                timeout=15,
+            )
+            r.raise_for_status()
+            chunk = r.json()
+            if not isinstance(chunk, list):
+                raise RuntimeError(
+                    f"네이버 종목 목록 응답 형식 오류: {type(chunk).__name__}"
                 )
-                page += 1
+            items.extend(chunk)
+            if len(chunk) < page_size:
+                break
+
+        total = 0
+        for item in items:
+            code = item.get("itemcode")
+            if not code:
                 continue
-            for (code, name), (_, row) in zip(code_pairs, df.iterrows()):
-                try:
-                    market_cap = self._parse_market_cap(row.get("시가총액"))
-                except Exception:
-                    market_cap = 0.0
+            per_value, per_negative = _classify_per(item.get("per"), item.get("eps"))
+            volume = _to_optional_float(item.get("tradeVolume"))
+            self._ticker_cache[code] = {
+                "name": (item.get("itemname") or "").strip(),
+                "market": market,
+                "market_cap": _to_optional_float(item.get("marketSum")) or 0.0,
+                "volume": int(volume) if volume is not None else None,
+                # 펀더멘털 (UI 표시 + 의사결정용). 결측은 None
+                "per": per_value,
+                "per_negative": per_negative,  # 적자 종목 식별 플래그
+                "roe": _to_optional_float(item.get("roe")),
+                "foreign_pct": _to_optional_float(item.get("frgnHoldRate")),
+            }
+            total += 1
 
-                # PR-A: PER raw text 분기 — 적자 sentinel 식별
-                per_value, per_negative = _classify_per_raw(row.get("PER"))
-                volume = _to_optional_float(row.get("거래량"))
-                self._ticker_cache[code] = {
-                    "name": name,
-                    "market": market,
-                    "market_cap": market_cap,
-                    "volume": int(volume) if volume is not None else None,
-                    # 펀더멘털 (UI 표시 + 의사결정용). N/A → None
-                    "per": per_value,
-                    "per_negative": per_negative,  # 적자 종목 식별 플래그
-                    "roe": _to_optional_float(row.get("ROE")),
-                    "foreign_pct": _to_optional_float(row.get("외국인비율")),
-                }
-                total += 1
+        if market == "KOSPI":
+            try:
+                for item in self._get_etf_items():
+                    code = item.get("itemcode")
+                    if not code or code in self._ticker_cache:
+                        continue
+                    quant = item.get("quant")
+                    self._ticker_cache[code] = {
+                        "name": (item.get("itemname") or "").strip(),
+                        "market": market,
+                        "market_cap": float(item.get("marketSum") or 0) * 100_000_000,
+                        "volume": int(quant) if quant is not None else None,
+                        "per": None,
+                        "per_negative": False,
+                        "roe": None,
+                        "foreign_pct": None,
+                    }
+                    total += 1
+            except Exception as e:
+                logger.warning(f"  [네이버] ETF 목록 합치기 실패, 주식만 사용: {e}")
 
-            # 마지막 페이지 확인: 다음 페이지 링크 있는지
-            has_next = bool(soup.select_one("td.pgRR a"))
-            # 또는 페이지가 10페이지 넘어도 신규 종목이 안 추가되면 stop
-            if not has_next and page > 1:
-                break
-            if len(code_pairs) < 10:  # 페이지당 50개 기준, 많이 적으면 마지막
-                break
-            page += 1
-            if page > 50:  # 안전장치
-                break
-            time.sleep(0.2)  # 네이버 rate limit 고려
+        if total == 0:
+            raise RuntimeError(
+                f"네이버 종목 목록 0건 ({market}) — API 응답 형식 변경 가능성"
+            )
 
         self._market_cached[market] = True
-        logger.info(f"  [네이버] {market} 크롤링 완료: {total}종목")
-
-    @staticmethod
-    def _parse_market_cap(raw) -> float:
-        """네이버 시가총액 문자열 → 원 단위 float"""
-        if pd.isna(raw):
-            return 0.0
-        s = str(raw).replace(",", "").strip()
-        # 네이버는 "억" 단위로 표시 (예: "3,500,000" = 350조)
-        try:
-            return float(s) * 100_000_000  # 억 → 원
-        except ValueError:
-            return 0.0
+        logger.info(f"  [네이버] {market} 종목 목록 완료: {total}종목")

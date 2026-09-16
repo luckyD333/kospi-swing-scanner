@@ -2,7 +2,7 @@
 core/data_fetch.py — 일봉/분봉 데이터 fetch + 메모리/디스크 캐시 (Naver 단일 소스).
 
 설계 결정:
-  - 데이터 소스: 네이버 금융만 사용 (sise_market_sum + siseJson API).
+  - 데이터 소스: 네이버 금융만 사용 (주식 목록 JSON API + siseJson API).
   - 메모리 캐시: per-run dict (in-process). 같은 (ticker, tf, start, end) 키 재요청 시 fetch 생략.
   - 디스크 캐시 (opt-in via `disk=`): `.cache/ohlcv/{tf}/{ticker}.parquet` 영속화.
     warm 캐시면 last_cached+1 ~ end 만 incremental gap fetch.
@@ -26,8 +26,8 @@ class DataClient:
     네이버 단일 소스로 일봉/분봉 데이터 공급.
 
     역할 분담:
-      - 종목 리스트 (유니버스): 네이버 sise_market_sum 크롤링
-      - 추정 시총: 네이버 시총 페이지 (크롤링 raw 값)
+      - 종목 리스트 (유니버스): 네이버 주식 목록 JSON API
+      - 추정 시총: 같은 응답의 marketSum (원 단위)
       - 과거 OHLCV (1D/1m): 네이버 siseJson (수정주가, 1회 호출로 N일)
 
     `ticker_list_sources` / `ohlcv_sources` 인자는 테스트용 주입 hook.
