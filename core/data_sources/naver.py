@@ -23,7 +23,7 @@ def naver_detail_url(ticker: str) -> str:
 
 
 def _to_optional_float(value) -> float | None:
-    """pd.read_html이 N/A를 NaN으로 파싱한 값을 JSON 호환 None 또는 float로 정규화."""
+    """네이버 응답의 결측(None/NaN/빈 문자열)을 JSON 호환 None 또는 float로 정규화."""
     if value is None or pd.isna(value):
         return None
     try:
@@ -34,11 +34,6 @@ def _to_optional_float(value) -> float | None:
 
 def _classify_per_raw(raw) -> tuple[float | None, bool]:
     """네이버 PER raw 값 → (value, negative_flag).
-
-    pd.read_html 동작 (probe 검증):
-      - '—' / '-' (적자 sentinel) → string 그대로 보존
-      - 빈 셀 / 'N/A' → NaN
-      - 정상 양수 → string '10.5'
 
     분기 규칙:
       - raw 가 '—' / '-' / 음수 string → (None, True)  적자

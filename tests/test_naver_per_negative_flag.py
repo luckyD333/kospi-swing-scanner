@@ -1,6 +1,6 @@
 """test_naver_per_negative_flag.py — PER raw text 분기 검증 (PR-A Step 1).
 
-네이버 sise_market_sum PER 셀이 적자 sentinel('—', '-', 음수)인지
+네이버 PER 값이 적자 sentinel('—', '-', 음수)인지
 단순 누락(NaN, 빈 문자열)인지 구분 가능해야 PR-A 의 결측 정책 분기가 작동.
 """
 from __future__ import annotations
