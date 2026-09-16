@@ -307,11 +307,12 @@ kospi-swing-scanner/
 
 | 종류 | 소스 | 비고 |
 |------|------|------|
-| 종목 리스트 + 추정 시총 | 네이버 `sise_market_sum` (크롤링) | KOSPI/KOSDAQ |
+| 종목 리스트 + 시총 + PER/ROE/외인비율 | 네이버 `stock.naver.com` 주식 목록 JSON | KOSPI/KOSDAQ, 시장별 1회 호출 |
 | ETF 유니버스 | 네이버 `etfItemList.nhn` JSON | 거래대금 상위 200 |
 | 일봉/분봉 OHLCV | 네이버 `siseJson` API (수정주가) | timeframe=day 또는 minute |
 | 30m / 1h / 4h | 네이버 1m → 리샘플링 | core/runner.py 내부 처리 |
-| 매크로 지수 | 네이버 `marketindex` 스크래핑 | USD/KRW, WTI, 국고채3Y, VIX |
+| 시장 지수 | 네이버 `m.stock` `index/{code}/basic` JSON | KOSPI/KOSDAQ |
+| 매크로 지수 | 네이버 `m.stock` `marketIndex/productDetail` JSON | USD/KRW, WTI, 국고채3Y (VIX 는 yfinance) |
 | V-KOSPI | 증권플러스 `KOREA-O2901P` 일봉 JSON | F&G와 분리된 정보용 지표, 매수 판단 미반영 |
 
 ---

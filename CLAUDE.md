@@ -5,7 +5,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 ## Tech Stack
 - **Runtime**: Python 3.10+
 - **Core**: pandas, numpy, scipy
-- **Data sources**: 네이버 금융 — `sise_market_sum`(KOSPI/KOSDAQ 크롤링) + `etfItemList`(ETF) + `siseJson` API + `marketindex`(USD/KRW, WTI, 국고채3Y, VIX 매크로). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
+- **Data sources**: 네이버 금융 — `stock.naver.com` 주식 목록 JSON(KOSPI/KOSDAQ 종목·시총·거래량·PER/ROE/외인비율) + `etfItemList`(ETF) + `siseJson` API + `m.stock` 지수·`marketIndex/productDetail`(USD/KRW, WTI, 국고채3Y) + VIX(yfinance). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
 - **Test**: pytest (현재 1210개)
 
 ## Project Structure
