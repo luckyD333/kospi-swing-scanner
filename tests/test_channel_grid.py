@@ -11,11 +11,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.indicators import calc_atr
 from strategies._channel_grid import (
     Line,
+    LineRef,
     build_grid,
     build_support_line,
     channel_reasserted,
     find_breakout_day,
     find_confirmed_pivots,
+    has_confluence,
+    nearest_line_above,
+    touched_from_above,
 )
 from tests.fixtures_channel_grid import scenario_df
 
@@ -123,3 +127,48 @@ def test_돌파_후_기준선_아래_마감이_있으면_True():
     close = close.copy()
     close[66] = 920.0
     assert channel_reasserted(close, atr, grid.baseline, d=62, band_mult=0.3) is True
+
+
+def _ref(kind, level, now, prev=None, future=None):
+    return LineRef(kind=kind, level=level, value_now=now,
+                   value_prev=prev if prev is not None else now,
+                   value_future=future if future is not None else now)
+
+
+def test_위에서_내려와_밴드_안에_닿고_선_위로_마감하면_터치다():
+    ref = _ref("grid", 0.5, now=929.37, prev=931.0)
+    assert touched_from_above(low_t=929.0, close_t=933.0, close_prev=940.0,
+                              ref=ref, atr_t=6.44, band_mult=0.3) is True
+
+
+def test_어제_선_아래였으면_터치가_아니다():
+    ref = _ref("grid", 0.5, now=929.37, prev=931.0)
+    assert touched_from_above(low_t=929.0, close_t=933.0, close_prev=930.0,
+                              ref=ref, atr_t=6.44, band_mult=0.3) is False
+
+
+def test_종가가_선_아래면_터치가_아니다():
+    ref = _ref("grid", 0.5, now=929.37, prev=931.0)
+    assert touched_from_above(low_t=925.0, close_t=928.0, close_prev=940.0,
+                              ref=ref, atr_t=6.44, band_mult=0.3) is False
+
+
+def test_다른_종류의_선이_밴드_안에_있으면_합류다():
+    ref = _ref("grid", 1.0, now=952.8)
+    others = [ref, _ref("grid", 1.5, now=976.0), _ref("support", None, now=954.0)]
+    assert has_confluence(ref, others, atr_t=6.44, band_mult=0.3) is True
+    assert has_confluence(ref, [ref, _ref("grid", 1.5, now=976.0)], atr_t=6.44, band_mult=0.3) is False
+
+
+def test_목표선은_진입가_위_가장_가까운_선이며_터치선과_합류한_선은_제외한다():
+    touched = _ref("grid", 0.5, now=929.37)
+    refs = [touched, _ref("support", None, now=930.5), _ref("grid", 1.0, now=952.8),
+            _ref("grid", 1.5, now=976.3)]
+    target = nearest_line_above(entry=933.0, refs=refs, touched=touched, atr_t=6.44, band_mult=0.3)
+    assert target is not None and target.level == 1.0
+
+
+def test_진입가_위에_선이_없으면_None():
+    touched = _ref("grid", 3.0, now=1000.0)
+    assert nearest_line_above(entry=1005.0, refs=[touched], touched=touched,
+                              atr_t=6.0, band_mult=0.3) is None

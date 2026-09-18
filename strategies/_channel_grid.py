@@ -141,3 +141,38 @@ def channel_reasserted(close: np.ndarray, atr: np.ndarray, baseline: Line, *,
         if close[x] < baseline.value_at(x) - band_mult * a:
             return True
     return False
+
+
+@dataclass(frozen=True)
+class LineRef:
+    """어느 한 시점 t 에서 본 선 하나. kind 는 "grid" 또는 "support"."""
+    kind: str
+    level: float | None
+    value_now: float
+    value_prev: float
+    value_future: float
+
+
+def touched_from_above(*, low_t: float, close_t: float, close_prev: float,
+                       ref: LineRef, atr_t: float, band_mult: float) -> bool:
+    """접근 방향 규칙: 어제 선 위 → 오늘 저가가 선 + band 안 → 오늘 종가 선 위."""
+    return (close_prev > ref.value_prev
+            and low_t <= ref.value_now + band_mult * atr_t
+            and close_t > ref.value_now)
+
+
+def has_confluence(ref: LineRef, refs: list[LineRef], *, atr_t: float, band_mult: float) -> bool:
+    """다른 종류의 선이 band 안에 겹치면 True."""
+    return any(o.kind != ref.kind and abs(o.value_now - ref.value_now) <= band_mult * atr_t
+               for o in refs)
+
+
+def nearest_line_above(*, entry: float, refs: list[LineRef], touched: LineRef,
+                       atr_t: float, band_mult: float) -> LineRef | None:
+    """진입가 위 가장 가까운 선. 터치선과 합류한 선은 제외."""
+    band = band_mult * atr_t
+    above = [r for r in refs
+             if r.value_now > entry and abs(r.value_now - touched.value_now) > band]
+    if not above:
+        return None
+    return min(above, key=lambda r: r.value_now)
