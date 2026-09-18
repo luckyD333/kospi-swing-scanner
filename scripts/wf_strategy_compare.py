@@ -32,6 +32,7 @@ from scripts.wf_validate_s2_to_s5 import (  # noqa: E402
     _s3_factory,
     _s4_factory,
     _s5_factory,
+    _s6_factory,
     load_history,
 )
 from strategies.strategy_one_d_v2 import (  # noqa: E402
@@ -52,6 +53,7 @@ STRATEGIES = [
     ("S3_TrendFollowing", _s3_factory),
     ("S4_PullbackMA",     _s4_factory),
     ("S5_BullFlag",       _s5_factory),
+    ("S6_ChannelGrid",    _s6_factory),
 ]
 
 

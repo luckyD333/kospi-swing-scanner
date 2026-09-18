@@ -48,6 +48,14 @@ def test_성과_차트_세_맵에_등록된다():
     assert tsx.count("strategy_six:") >= 2               # STRATEGY_COLORS + FALLBACK_LABELS
 
 
+def test_wf_factory_와_compare_목록():
+    from scripts.wf_strategy_compare import STRATEGIES
+    from scripts.wf_validate_s2_to_s5 import _s6_factory
+    strat = _s6_factory({"touch_atr_mult": 0.4})
+    assert strat.name == SID and strat.config.touch_atr_mult == 0.4
+    assert ("S6_ChannelGrid", _s6_factory) in STRATEGIES
+
+
 def test_signal_components_세_개의_근거_칩():
     from output.signal_components import build_signal_components
     meta = {"bars_since_breakout": 17, "touch_kind": "grid", "grid_level": 0.5,
