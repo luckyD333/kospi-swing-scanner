@@ -88,3 +88,20 @@ def build_grid(high: np.ndarray, low: np.ndarray, *, lookback_bars: int,
         return None
     levels = tuple(float(k) for k in np.arange(-1.0, max_level + 0.25, 0.5))
     return Grid(baseline, width, i_a, i_b, i_a + j, levels)
+
+
+def build_support_line(low: np.ndarray, *, lookback_bars: int, pivot_window: int) -> Line | None:
+    """룩백 최저점 P 와 그 이후 가장 높은 확정 저점 피벗 Q 를 이은 우상향 직선. 없으면 None."""
+    n = len(low)
+    if n < lookback_bars:
+        return None
+    s = n - lookback_bars
+    i_p = s + int(np.argmin(low[s:]))
+    if i_p > n - 1 - pivot_window:
+        return None
+    pivots = [s + i for i in find_confirmed_pivots(low[s:], pivot_window, highs=False)]
+    pivots = [i for i in pivots if i > i_p and low[i] > low[i_p]]
+    if not pivots:
+        return None
+    i_q = max(pivots, key=lambda i: (low[i], i))
+    return Line(i_p, float(low[i_p]), i_q, float(low[i_q]))

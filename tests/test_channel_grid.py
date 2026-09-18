@@ -8,7 +8,12 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from strategies._channel_grid import Line, build_grid, find_confirmed_pivots
+from strategies._channel_grid import (
+    Line,
+    build_grid,
+    build_support_line,
+    find_confirmed_pivots,
+)
 from tests.fixtures_channel_grid import scenario_df
 
 
@@ -65,3 +70,16 @@ def test_A_이후_확정_고점_피벗이_없으면_격자가_없다():
     high = np.linspace(1000, 900, n)  # 단조 하락: A=룩백 첫 봉, 이후 피벗 없음
     low = high - 5
     assert build_grid(high, low, lookback_bars=60, pivot_window=3, max_level=3.0) is None
+
+
+def test_시나리오에서_P_Q_상승_지지선을_찾는다():
+    df = scenario_df()
+    line = build_support_line(df["low"].to_numpy(), lookback_bars=60, pivot_window=3)
+    assert line is not None
+    assert (line.x1, line.x2) == (61, 73)
+    assert line.slope > 0
+
+
+def test_최저점_이후_더_높은_저점_피벗이_없으면_지지선이_없다():
+    low = np.linspace(1000, 900, 80)  # 단조 하락: 최저점이 마지막 봉
+    assert build_support_line(low, lookback_bars=60, pivot_window=3) is None
