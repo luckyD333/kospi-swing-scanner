@@ -46,3 +46,14 @@ def test_성과_차트_세_맵에_등록된다():
     tsx = (ROOT / "signal-web/src/components/StrategyPerformanceChart.tsx").read_text()
     assert "'strategy_six'," in tsx                      # STRATEGY_ORDER
     assert tsx.count("strategy_six:") >= 2               # STRATEGY_COLORS + FALLBACK_LABELS
+
+
+def test_signal_components_세_개의_근거_칩():
+    from output.signal_components import build_signal_components
+    meta = {"bars_since_breakout": 17, "touch_kind": "grid", "grid_level": 0.5,
+            "confluence": False, "target_level": 1.0, "target_confluence": True}
+    comps = build_signal_components(meta, SID)
+    keys = [c["key"] for c in comps]
+    assert keys == ["baseline_breakout", "line_touch", "confluence"]
+    assert all(set(c) == {"key", "label", "status", "value"} for c in comps)
+    assert comps[2]["status"] == "warn"          # 합류 없음 → warn

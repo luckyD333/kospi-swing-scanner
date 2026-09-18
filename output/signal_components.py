@@ -43,6 +43,8 @@ _STRATEGY_ID_BASE: dict[str, str] = {
     "strategy_five_bull_flag":     "strategy_five",
     "strategy_five_bull_flag_1h":  "strategy_five",
     "strategy_five_bull_flag_30m": "strategy_five",
+
+    "strategy_six_channel_grid": "strategy_six",
 }
 
 
@@ -235,6 +237,33 @@ def _five_volume_expansion(metadata: dict) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
+# 전략 6 — Channel Grid (추세선·채널 격자)
+# ---------------------------------------------------------------------------
+
+def _six_breakout(m: dict) -> dict | None:
+    bars = m.get("bars_since_breakout")
+    if bars is None:
+        return None
+    return _component("baseline_breakout", "기준선 상향 돌파", "ok", f"{bars}봉 전")
+
+
+def _six_touch(m: dict) -> dict | None:
+    kind = m.get("touch_kind")
+    if kind is None:
+        return None
+    where = "지지선" if kind == "support" else f"레벨 {m.get('grid_level')}"
+    return _component("line_touch", "선 리테스트", "ok", where)
+
+
+def _six_confluence(m: dict) -> dict | None:
+    if "confluence" not in m:
+        return None
+    ok = bool(m["confluence"])
+    return _component("confluence", "격자·지지선 합류", "ok" if ok else "warn",
+                       "겹침" if ok else "단독")
+
+
+# ---------------------------------------------------------------------------
 # 전략 ID → 룰 매핑
 # ---------------------------------------------------------------------------
 
@@ -263,6 +292,11 @@ _RULES_BY_BASE: dict[str, list[_Rule]] = {
         _Rule("flag_consolidation", "Flag 거래량 수축",  _five_consolidation),
         _Rule("breakout",          "돌파",              _five_breakout),
         _Rule("volume_expansion",  "거래량 확장",        _five_volume_expansion),
+    ],
+    "strategy_six": [
+        _Rule("baseline_breakout", "기준선 돌파", _six_breakout),
+        _Rule("line_touch",        "선 리테스트", _six_touch),
+        _Rule("confluence",        "합류",        _six_confluence),
     ],
 }
 
