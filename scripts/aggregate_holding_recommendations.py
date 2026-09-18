@@ -157,7 +157,7 @@ def collect_trades(
         for hold in holdings:
             cfg = ScanBarConfig(
                 holding_bars=hold, top_n=5, commission_pct=0.0030,
-                lookback_buffer_days=60, emit_per_trade=True,
+                lookback_buffer_days=150, emit_per_trade=True,  # S6 min_bars=80(거래일) — 캘린더 150일 필요
             )
             scorer = make_scan_bartracker_scorer(factory, cfg)
             for _ts, _te, test_start, test_end in windows:

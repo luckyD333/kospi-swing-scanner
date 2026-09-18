@@ -52,3 +52,9 @@ def test_전략일과_이는_영향받지_않는다():
     for name in ("strategy_one_d_v2_r1", "strategy_two_cross_sectional_momentum"):
         kept = _drop_inverse_for_trend(name, list(_CANDIDATES))
         assert len(kept) == 4
+
+
+def test_전략육도_인버스를_제외한다():
+    """채널 격자는 레벨 0 상향 돌파를 전제하는 롱 온리 추세 계열이다."""
+    kept = _drop_inverse_for_trend("strategy_six_channel_grid", list(_CANDIDATES))
+    assert [c.ticker for c in kept] == ["462330", "005930"]

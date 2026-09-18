@@ -21,6 +21,7 @@ class TestEntryGatePolicy:
             "strategy_three",
             "strategy_four",
             "strategy_five",
+            "strategy_six",
         ]
         assert all(s in ENTRY_GATE_POLICY for s in expected_strategies)
 
@@ -123,6 +124,12 @@ class TestIsStrategyAllowed:
     def test_normalize_family_variant_five(self):
         """strategy_five_bull_flag_30m → strategy_five."""
         assert is_strategy_allowed("strategy_five_bull_flag_30m", "UPTREND_STRONG") is True
+
+    def test_normalize_family_variant_six(self):
+        """strategy_six_channel_grid → strategy_six (추세 계열 정책)."""
+        assert is_strategy_allowed("strategy_six_channel_grid", "UPTREND_STRONG") is True
+        assert is_strategy_allowed("strategy_six_channel_grid", "RANGE") is False
+        assert is_strategy_allowed("strategy_six_channel_grid", "DOWNTREND_STRONG") is False
 
     def test_unknown_strategy_defaults_block(self):
         """미정의 전략 family → block."""

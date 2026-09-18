@@ -17,10 +17,10 @@ from core.trade_plan_calc import (
 # ── STRATEGY_PARAMS 무결성 ────────────────────────────────────────────────────
 
 
-def test_strategy_params_has_exactly_five_base_keys():
+def test_strategy_params_has_exactly_six_base_keys():
     expected = {
         "strategy_one", "strategy_two", "strategy_three",
-        "strategy_four", "strategy_five",
+        "strategy_four", "strategy_five", "strategy_six",
     }
     assert set(STRATEGY_PARAMS.keys()) == expected
 
@@ -65,11 +65,15 @@ def test_resolve_base_handles_intraday_suffixes():
 
 def test_resolve_base_unknown_raises():
     with pytest.raises(KeyError):
-        resolve_base_strategy_id("strategy_six_unknown")
+        resolve_base_strategy_id("strategy_seven_unknown")   # six 는 이제 등록 대상
     with pytest.raises(KeyError):
         resolve_base_strategy_id("")
     with pytest.raises(KeyError):
         resolve_base_strategy_id("other_prefix")
+
+
+def test_resolve_base_six():
+    assert resolve_base_strategy_id("strategy_six_channel_grid") == "strategy_six"
 
 
 def test_resolve_base_covers_all_registry_keys():

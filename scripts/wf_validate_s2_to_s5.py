@@ -54,6 +54,10 @@ from strategies.strategy_four_pullback_ma import (  # noqa: E402
     StrategyFourConfig,
     StrategyFourPullbackMa,
 )
+from strategies.strategy_six_channel_grid import (  # noqa: E402
+    StrategySixChannelGrid,
+    StrategySixConfig,
+)
 from strategies.strategy_three_trend_following import (  # noqa: E402
     StrategyThreeConfig,
     StrategyThreeTrendFollowing,
@@ -115,6 +119,12 @@ def _s5_factory(params: dict):
     return StrategyFiveBullFlag(
         config=StrategyFiveConfig(**merged), timeframe="1D",
     )
+
+
+def _s6_factory(params: dict):
+    base = StrategySixConfig()
+    merged = {**base.__dict__, **params}
+    return StrategySixChannelGrid(config=StrategySixConfig(**merged), timeframe="1D")
 
 
 # ---- 검증 대상 ---------------------------------------------------------------
