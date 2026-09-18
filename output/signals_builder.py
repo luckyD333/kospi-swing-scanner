@@ -89,8 +89,9 @@ class MarketRankingConfig:
 
 
 def _base_strategy(sid: str) -> str:
-    """strategy id prefix → base name 매핑 (S1~S5)."""
-    for base in ("strategy_one", "strategy_two", "strategy_three", "strategy_four", "strategy_five"):
+    """strategy id prefix → base name 매핑 (S1~S6)."""
+    for base in ("strategy_one", "strategy_two", "strategy_three",
+                 "strategy_four", "strategy_five", "strategy_six"):
         if sid.startswith(base):
             return base
     return sid
@@ -112,6 +113,7 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_three": 1.03,
                 "strategy_four":  0.56,
                 "strategy_five":  0.30,
+                "strategy_six":   1.00,
             },
             factor_label_weights={
                 "bull_reward": 22.0, "max_drawdown": 13.0,
@@ -130,6 +132,7 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_three": 1.36,
                 "strategy_four":  0.99,
                 "strategy_five":  0.27,
+                "strategy_six":   1.00,
             },
             factor_label_weights={
                 "bull_reward":  4.0, "max_drawdown": 61.0,
@@ -192,6 +195,8 @@ _STRATEGY_LABELS: dict[str, tuple[str, str]] = {
     "strategy_five_bull_flag":     ("STRATEGY FIVE", "BULL FLAG"),
     "strategy_five_bull_flag_1h":  ("STRATEGY FIVE", "BULL FLAG"),
     "strategy_five_bull_flag_30m": ("STRATEGY FIVE", "BULL FLAG"),
+    # 전략 6: Channel Grid (추세선·채널 격자)
+    "strategy_six_channel_grid": ("STRATEGY SIX", "CHANNEL GRID"),
 }
 
 # strategy가 metadata에 저장하는 소문자 값 → Pydantic Literal 대문자 값

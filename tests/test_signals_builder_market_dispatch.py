@@ -42,7 +42,7 @@ def test_market_config_kospi_returns_rank2_values():
     assert cfg.strategy_score_weights == {
         "strategy_one":   0.88, "strategy_two":   0.46,
         "strategy_three": 1.03, "strategy_four":  0.56,
-        "strategy_five":  0.30,
+        "strategy_five":  0.30, "strategy_six":   1.00,
     }
 
 
