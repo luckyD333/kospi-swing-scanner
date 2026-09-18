@@ -1,7 +1,7 @@
 """
 core/decision/entry_gate.py — 전략별 entry gate 정책 매트릭스.
 
-7×5 매트릭스: 7개 regime × 5개 전략 = 35개 정책 셀.
+7×6 매트릭스: 7개 regime × 6개 전략 = 42개 정책 셀.
 
 정책 액션:
   - "allow": 진입 허용
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 GateAction = Literal["allow", "allow_strong_only", "block"]
 
-# 전략별 entry gate 정책 (7×5 매트릭스)
+# 전략별 entry gate 정책 (7×6 매트릭스)
 ENTRY_GATE_POLICY: dict[str, dict[str, GateAction]] = {
     "strategy_one": {  # 평균 회귀 (RSI+BB+쌍바닥+장악형)
         "UPTREND_STRONG": "allow_strong_only",  # 풀백만 (high setup)
@@ -66,6 +66,15 @@ ENTRY_GATE_POLICY: dict[str, dict[str, GateAction]] = {
         "MIXED": "block",
     },
     "strategy_five": {  # Bull Flag (추세 추종)
+        "UPTREND_STRONG": "allow",
+        "UPTREND_WEAK": "allow",
+        "RANGE_TIGHT": "allow",
+        "RANGE": "block",
+        "DOWNTREND_WEAK": "block",
+        "DOWNTREND_STRONG": "block",
+        "MIXED": "block",
+    },
+    "strategy_six": {  # 추세선·채널 격자 (레벨 0 상향 돌파 후 리테스트, 추세 추종 계열)
         "UPTREND_STRONG": "allow",
         "UPTREND_WEAK": "allow",
         "RANGE_TIGHT": "allow",
@@ -139,6 +148,7 @@ def _normalize_family(strategy_id: str) -> str:
         "strategy_three",
         "strategy_four",
         "strategy_five",
+        "strategy_six",
     ):
         if strategy_id.startswith(family):
             return family

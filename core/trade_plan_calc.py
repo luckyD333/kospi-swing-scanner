@@ -42,7 +42,7 @@ class TradePlanResult:
     atr_14: float
 
 
-# 단일 위치 base k/r 테이블 — retune 시 여기 5 줄만 수정.
+# 단일 위치 base k/r 테이블 — retune 시 여기 6 줄만 수정.
 # base_k_stop 은 경험치 초기값 (백테스트 근거 없음). 운영 1주 후 walk-forward retune 예정.
 STRATEGY_PARAMS: dict[str, TradePlanParams] = {
     "strategy_five":  TradePlanParams(base_k_stop=1.5, r_target_1=1.0, r_target_2=3.0),
@@ -50,11 +50,14 @@ STRATEGY_PARAMS: dict[str, TradePlanParams] = {
     "strategy_four":  TradePlanParams(base_k_stop=1.8, r_target_1=1.0, r_target_2=2.5),
     "strategy_one":   TradePlanParams(base_k_stop=1.6, r_target_1=1.0, r_target_2=3.0),
     "strategy_two":   TradePlanParams(base_k_stop=2.0, r_target_1=1.0, r_target_2=2.0),
+    # strategy_six 는 목표가가 선 값이라 apply_dynamic_trade_plan 을 호출하지 않는다.
+    # REGISTRY↔STRATEGY_PARAMS 동기 테스트를 위해 S3 값으로 등록만 한다.
+    "strategy_six":   TradePlanParams(base_k_stop=1.8, r_target_1=1.0, r_target_2=2.5),
 }
 
 # REGISTRY 의 strategy_id (예: strategy_one_d_v2_r1, strategy_two_30m,
-# strategy_five_bull_flag_1h) 에서 base 5 키 (strategy_one ~ strategy_five) 추출.
-_BASE_STRATEGY_RE = re.compile(r"^(strategy_(?:one|two|three|four|five))(?:_.*)?$")
+# strategy_five_bull_flag_1h) 에서 base 6 키 (strategy_one ~ strategy_six) 추출.
+_BASE_STRATEGY_RE = re.compile(r"^(strategy_(?:one|two|three|four|five|six))(?:_.*)?$")
 
 
 def resolve_base_strategy_id(strategy_id: str) -> str:
