@@ -100,7 +100,7 @@ strategy_weights_by_regime:
     strategy_three_trend_following: 1.4
     strategy_four_pullback_ma: 1.2
     strategy_five_bull_flag: 1.4
-    strategy_six_channel_grid: 1.2
+    strategy_six_channel_grid: 1.0
   NEUTRAL:
     # 30 <= score < 70 — 평형. 정적 strategy_weights 와 유사 + 추세 약간 약화
     strategy_one_d_v2: 1.1
@@ -129,14 +129,14 @@ strategy_weights_by_regime:
     strategy_three_trend_following: 1.5
     strategy_four_pullback_ma: 1.3
     strategy_five_bull_flag: 1.5
-    strategy_six_channel_grid: 1.3
+    strategy_six_channel_grid: 1.0
   UPTREND_WEAK:
     strategy_one_d_v2: 0.8
     strategy_two_cross_sectional_momentum: 1.3
     strategy_three_trend_following: 1.2
     strategy_four_pullback_ma: 1.3
     strategy_five_bull_flag: 1.2
-    strategy_six_channel_grid: 1.2
+    strategy_six_channel_grid: 1.0
   RANGE:
     strategy_one_d_v2: 1.2
     strategy_two_cross_sectional_momentum: 0.7

@@ -113,7 +113,7 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_three": 1.03,
                 "strategy_four":  0.56,
                 "strategy_five":  0.30,
-                "strategy_six":   1.00,
+                "strategy_six":   0.56,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
             },
             factor_label_weights={
                 "bull_reward": 22.0, "max_drawdown": 13.0,
@@ -132,7 +132,7 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_three": 1.36,
                 "strategy_four":  0.99,
                 "strategy_five":  0.27,
-                "strategy_six":   1.00,
+                "strategy_six":   0.99,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
             },
             factor_label_weights={
                 "bull_reward":  4.0, "max_drawdown": 61.0,
