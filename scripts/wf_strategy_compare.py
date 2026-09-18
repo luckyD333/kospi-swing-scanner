@@ -176,7 +176,7 @@ def main() -> None:
         holding_bars=args.holding_bars,
         top_n=args.top_n,
         commission_pct=0.0030,
-        lookback_buffer_days=60,
+        lookback_buffer_days=150,  # S6 min_bars=80(거래일) — 캘린더 150일 필요
         emit_stats=False,
     )
 

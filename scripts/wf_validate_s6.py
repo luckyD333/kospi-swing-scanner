@@ -1,10 +1,16 @@
 """
 scripts/wf_validate_s6.py — Strategy Six 워크포워드 검증 (bar tracker, stop/target 추적).
 
-python scripts/wf_validate_s6.py --cache-root .cache_wf --start-date 2025-05-19 --end-date 2026-05-19
+python scripts/wf_validate_s6.py --cache-root .cache_wf --start-date 2025-10-20 --end-date 2026-05-19
 결과: results/wf_validation/wf_s6_results.json
 
 주의: lookback_buffer_days 는 캘린더 일수. S6 는 min_bars=80 이라 150 이상이어야 한다.
+
+주의: WF 경로의 ScanContext 는 per_ticker_regime 이 비어 있어 entry gate 가 적용되지 않는다.
+결과는 게이트 미적용 성과이며 라이브(게이트 적용) 성과보다 낮게 나온다(2026-09-19 실측:
+게이트 통과분 +0.94%/승률 55.8% vs 전체 +0.66%/51.5%).
+주의: bar tracker 는 같은 종목 재진입을 막지 않아 연속 리테스트가 날마다 재체결될 수 있다.
+거래 수를 독립 표본으로 읽지 말 것.
 """
 from __future__ import annotations
 
@@ -32,7 +38,7 @@ def build_targets() -> list[dict]:
         {"label": "S6_min_rr", "factory": _s6_factory,
          "param_grid": {"min_rr": [0.8, 1.0, 1.2, 1.5]}, "note": "손익비 하한 민감도"},
         {"label": "S6_breakout_window", "factory": _s6_factory,
-         "param_grid": {"breakout_window_bars": [15, 30, 45]}, "note": "돌파 후 유효 기간"},
+         "param_grid": {"breakout_window_bars": [10, 15, 30]}, "note": "돌파 후 유효 기간"},
     ]
 
 
@@ -62,7 +68,8 @@ def main() -> None:
     reports = []
     for tgt in build_targets():
         logger.info(f"=== {tgt['label']}: {tgt['note']} ===")
-        scorer = make_scan_bartracker_scorer(tgt["factory"], scan_cfg)
+        factory = lambda p, _f=tgt["factory"]: _f({"holding_bars": args.holding_bars, **p})  # noqa: E731
+        scorer = make_scan_bartracker_scorer(factory, scan_cfg)
         report = run_walk_forward(strategy_name=tgt["label"], evaluator=scorer,
                                   param_grid=tgt["param_grid"], ohlcv_data=data, config=wf_cfg)
         reports.append((tgt, report))
