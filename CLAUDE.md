@@ -19,12 +19,12 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
   - 출력/랭킹: regret_scorer·order_type_classifier(주문타입)·signal_status·factors/(momentum_3m·liquidity·signal_freshness)
   - 오프라인: factor_performance(weights.yml 산출, scripts/compute_weights)
   - 미배선(dormant): squeeze·donchian_levels(use_donchian_levels 기본 False)
-- `strategies/` — 전략 plug-in (Strategy Protocol). 5개 전략 × 다중 TF + fallback 변형(r1/r2)
+- `strategies/` — 전략 plug-in (Strategy Protocol). 6개 전략(S6 는 일봉 전용) × 다중 TF + fallback 변형(r1/r2)
 - `output/` — 포맷터 (table/json/csv/markdown/**signals_ui**) + signals_builder + snapshot_builder + holding_recommender
 - `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
 - `signal-api/` — FastAPI 서비스 (`/api/signals`, `/api/signals/{ticker}`). signals.json + market_snapshot.json 조인(`services/join.py`)
 - `signal-web/` — Next.js 카탈로그/디테일 UI (`MarketRegimePanel`, `DetailClient`, RR/점수/ATR/RSI 표시)
-- `scripts/` — collect.py (수집 + ETF + 매크로), backtest_run.py, wf_validate_*.py (WF 검증, wf_validate_s6.py 포함), wf_strategy_compare.py (5 전략 OOS 비교), aggregate_holding_recommendations.py (상황별 holding 집계)
+- `scripts/` — collect.py (수집 + ETF + 매크로), backtest_run.py, wf_validate_*.py (WF 검증, wf_validate_s6.py 포함), wf_strategy_compare.py (6 전략 OOS 비교), aggregate_holding_recommendations.py (상황별 holding 집계)
 - `tests/` — 통합 테스트 (네이버 mock, CLI E2E, decision/market_axes/breadth/regret)
 - `docs/` — 전략 스펙, 데이터 소스, 배포(`deploy.md`), cron 가이드
 

@@ -63,7 +63,7 @@ class Grid:
 
 def build_grid(high: np.ndarray, low: np.ndarray, *, lookback_bars: int,
                pivot_window: int, max_level: float) -> Grid | None:
-    """룩백 최고점 A, 이후 최고 확정 고점 피벗 B, A~B 최저점으로 폭 W.
+    """룩백 최고점 A, 이후 최고 확정 고점 피벗 B, A~B 구간에서 기준선까지 수직 거리가 가장 큰 저가로 폭 W.
 
     A 가 마지막 pivot_window 봉 안이면 (오늘이 신고가) 채널 없음 → None.
     """

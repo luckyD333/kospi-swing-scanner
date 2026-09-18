@@ -172,3 +172,20 @@ def test_진입가_위에_선이_없으면_None():
     touched = _ref("grid", 3.0, now=1000.0)
     assert nearest_line_above(entry=1005.0, refs=[touched], touched=touched,
                               atr_t=6.0, band_mult=0.3) is None
+
+
+def test_동률_피벗이면_늦은_쪽을_고른다():
+    base = np.linspace(900, 860, 70)                # 단조 하락이라 자체 피벗이 없다
+    high = base.copy()
+    high[15] = 1000.0                               # A
+    high[30] = 960.0
+    high[50] = 960.0                                # A 이후 동률 확정 고점 피벗 두 개
+    grid = build_grid(high, high - 20.0, lookback_bars=60, pivot_window=3, max_level=3.0)
+    assert (grid.i_a, grid.i_b) == (15, 50)
+
+    low = -base + 1800                              # 단조 상승
+    low[15] = 800.0                                 # P
+    low[30] = 850.0
+    low[50] = 850.0                                 # 동률 확정 저점 피벗 두 개
+    line = build_support_line(low, lookback_bars=60, pivot_window=3)
+    assert (line.x1, line.x2) == (15, 50)

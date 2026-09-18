@@ -223,7 +223,7 @@ class StrategySixChannelGrid:
         avg_vol = float(volume[d - cfg.volume_avg_bars:d].mean())
         vol_strength = min(1.0, max(0.0, volume[d] / max(avg_vol, 1e-9) - 1.0))
         measured = ref.kind == "support" or ref.level in _MEASURED_LEVELS
-        score = min(1000.0, 400.0 + 300.0 * confluence + 200.0 * measured + 100.0 * vol_strength)
+        score = 400.0 + 300.0 * confluence + 200.0 * measured + 100.0 * vol_strength
 
         # 메타 (S3 브리지 키 유지)
         risk_pct = risk / entry * 100
@@ -261,6 +261,7 @@ class StrategySixChannelGrid:
                 "atr_14": atr_now,
                 "rr_ratio": rr_ratio,
                 "rr_band": rr_band,
+                # 아래 두 키는 S6 경로에서 읽히지 않지만 형제 전략과 metadata 스키마를 맞추기 위해 유지
                 "trade_plan_method": "line_based",
                 "trade_plan_support_floor": ref.value_now if ref.value_now < entry else None,
                 "touch_kind": ref.kind,
