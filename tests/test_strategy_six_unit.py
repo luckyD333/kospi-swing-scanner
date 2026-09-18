@@ -23,7 +23,8 @@ def test_시나리오는_후보_하나를_낸다():
     assert c.metadata["grid_level"] == 0.5
     assert c.metadata["confluence"] is False
     assert c.metadata["target_confluence"] is True      # L(1) ≈ 지지선 S
-    assert c.metadata["bars_since_trigger"] == 17       # 79 - 62
+    assert c.metadata["bars_since_breakout"] == 17      # 79 - 62
+    assert c.metadata["bars_since_trigger"] == 0        # 진입 계기 = 오늘의 터치
     assert c.metadata["trade_plan_method"] == "line_based"
 
 
@@ -112,7 +113,7 @@ def test_돌파일이_창_밖이면_후보가_없다():
 
 
 def test_재돌파는_돌파일을_갱신한다():
-    """밴드 안 이탈(복귀 아님) 뒤 거래량 동반 재돌파 → d=71, bars_since_trigger 가 0 부터 다시 센다.
+    """밴드 안 이탈(복귀 아님) 뒤 거래량 동반 재돌파 → d=71, bars_since_breakout 가 0 부터 다시 센다.
 
     주의: close[70]=920 으로 룩백 최저점 P 가 61 → 70 으로 옮겨가 지지선이 사라진다.
     따라서 이 변형에서는 target_confluence 가 False 다. 단언 대상이 아니므로 놀라지 말 것.
@@ -129,7 +130,7 @@ def test_재돌파는_돌파일을_갱신한다():
     cands = _scan(df)
     assert len(cands) == 1
     assert cands[0].metadata["breakout_day_idx"] == 71
-    assert cands[0].metadata["bars_since_trigger"] == 8
+    assert cands[0].metadata["bars_since_breakout"] == 8
 
 
 def test_데이터_부족이면_빈_리스트():

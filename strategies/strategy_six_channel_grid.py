@@ -275,7 +275,8 @@ class StrategySixChannelGrid:
                 "grid_anchor_high_idx": grid.i_a,
                 "grid_anchor_pivot_idx": grid.i_b,
                 "breakout_day_idx": d,
-                "bars_since_trigger": t - d,
+                "bars_since_breakout": t - d,   # 돌파일 경과 봉 (칩 표시용)
+                "bars_since_trigger": 0,        # 진입 계기 = 오늘의 터치 (regret_scorer freshness 의미, 다른 전략과 동일)
                 "vol_ratio": float(volume[d] / max(avg_vol, 1e-9)),
                 "rsi_14": latest_rsi_or_none(df["close"], period=14),
                 "per_ticker_regime": regime,
