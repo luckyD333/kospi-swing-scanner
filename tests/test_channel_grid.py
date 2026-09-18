@@ -8,10 +8,13 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from core.indicators import calc_atr
 from strategies._channel_grid import (
     Line,
     build_grid,
     build_support_line,
+    channel_reasserted,
+    find_breakout_day,
     find_confirmed_pivots,
 )
 from tests.fixtures_channel_grid import scenario_df
@@ -83,3 +86,40 @@ def test_시나리오에서_P_Q_상승_지지선을_찾는다():
 def test_최저점_이후_더_높은_저점_피벗이_없으면_지지선이_없다():
     low = np.linspace(1000, 900, 80)  # 단조 하락: 최저점이 마지막 봉
     assert build_support_line(low, lookback_bars=60, pivot_window=3) is None
+
+
+def _scenario_arrays():
+    df = scenario_df()
+    close = df["close"].to_numpy()
+    volume = df["volume"].to_numpy()
+    atr = calc_atr(df["high"], df["low"], df["close"], period=14).to_numpy()
+    grid = build_grid(df["high"].to_numpy(), df["low"].to_numpy(),
+                      lookback_bars=60, pivot_window=3, max_level=3.0)
+    return df, close, volume, atr, grid
+
+
+def test_시나리오의_돌파일은_62_하나다():
+    _, close, volume, atr, grid = _scenario_arrays()
+    d = find_breakout_day(close, volume, atr, grid.baseline, start=grid.i_b,
+                          atr_mult=0.5, vol_bars=20)
+    assert d == 62
+
+
+def test_거래량_조건이_빠지면_돌파일이_없다():
+    _, close, volume, atr, grid = _scenario_arrays()
+    volume = volume.copy()
+    volume[62] = 200_000
+    assert find_breakout_day(close, volume, atr, grid.baseline, start=grid.i_b,
+                             atr_mult=0.5, vol_bars=20) is None
+
+
+def test_돌파_후_채널_복귀가_없으면_False():
+    _, close, _, atr, grid = _scenario_arrays()
+    assert channel_reasserted(close, atr, grid.baseline, d=62, band_mult=0.3) is False
+
+
+def test_돌파_후_기준선_아래_마감이_있으면_True():
+    _, close, _, atr, grid = _scenario_arrays()
+    close = close.copy()
+    close[66] = 920.0
+    assert channel_reasserted(close, atr, grid.baseline, d=62, band_mult=0.3) is True

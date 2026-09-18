@@ -105,3 +105,39 @@ def build_support_line(low: np.ndarray, *, lookback_bars: int, pivot_window: int
         return None
     i_q = max(pivots, key=lambda i: (low[i], i))
     return Line(i_p, float(low[i_p]), i_q, float(low[i_q]))
+
+
+def find_breakout_day(close: np.ndarray, volume: np.ndarray, atr: np.ndarray, baseline: Line, *,
+                      start: int, atr_mult: float, vol_bars: int) -> int | None:
+    """start(=B) 이후 가장 최근의 레벨 0 상향 돌파일. 없으면 None.
+
+    조건: close[d] > L0(d) + atr_mult×ATR(d), close[d-1] <= L0(d-1),
+          volume[d] > 직전 vol_bars 봉 평균 거래량 (d 제외).
+    오늘 계산한 기준선을 과거 d 까지 소급 적용한다.
+    """
+    n = len(close)
+    lo = max(start + 1, vol_bars)
+    for d in range(n - 1, lo - 1, -1):
+        a = atr[d]
+        if np.isnan(a) or a <= 0:
+            continue
+        if close[d] <= baseline.value_at(d) + atr_mult * a:
+            continue
+        if close[d - 1] > baseline.value_at(d - 1):
+            continue
+        if volume[d] <= volume[d - vol_bars:d].mean():
+            continue
+        return d
+    return None
+
+
+def channel_reasserted(close: np.ndarray, atr: np.ndarray, baseline: Line, *,
+                       d: int, band_mult: float) -> bool:
+    """(d, 오늘] 사이에 종가가 레벨 0 - band_mult×ATR 아래로 마감한 날이 있으면 True."""
+    for x in range(d + 1, len(close)):
+        a = atr[x]
+        if np.isnan(a):
+            continue
+        if close[x] < baseline.value_at(x) - band_mult * a:
+            return True
+    return False
