@@ -60,7 +60,7 @@ def _apply_max_guard(cand, ohlcv_1d, cfg=_MAX_FILTER_CFG) -> bool:
 
 # 추세 추종 전략군 — 인버스 상품은 기초 지수와 반대로 움직여 진입 논리와 충돌한다.
 # 2026-09-16 측정: 전략 4 의 인버스 8건 평균 -4.31%, 승률 25%.
-_INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five")
+_INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five", "strategy_six")
 
 
 def _drop_inverse_for_trend(
