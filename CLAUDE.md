@@ -6,7 +6,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 - **Runtime**: Python 3.10+
 - **Core**: pandas, numpy, scipy
 - **Data sources**: 네이버 금융 — `stock.naver.com` 주식 목록 JSON(KOSPI/KOSDAQ 종목·시총·거래량·PER/ROE/외인비율) + `etfItemList`(ETF) + `siseJson` API + `m.stock` 지수·`marketIndex/productDetail`(USD/KRW, WTI, 국고채3Y) + VIX(yfinance). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
-- **Test**: pytest (현재 1210개)
+- **Test**: pytest (현재 1304개)
 
 ## Project Structure
 - `cli.py` — CLI 진입점 (스캔 + Phase 2 가중치 인터뷰 모드 `--interview`)
@@ -24,7 +24,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 - `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
 - `signal-api/` — FastAPI 서비스 (`/api/signals`, `/api/signals/{ticker}`). signals.json + market_snapshot.json 조인(`services/join.py`)
 - `signal-web/` — Next.js 카탈로그/디테일 UI (`MarketRegimePanel`, `DetailClient`, RR/점수/ATR/RSI 표시)
-- `scripts/` — collect.py (수집 + ETF + 매크로), backtest_run.py, wf_validate_*.py (WF 검증), wf_strategy_compare.py (5 전략 OOS 비교), aggregate_holding_recommendations.py (상황별 holding 집계)
+- `scripts/` — collect.py (수집 + ETF + 매크로), backtest_run.py, wf_validate_*.py (WF 검증, wf_validate_s6.py 포함), wf_strategy_compare.py (5 전략 OOS 비교), aggregate_holding_recommendations.py (상황별 holding 집계)
 - `tests/` — 통합 테스트 (네이버 mock, CLI E2E, decision/market_axes/breadth/regret)
 - `docs/` — 전략 스펙, 데이터 소스, 배포(`deploy.md`), cron 가이드
 
@@ -60,9 +60,10 @@ python cli.py --interview
 - `strategy_three_trend_following` (+ `_1h`/`_30m`) — Donchian 20일 채널 돌파
 - `strategy_four_pullback_ma` (+ `_1h`/`_30m`) — MA20 추세 + MA5 눌림목 회복
 - `strategy_five_bull_flag` (+ `_1h`/`_30m`) — Flagpole +8% → flag 거래량 수축 → 돌파
+- `strategy_six_channel_grid` — 추세선·채널 격자. 고점 2개 하락 추세선(레벨 0) 상향 돌파 후 격자선/상승 지지선을 위에서 리테스트하면 매수. 일봉 전용. 목표가는 선 값(`apply_dynamic_trade_plan` 미호출)
 
 ## Verification
-변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1210개 이상 통과해야 함.
+변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1304개 이상 통과해야 함.
 정적 분석: `.venv/bin/ruff check . --exclude .venv` 통과 유지.
 
 ## Conventions
@@ -70,9 +71,7 @@ python cli.py --interview
 - 외부 네트워크 의존 코드는 mock 테스트 작성 (실제 네이버 호출 금지)
 - `etfItemList` API는 ETN(코드 7xxxxx)을 ETF와 혼합 반환 — `get_tickers("ETF")`는 코드 prefix로 제외, `get_etf_list()`(PR-B 분류기용)는 ETN 포함 유지. `build_universe`에서 ProductType.ETN 추가 필터
 - 타입 힌트는 `dict[str, ...]` 등 Python 3.10+ 내장 타입 사용 (`typing.Dict` 금지)
-- 신규 전략 추가 시 기존 전략 코드 무수정: `strategies/strategy_four_xxx.py` 작성 후
-  `strategies/__init__.py` 에 2줄만 추가 (`from .strategy_four_xxx import StrategyFourXxx` +
-  `REGISTRY["strategy_four_xxx"] = StrategyFourXxx`)
+- 신규 전략 추가 시 기존 전략 코드 무수정: `strategies/strategy_<n>_xxx.py` 작성(무인자 생성 가능 클래스면 `_autodiscover` 가 REGISTRY 등록) 후 **정책 맵 등록 필수**: `core/decision/entry_gate.py`(`ENTRY_GATE_POLICY` + `_normalize_family`), `core/trade_plan_calc.py`(`STRATEGY_PARAMS` + 정규식), `core/runner.py`(`_INVERSE_EXCLUDED_FAMILIES`, 추세 계열이면), `weights.yml` 3표, `output/signals_builder.py`(`_base_strategy`·`strategy_score_weights`·`_STRATEGY_LABELS`), `output/signal_components.py`, `core/strategy_performance.py`, `output/holding_recommender.py`, `signal-web/.../StrategyPerformanceChart.tsx`. 누락 시 대부분 예외 없이 조용히 실패한다(`tests/test_strategy_six_registration.py` 패턴으로 동기 테스트 작성)
 
 ## Documentation Index
 전문 작업 시 관련 문서를 먼저 읽으세요:
