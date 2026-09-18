@@ -26,6 +26,7 @@ from .strategy_two_cross_sectional_momentum import (
     StrategyTwoConfig,
     StrategyTwoCrossSectionalMomentum,
 )
+from .strategy_six_channel_grid import StrategySixChannelGrid  # noqa: F401  (autodiscover 등록, 명시 import 로 순서 고정)
 
 # strategy_two 운영 cfg — 2026-05-14 최적화: rsi_max 제거 (lookback=20, entry_percentile=0.80)
 _STRATEGY_TWO_CFG = StrategyTwoConfig(rsi_max=None, percentile_max=0.95)
