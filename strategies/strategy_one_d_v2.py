@@ -29,6 +29,7 @@ from backtest_engine.detectors import (
     DoubleBottomSimple,
 )
 from backtest_engine.strategy import StrategyD, StrategyDConfig
+from core.cache.close_resolver import resolve_close_index
 from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
@@ -135,10 +136,18 @@ class StrategyOneDv2:
             ctx.ohlcv if self.timeframe == "1D" else {}
         )
 
+        fetched_at = ctx.meta.get("manifest_collected_at") if ctx.meta else None
+
         for ticker in ctx.universe:
             df = tf_data.get(ticker)
             if df is None or len(df) < 30:
                 continue
+
+            # incomplete-bar 가드: 미확정 종가로 진입가를 잡지 않는다
+            if resolve_close_index(df, fetched_at) == -2:
+                df = df.iloc[:-1]
+                if len(df) < 30:
+                    continue
 
             try:
                 avg_volume = float(df["volume"].tail(20).mean())

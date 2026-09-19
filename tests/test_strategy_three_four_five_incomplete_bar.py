@@ -1,4 +1,4 @@
-"""strategy_three/four/five: scan() 이 close_resolver helper 를 호출하고
+"""strategy_one/three/four/five: scan() 이 close_resolver helper 를 호출하고
 incomplete-bar 가드 path 가 작동하는지 검증.
 
 가드의 출력 (entry_price 변동) 은 strategy 별 entry gate 다양성 때문에
@@ -89,4 +89,22 @@ def test_strategy_three_handles_no_meta_legacy():
     ctx = _make_ctx("TST3L", df, fetched_at=None)
     strat = StrategyThreeTrendFollowing(timeframe="1D")
     # 예외 없이 동작해야 함 (가드 비활성)
+    strat.scan(ctx, top_n=10)
+
+
+def test_strategy_one_calls_close_resolver():
+    """전략 1도 나머지 여섯 전략과 같은 incomplete-bar 가드를 써야 한다."""
+    from strategies import strategy_one_d_v2 as mod
+    df = _build_uptrend_df()
+    fetched = datetime.now(KST).replace(hour=11, minute=44).isoformat()
+    ctx = _make_ctx("TST1", df, fetched)
+    _assert_helper_called_with_fetched(mod, ctx, fetched)
+
+
+def test_strategy_one_handles_no_meta_legacy():
+    """ctx.meta 가 비어 있어도 scan() 이 예외 없이 진행한다 (가드 비활성)."""
+    from strategies.strategy_one_d_v2 import StrategyOneDv2
+    df = _build_uptrend_df()
+    ctx = _make_ctx("TST1L", df, fetched_at=None)
+    strat = StrategyOneDv2(timeframe="1D")
     strat.scan(ctx, top_n=10)
