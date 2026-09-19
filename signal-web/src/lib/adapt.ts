@@ -79,8 +79,6 @@ export interface DetailProps {
   atr14: number | null;
   confirmationLevel: string | null;
   activeRegime: string | null;
-  perTickerRegime: string | null;
-  atrBucket: string | null;
   tradabilityScore: number | null;
   // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
   ensembleScore: number | null;
@@ -94,38 +92,19 @@ export interface DetailProps {
 export interface CardProps {
   ticker: string;
   name: string;
-  nameEn: string | null;
   priceDisplay: string;
   changeDisplay: string;
   direction: 'up' | 'down' | 'flat';
   entry: number;                 // UI 주 진입가 (EOD 종가)
   stop: number;                  // UI 주 손절가
   target1: number | null;
-  target2: number | null;
-  score: number | null;
-  per: number | null;
-  high52w: number | null;
-  low52w: number | null;
-  foreignRatioPct: number | null;
-  volumeDisplay: string;
-  marketCapDisplay: string | null;
-  riskPerShare: number | null;
-  riskPct: number | null;
   reward1Pct: number | null;
-  reward2Pct: number | null;
-  rrRatio: number | null;
-  rrBand: string | null;
-  atr14: number | null;
-  changePct: number | null;
   currentPrice: number | null;
   signalComponents: SignalComponent[];
   strategyId: string;
   strategyLabel: string;
   timeframe: string;
   rsi: number | null;
-  rsi1d: number | null;
-  rsi1h: number | null;
-  naverUrl: string | null;
   generatedAtDisplay: string;
   signalDate: string | null;
   decisionScore: number | null;
@@ -140,16 +119,12 @@ export interface CardProps {
   productType: string | null;
   pool: string | null;
   // PR-K (P3-1): 거래 용이성 점수
-  tradabilityScore: number | null;
   // PR-H/PR-J: confirmation 등급 + 시장 국면
   confirmationLevel: string | null;
-  activeRegime: string | null;
   perTickerRegime: string | null;
   atrBucket: string | null;
   signalFreshness?: SignalFreshness;
   // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
-  ensembleScore: number | null;
-  regimeLabel: string | null;
   recommendedHoldingBars: number | null;
   holdingConfidence: number | null;
   holdingStatus: string | null;
@@ -272,8 +247,6 @@ export function adaptDetailV2(raw: any): DetailProps {
     atr14: firstMatch?.trade_plan?.atr_14 ?? null,
     confirmationLevel: raw.confirmation_level ?? null,
     activeRegime: raw.active_regime ?? null,
-    perTickerRegime: raw.per_ticker_regime ?? null,
-    atrBucket: raw.atr_bucket ?? null,
     tradabilityScore: raw.tradability_score ?? null,
     ensembleScore: raw.ensemble_score ?? null,
     regimeLabel: raw.regime_label ?? null,
@@ -301,50 +274,24 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
   const der = tp.derived;
   const displayEntry = tp.entry;
   const displayStop = tp.stop;
-  const displayRrRatio = tp.rr_ratio ?? null;
-  const displayRrBand = tp.rr_band ?? null;
-  const displayRiskPerShare = der?.risk_per_share ?? null;
-  const displayRiskPct = der?.risk_pct ?? null;
   const displayReward1Pct = der?.reward_1_pct ?? null;
-  const displayReward2Pct = der?.reward_2_pct ?? null;
 
   return {
     ticker: signal.ticker,
     name: signal.name ?? signal.ticker,
-    nameEn: signal.name_en,
     priceDisplay,
     changeDisplay,
     direction,
     entry: displayEntry,
     stop: displayStop,
     target1: tp.target_1,
-    target2: tp.target_2,
-    score: signal.ranking?.score ?? null,
-    per: signal.fundamentals?.per ?? null,
-    high52w: signal.fundamentals?.high_52w ?? null,
-    low52w: signal.fundamentals?.low_52w ?? null,
-    foreignRatioPct: signal.flow?.foreign_ratio_pct ?? null,
-    volumeDisplay:
-      d?.volume ??
-      (lq?.volume != null ? lq.volume.toLocaleString('ko-KR') : '—'),
-    marketCapDisplay: d?.market_cap ?? null,
-    riskPerShare: displayRiskPerShare,
-    riskPct: displayRiskPct,
     reward1Pct: displayReward1Pct,
-    reward2Pct: displayReward2Pct,
-    rrRatio: displayRrRatio,
-    rrBand: displayRrBand,
-    atr14: tp.atr_14 ?? null,
-    changePct: lq?.change_pct ?? null,
     currentPrice: lq?.current_price ?? null,
     signalComponents: normalizeSignalComponents(signal.signal_components),
     rsi: tp.rsi_14 ?? null,
-    rsi1d: tp.rsi_1d ?? (signal.strategy.timeframe === '1D' ? tp.rsi_14 : null),
-    rsi1h: tp.rsi_1h ?? (signal.strategy.timeframe === '1h' ? tp.rsi_14 : null),
     strategyId: signal.strategy.id,
     strategyLabel: formatStrategyLabel(signal.strategy.id, signal.strategy.label),
     timeframe: signal.strategy.timeframe ?? '',
-    naverUrl: signal.external_links?.naver_finance ?? null,
     generatedAtDisplay,
     signalDate: signal.signal_date ?? null,
     decisionScore: signal.ranking?.decision?.final_score ?? null,
@@ -363,14 +310,10 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     maxChase: tp.max_chase ?? null,
     productType: signal.product_type ?? null,
     pool: signal.pool ?? null,
-    tradabilityScore: signal.tradability_score ?? null,
     confirmationLevel: signal.confirmation_level ?? null,
-    activeRegime: signal.active_regime ?? null,
     perTickerRegime: signal.per_ticker_regime ?? null,
     atrBucket: signal.atr_bucket ?? null,
     signalFreshness: signal.signal_freshness ?? undefined,
-    ensembleScore: signal.ranking?.decision?.ensemble_score ?? null,
-    regimeLabel: signal.ranking?.decision?.regime_label ?? null,
     recommendedHoldingBars: signal.ranking?.decision?.recommended_holding_bars ?? null,
     holdingConfidence: signal.ranking?.decision?.holding_confidence ?? null,
     holdingStatus: signal.ranking?.decision?.holding_status ?? null,

@@ -24,16 +24,14 @@ const STRATEGIES = [
   { num: '04', title: '전략 4', focus: '추세 중 눌림목 회복', tip: '추세가 살아있는지 먼저 확인하세요. 추세가 꺾인 종목엔 해당 없어요.' },
   { num: '05', title: '전략 5', focus: '단기 급등 후 재상승', tip: '오전 거래량을 함께 보세요. 거래량 없이 오르면 허수 가능성 있어요.' },
   { num: '06', title: '전략 6', focus: '추세선 돌파 후 지지선 리테스트', tip: '돌파한 선까지 되밀렸다가 지지되는 자리를 노려요. 그 선을 다시 깨면 근거가 사라집니다.' },
-  { num: '07', title: '전략 7', focus: '하락에서 상승으로 추세 전환', tip: '전환 첫 봉이라 되돌림이 잦아요. 손절가를 좁게 잡고 접근하세요.' },
+  { num: '07', title: '전략 7', focus: '하락에서 상승으로 추세 전환', tip: '전환 첫 봉이라 되돌림이 잦아요. 표시된 손절가를 이탈하면 바로 정리하세요.' },
 ] as const;
 
 const TERMS = [
   { term: 'RR',  def: 'Risk-Reward. 손익비. 목표폭 ÷ 손절폭' },
-  { term: 'SCR', def: 'Score. 전략별 종합 점수 (0~100)' },
   { term: 'ATR', def: 'Average True Range. 14일 평균 변동폭' },
   { term: 'RSI', def: 'Relative Strength Index. 14일 과매수·과매도 지표' },
   { term: 'PER', def: 'Price-Earnings Ratio. 주가수익비율' },
-  { term: 'BB',  def: 'Bollinger Band. 이동평균 ± 표준편차' },
 ] as const;
 
 export default function AboutOverlay({ open, onClose }: Props) {

@@ -38,10 +38,8 @@ describe('adaptSignal', () => {
     expect(c.changeDisplay).toBe('—');
     expect(c.direction).toBe('flat');
     expect(c.target1).toBeNull();
-    expect(c.score).toBeNull();
     expect(c.signalStrength).toBeNull();
     expect(c.decisionRegretScore).toBeNull();
-    expect(c.naverUrl).toBeNull();
     expect(c.signalComponents).toEqual([]);
   });
 
