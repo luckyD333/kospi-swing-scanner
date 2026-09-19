@@ -54,7 +54,7 @@ def test_no_cache_root_uses_7day_minute_window():
     assert result is not None
 
 
-def test_cache_root_extends_minute_start_to_lookback(tmp_path):
+def test_cache_root_pins_minute_start_to_fixed_window(tmp_path):
     """cache_root 지정 시 minute_start_str 은 lookback_days 와 무관하게 _MINUTE_LOOKBACK_DAYS 고정."""
     captured_starts = []
 

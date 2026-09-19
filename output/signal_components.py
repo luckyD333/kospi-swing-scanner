@@ -269,6 +269,8 @@ def _six_target_line(m: dict) -> dict | None:
     level = m.get("target_level")
     if kind is None and level is None:
         return None
+    if kind != "support" and level is None:
+        return None
     value = "지지선" if kind == "support" else f"레벨 {level}"
     if m.get("target_confluence"):
         value += " · 합류"

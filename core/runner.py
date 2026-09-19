@@ -87,12 +87,16 @@ def _none_if_nan(value):
     return value
 
 
+_VOLATILITY_WINDOW_BARS = 120  # 일봉 이력이 2년으로 늘어도 ETF 변동성 측정 창은 최근 120 거래일(종전 유효 창)로 고정
+
+
 def _realized_volatility_pct(df: pd.DataFrame | None) -> float | None:
     """1D close 일간 수익률 표준편차를 % 단위로 계산."""
     if df is None or df.empty or "close" not in df.columns:
         return None
     close = df["close"].dropna().astype(float)
     close = close[close > 0]
+    close = close.tail(_VOLATILITY_WINDOW_BARS)
     if len(close) < 2:
         return None
     returns = close.pct_change().dropna()

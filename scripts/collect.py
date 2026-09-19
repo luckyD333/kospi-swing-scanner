@@ -89,12 +89,16 @@ class CollectConfig:
     scan_root: Path = field(default_factory=lambda: Path("scan_results"))
 
 
+_VOLATILITY_WINDOW_BARS = 120  # 일봉 이력이 2년으로 늘어도 ETF 변동성 측정 창은 최근 120 거래일(종전 유효 창)로 고정
+
+
 def _realized_volatility_pct(df) -> float | None:
     """1D close 일간 수익률 표준편차를 % 단위로 계산."""
     if df is None or df.empty or "close" not in df.columns:
         return None
     close = df["close"].dropna().astype(float)
     close = close[close > 0]
+    close = close.tail(_VOLATILITY_WINDOW_BARS)
     if len(close) < 2:
         return None
     returns = close.pct_change().dropna()
@@ -473,7 +477,11 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
                 compute_trend_score,
                 compute_volatility_regime_with_vix,
             )
-            from core.decision.market_regime import build_market_proxy
+            from core.decision.market_regime import (
+                REGIME_LOOKBACK_DAYS,
+                _clip_recent,
+                build_market_proxy,
+            )
 
             breadth_1d = compute_market_breadth(cfg.cache_root, tf="1D")
             if breadth_1d:
@@ -483,6 +491,9 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
                 cfg.cache_root,
                 allowed_tickers=market_state_ticker_list,
             )
+            # HMM 과 같은 180일 창. compute_volatility_regime_with_vix 백분위가 전체
+            # 시계열 기준이라 캐시 깊이에 따라 라벨이 움직이는 것을 막는다.
+            proxy_1d = _clip_recent(proxy_1d, REGIME_LOOKBACK_DAYS)
             if not proxy_1d.empty:
                 trend_1d = compute_trend_score(proxy_1d["mean_return"])
                 vol_1d = compute_volatility_regime_with_vix(
