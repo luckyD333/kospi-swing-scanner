@@ -259,7 +259,13 @@ CACHE_1D = Path(__file__).resolve().parents[2] / ".cache_wf" / "1D"
 
 
 def _S7_후보_국면(data, dates, regime_grid):
-    """S7 후보를 훑어 각 후보의 국면 라벨을 모은다."""
+    """S7 후보를 훑어 각 후보의 국면 라벨을 모은다.
+
+    주의: 이 헬퍼는 setup_score를 None으로 고정합니다 (테스트에서 is_strategy_allowed(..., None)).
+    지금은 안전합니다 (S7의 ENTRY_GATE_POLICY에는 allow_strong_only 셀이 없고,
+    .cache_wf에 1h 데이터가 없어서 setup_score가 실제로도 항상 None).
+    이 패턴을 allow_strong_only를 쓰는 전략(S1·S4)으로 복제하면 오판정이 납니다.
+    """
     from scripts.wf_validate_s2_to_s5 import _s7_factory
 
     strat = _s7_factory({})
