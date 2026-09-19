@@ -40,10 +40,12 @@ LOCK=/tmp/kospi-scanner.lock
 # snapshot.json 에 freeze 될 수 있음. Job A (16:10) 와 직렬되도록 16:15·16:30 에 실행.
 15,30 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1
 
-# Job F (holding 추천 테이블): 매주 토요일 03:00, WF 결과를 marginal table 로 집계.
-# data/holding_recommendations.json 은 git 미추적이라 이 잡이 없으면 그대로 낡는다.
-# --lookback-buffer-days 320: 기본 150 은 S6 기준이라 S7 이 조용히 빠진다.
-# 주의: 입력은 .cache (일일 수집분) 가 아니라 .cache_wf 다. scripts/collect_wf_history.py
-# 로 따로 받아야 하며 크론에 없다. 즉 이 잡만 돌면 같은 과거 구간을 다시 집계하므로
-# 결과는 전략 코드가 바뀔 때만 달라진다. 새 시장 구간을 반영하려면 .cache_wf 를 먼저 늘린다.
-0 3 * * 6 cd $APP_DIR && $VENV_PYTHON scripts/aggregate_holding_recommendations.py --lookback-buffer-days 320 >> $LOG_DIR/holding_agg.log 2>&1
+# Job G + F (매주 토요일 02:00): WF 장기 이력 수집 → holding 추천 테이블 집계.
+# && 체인이라 수집이 실패하면 집계는 돌지 않는다 (절반만 쓰인 .cache_wf 를 읽지 않게).
+# Job G — --years 2: S6 는 주봉 80봉(일봉 760일), S7 은 매물대 200봉이 필요해 1년은 부족하다.
+#   .cache manifest 의 1360 종목을 받으므로 2026-05 의 341 종목 10초보다 한참 오래 걸린다.
+#   네트워크 상태에 따라 수 분대를 예상한다.
+# Job F — data/holding_recommendations.json 은 git 미추적이라 이 잡이 없으면 그대로 낡는다.
+#   --lookback-buffer-days 320: 기본 150 은 S6 기준이라 S7 이 조용히 빠진다.
+#   날짜 인자는 주지 않는다. .cache_wf 에 실제로 담긴 구간을 스크립트가 알아서 쓴다.
+0 2 * * 6 cd $APP_DIR && $VENV_PYTHON scripts/collect_wf_history.py --cache-root .cache --output-root .cache_wf --years 2 >> $LOG_DIR/wf_collect.log 2>&1 && $VENV_PYTHON scripts/aggregate_holding_recommendations.py --lookback-buffer-days 320 >> $LOG_DIR/holding_agg.log 2>&1
