@@ -39,3 +39,8 @@ LOCK=/tmp/kospi-scanner.lock
 # 15:30 마감 직전 마지막 Job C 실행분은 partial base 기반이라 +20% 같은 spike 가
 # snapshot.json 에 freeze 될 수 있음. Job A (16:10) 와 직렬되도록 16:15·16:30 에 실행.
 15,30 16 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1
+
+# Job F (holding 추천 테이블): 매주 토요일 03:00, WF 결과를 marginal table 로 집계.
+# data/holding_recommendations.json 은 git 미추적이라 자동 갱신이 없으면 그대로 낡는다.
+# --lookback-buffer-days 320: 기본 150 은 S6 기준이라 S7 이 조용히 빠진다.
+0 3 * * 6 cd $APP_DIR && $VENV_PYTHON scripts/aggregate_holding_recommendations.py --lookback-buffer-days 320 >> $LOG_DIR/holding_agg.log 2>&1

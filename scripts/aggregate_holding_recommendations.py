@@ -6,7 +6,7 @@ plan: warm-percolating-cosmos.md
        - market_regime: universe equal-weight 20D SMA slope → BULL/NEUTRAL/BEAR (proxy)
        - per_ticker_regime: build_per_ticker_regime_map (7-label)
        - atr_distribution: 각 ticker 의 ATR%(=ATR(14)/close)
-  2. 9 WF 윈도우 × 5 전략 × holdings [1,3,5,7] BarTracker (emit_per_trade=True)
+  2. 9 WF 윈도우 × 7 전략 × holdings [1,3,5,7] BarTracker (emit_per_trade=True)
   3. trades 수집 후 라벨 부여 (signal_date + ticker 기준 lookup)
   4. Marginal aggregation:
        Primary: strategy × market_regime → best holding by mean PnL (min 30 trades)
@@ -364,7 +364,7 @@ def main() -> None:
     }
     output_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     logger.info(f"JSON 저장: {output_path}")
-    logger.info(f"Primary cells: {sum(len(v) for v in primary.values())} / 15")
+    logger.info(f"Primary cells: {sum(len(v) for v in primary.values())} / 21")
     logger.info(f"Modifier fng cells: {len(modifier_fng)} (historical 부재 → NOOP)")
     per_cells = sum(len(v) for v in modifier_per_ticker.values())
     atr_cells = sum(len(v) for v in modifier_atr.values())
