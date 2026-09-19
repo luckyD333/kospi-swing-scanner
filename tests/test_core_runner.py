@@ -411,3 +411,19 @@ def test_runner_excludes_low_volatility_etf_from_scan_universe():
     assert "229200" in tickers
     assert result.funnel_stats["low_volatility_etf_excluded"] == 1
     assert result.universe_size == 2
+
+
+def test_realized_volatility_pct_는_최근_120봉_창으로_고정된다():
+    """일봉 이력이 2년으로 늘어도 변동성 측정은 최근 _VOLATILITY_WINDOW_BARS 봉만 본다."""
+    from core.runner import _realized_volatility_pct
+
+    # 앞 80봉은 ±5% 급등락, 뒤 120봉은 +0.1% 로 평탄
+    volatile = [100.0 * (1.05 if i % 2 == 0 else 0.95) for i in range(80)]
+    calm = [100.0 * (1.001 ** i) for i in range(120)]
+    closes = volatile + calm
+    df = pd.DataFrame(
+        {"close": closes},
+        index=pd.date_range("2024-01-01", periods=len(closes), freq="B"),
+    )
+
+    assert _realized_volatility_pct(df) < 0.5

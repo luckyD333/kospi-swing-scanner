@@ -1,6 +1,7 @@
 """
 strategies/strategy_six_channel_grid.py
 — 전략6: 추세선·피보나치 채널 격자 (Channel Grid).
+(주봉 변형 `_w` 는 같은 봉 수 규칙을 주봉에 적용)
 
 근거:
   - 돌파 후 되돌림(throwback): Bulkowski, 26,542 패턴 표본에서 발생률 약 55%,
@@ -57,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
     "1D": "strategy_six_channel_grid",
+    "1W": "strategy_six_channel_grid_w",
 }
 
 # 실제 가격이 닿아 정의된 격자선 (나머지는 투사선). 레벨 -1 도 실측선이지만 게이트가
@@ -82,7 +84,10 @@ class StrategySixConfig:
 
 
 class StrategySixChannelGrid:
-    """추세선·채널 격자: 레벨 0 상향 돌파 후 격자선/지지선 리테스트 매수."""
+    """추세선·채널 격자: 레벨 0 상향 돌파 후 격자선/지지선 리테스트 매수.
+
+    (주봉 변형 `_w` 는 같은 봉 수 규칙을 주봉에 적용)
+    """
 
     name = "strategy_six_channel_grid"
 

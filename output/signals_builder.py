@@ -197,6 +197,7 @@ _STRATEGY_LABELS: dict[str, tuple[str, str]] = {
     "strategy_five_bull_flag_30m": ("STRATEGY FIVE", "BULL FLAG"),
     # 전략 6: Channel Grid (추세선·채널 격자)
     "strategy_six_channel_grid": ("STRATEGY SIX", "CHANNEL GRID"),
+    "strategy_six_channel_grid_w": ("STRATEGY SIX", "CHANNEL GRID"),
 }
 
 # strategy가 metadata에 저장하는 소문자 값 → Pydantic Literal 대문자 값

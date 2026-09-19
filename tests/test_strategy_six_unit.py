@@ -59,10 +59,24 @@ def test_레지스트리에_자동_등록된다():
     assert REGISTRY[StrategySixChannelGrid.name]().name == "strategy_six_channel_grid"
 
 
-def test_일봉_외_타임프레임은_거부한다():
+def test_일봉과_주봉만_허용하고_분봉은_거부한다():
     assert StrategySixChannelGrid(timeframe="1D").name == "strategy_six_channel_grid"
+    assert StrategySixChannelGrid(timeframe="1W").name == "strategy_six_channel_grid_w"
     with pytest.raises(ValueError):
         StrategySixChannelGrid(timeframe="1h")
+
+
+def test_주봉_변형은_주봉_데이터로_같은_시나리오_후보를_낸다():
+    df = scenario_df()
+    df.index = pd.date_range("2024-07-05", periods=80, freq="W-FRI")
+    ctx = make_ctx({}, ohlcv_by_tf={"1W": {"TEST": df}})
+    cands = StrategySixChannelGrid(timeframe="1W").scan(ctx, top_n=5)
+    assert len(cands) == 1
+    c = cands[0]
+    assert c.strategy == "strategy_six_channel_grid_w"
+    assert c.entry_price == 933
+    assert c.target_1 == 944
+    assert c.stop_loss == 926
 
 
 def test_잘못된_설정은_거부한다():

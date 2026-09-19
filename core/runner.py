@@ -62,6 +62,9 @@ def _apply_max_guard(cand, ohlcv_1d, cfg=_MAX_FILTER_CFG) -> bool:
 # 2026-09-16 측정: 전략 4 의 인버스 8건 평균 -4.31%, 승률 25%.
 _INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five", "strategy_six")
 
+# 1D/1W 창 확장(600일)과 무관하게 분봉 읽기 창은 120일 유지 (종전 lookback_days(90)+30 과 동일값 보존)
+_MINUTE_LOOKBACK_DAYS = 120
+
 
 def _drop_inverse_for_trend(
     strategy_name: str, candidates: list[Candidate],
@@ -84,12 +87,16 @@ def _none_if_nan(value):
     return value
 
 
+_VOLATILITY_WINDOW_BARS = 120  # 일봉 이력이 2년으로 늘어도 ETF 변동성 측정 창은 최근 120 거래일(종전 유효 창)로 고정
+
+
 def _realized_volatility_pct(df: pd.DataFrame | None) -> float | None:
     """1D close 일간 수익률 표준편차를 % 단위로 계산."""
     if df is None or df.empty or "close" not in df.columns:
         return None
     close = df["close"].dropna().astype(float)
     close = close[close > 0]
+    close = close.tail(_VOLATILITY_WINDOW_BARS)
     if len(close) < 2:
         return None
     returns = close.pct_change().dropna()
@@ -105,7 +112,7 @@ class RunnerConfig:
     min_market_cap_bil: float = 5000.0
     max_market_cap_bil: float = 30000.0
     min_daily_volume: int = 100_000
-    lookback_days: int = 90
+    lookback_days: int = 600  # 1W 전략 80봉 = 약 560 캘린더일
     top_n: int = 20
     max_universe_size: int = 100
     max_etf_size: int = 30
@@ -165,7 +172,7 @@ class ScanRunner:
         # 디스크 캐시 모드: collect.py가 누적한 전체 1m 히스토리 활용 (lookback 확장)
         # live 모드: 네이버 API가 최근 ~3-7일만 반환하므로 7일 유지
         if self.config.cache_root:
-            minute_start_str = start_str   # lookback_days + 30일 전 (1D와 동일)
+            minute_start_str = (target_dt - timedelta(days=_MINUTE_LOOKBACK_DAYS)).strftime("%Y%m%d")
         else:
             minute_start_str = (target_dt - timedelta(days=7)).strftime("%Y%m%d")
 

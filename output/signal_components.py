@@ -45,6 +45,7 @@ _STRATEGY_ID_BASE: dict[str, str] = {
     "strategy_five_bull_flag_30m": "strategy_five",
 
     "strategy_six_channel_grid": "strategy_six",
+    "strategy_six_channel_grid_w": "strategy_six",
 }
 
 
@@ -263,6 +264,39 @@ def _six_confluence(m: dict) -> dict | None:
                        "겹침" if ok else "단독")
 
 
+def _six_target_line(m: dict) -> dict | None:
+    kind = m.get("target_kind")
+    level = m.get("target_level")
+    if kind is None and level is None:
+        return None
+    if kind != "support" and level is None:
+        return None
+    value = "지지선" if kind == "support" else f"레벨 {level}"
+    if m.get("target_confluence"):
+        value += " · 합류"
+    # "info" status 가 다른 빌더에 없어 (target_confluence 무관) "ok" 로 고정
+    return _component("target_line", "목표선", "ok", value)
+
+
+def _six_channel_width(m: dict) -> dict | None:
+    width = m.get("channel_width")
+    if width is None:
+        return None
+    atr = m.get("atr_14")
+    if atr:
+        value = f"{width:,.0f}원 ({width / atr:.1f}×ATR)"
+    else:
+        value = f"{width:,.0f}원"
+    return _component("channel_width", "채널 폭 W", "ok", value)
+
+
+def _six_baseline_slope(m: dict) -> dict | None:
+    slope = m.get("baseline_slope")
+    if slope is None:
+        return None
+    return _component("baseline_slope", "기준선 기울기", "ok", f"{slope:+.2f}원/봉")
+
+
 # ---------------------------------------------------------------------------
 # 전략 ID → 룰 매핑
 # ---------------------------------------------------------------------------
@@ -294,9 +328,12 @@ _RULES_BY_BASE: dict[str, list[_Rule]] = {
         _Rule("volume_expansion",  "거래량 확장",        _five_volume_expansion),
     ],
     "strategy_six": [
-        _Rule("baseline_breakout", "기준선 돌파", _six_breakout),
-        _Rule("line_touch",        "선 리테스트", _six_touch),
-        _Rule("confluence",        "합류",        _six_confluence),
+        _Rule("baseline_breakout", "기준선 돌파",   _six_breakout),
+        _Rule("line_touch",        "선 리테스트",   _six_touch),
+        _Rule("confluence",        "합류",          _six_confluence),
+        _Rule("target_line",       "목표선",        _six_target_line),
+        _Rule("channel_width",     "채널 폭 W",     _six_channel_width),
+        _Rule("baseline_slope",    "기준선 기울기", _six_baseline_slope),
     ],
 }
 

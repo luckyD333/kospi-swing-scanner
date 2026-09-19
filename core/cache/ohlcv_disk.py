@@ -64,14 +64,18 @@ class OhlcvDiskCache:
         self.write(ticker, tf, merged)
         return merged
 
-    def prune_old(self, max_days: int = 365) -> tuple[int, int]:
-        """캐시 전체를 순회해 max_days 초과 오래된 row를 삭제.
+    def prune_old(self, max_days: int = 365, tf: str | None = None) -> tuple[int, int]:
+        """캐시를 순회해 max_days 초과 오래된 row를 삭제.
+
+        tf 가 주어지면 해당 timeframe 디렉토리만 순회한다(예: "1D"/"1m" 개별 보관 기간).
+        없으면 전체(rglob)를 순회한다.
 
         Returns: (pruned_files, pruned_rows) 통계.
         """
         cutoff = pd.Timestamp.now(tz=None) - pd.Timedelta(days=max_days)
         pruned_files, pruned_rows = 0, 0
-        for pq in self.root.rglob("*.parquet"):
+        paths = (self.root / tf).glob("*.parquet") if tf else self.root.rglob("*.parquet")
+        for pq in paths:
             try:
                 df = pd.read_parquet(pq)
                 if df.empty:

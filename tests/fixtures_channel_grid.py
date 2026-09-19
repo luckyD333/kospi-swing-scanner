@@ -30,14 +30,22 @@ def make_df(close_arr, vol_arr, high_mult=1.001, low_mult=0.999) -> pd.DataFrame
     )
 
 
-def make_ctx(ticker_dfs: dict[str, pd.DataFrame]) -> ScanContext:
+def make_ctx(
+    ticker_dfs: dict[str, pd.DataFrame],
+    ohlcv_by_tf: dict[str, dict[str, pd.DataFrame]] | None = None,
+) -> ScanContext:
+    # ticker_dfs 가 비어있고 ohlcv_by_tf 만 주어지면(예: 1W 전용 시나리오) 그 tf 의
+    # ticker 로 universe/names/market_caps 를 채운다.
+    universe_dfs = ticker_dfs or (next(iter(ohlcv_by_tf.values())) if ohlcv_by_tf else {})
+    kwargs = {"ohlcv_by_tf": ohlcv_by_tf} if ohlcv_by_tf is not None else {}
     return ScanContext(
         target_date="20260503",
-        universe=tuple(ticker_dfs.keys()),
+        universe=tuple(universe_dfs.keys()),
         ohlcv=ticker_dfs,
-        names={t: t for t in ticker_dfs},
-        market_caps={t: 5_000 * 1e8 for t in ticker_dfs},
+        names={t: t for t in universe_dfs},
+        market_caps={t: 5_000 * 1e8 for t in universe_dfs},
         market="KOSPI",
+        **kwargs,
     )
 
 
