@@ -18,6 +18,9 @@ _KST = ZoneInfo("Asia/Seoul")
 # 운영 1주 후 walk-forward 데이터로 재검증 예정 (~2026-05-25).
 STALE_THRESHOLD_1D: int = 1
 
+# 1W 신호 STALE 임계 (거래일). 주봉 셋업의 유효 기간은 1주 = 5거래일.
+STALE_THRESHOLD_1W: int = 5
+
 
 def compute_signal_status(
     current_price: float | None,
@@ -31,6 +34,7 @@ def compute_signal_status(
 
     우선순위:
       1. 장외 시간 (signal_date 거래일 ≠ 오늘 거래일) → STALE 또는 VALID
+         (임계: 1D 는 1거래일, 1W 는 5거래일)
       2. 같은 거래일 + cp ≤ stop → STOPPED_OUT
       3. 같은 거래일 + cp ≥ target_1 → TARGET_REACHED
       4. 장중 TF 신호 만료 (1h: 2봉) → STALE
@@ -53,7 +57,8 @@ def compute_signal_status(
             return "STALE"
         if not is_same_trading_day(sd, today):
             # current_price 가 전일 종가일 가능성 → cp 비교 의미 없음
-            if trading_days_since(sd, today) > STALE_THRESHOLD_1D:
+            threshold = STALE_THRESHOLD_1W if timeframe == "1W" else STALE_THRESHOLD_1D
+            if trading_days_since(sd, today) > threshold:
                 return "STALE"
             return "VALID"
 

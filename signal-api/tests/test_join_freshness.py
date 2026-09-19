@@ -137,3 +137,15 @@ def test_aggregate_entries_includes_scan_freshness_warning():
     assert "signal_freshness" in body
     # match 각각도 freshness 포함
     assert all("signal_freshness" in m for m in body["matches"])
+
+
+def test_freshness_meta_weekly_uses_weekly_threshold():
+    """주봉 신호는 3거래일 경과에도 만료되지 않는다 (임계 5)."""
+    now = datetime(2026, 5, 20, 14, 0, tzinfo=_KST)
+    meta = compute_freshness_meta(
+        signal_date_str="2026-05-15T15:30:00+09:00",
+        current_price=8000.0, entry_price=7900.0,
+        timeframe="1W", now=now,
+    )
+    assert meta["bars_since_trigger"] == 3
+    assert meta["plan_expired"] is False

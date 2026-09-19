@@ -55,3 +55,25 @@ def test_stale_when_1h_signal_older_than_2h():
         signal_date_str=fetched, timeframe="1h",
     )
     assert status == "STALE"
+
+
+def test_weekly_signal_valid_within_one_week():
+    """주봉 신호는 5거래일까지 유효하다. 1D 임계(1거래일)를 쓰면 안 된다."""
+    now = datetime(2026, 5, 20, 14, 0, tzinfo=KST)   # 수요일, 신호일로부터 3거래일
+    status = compute_signal_status(
+        current_price=8000.0, stop=7000.0, target_1=9000.0,
+        signal_date_str="2026-05-15T15:30:00+09:00",  # 직전 금요일
+        now=now, timeframe="1W",
+    )
+    assert status == "VALID"
+
+
+def test_weekly_signal_stale_after_one_week():
+    """5거래일을 넘으면 주봉 신호도 STALE 이다."""
+    now = datetime(2026, 5, 26, 14, 0, tzinfo=KST)   # 6거래일 경과
+    status = compute_signal_status(
+        current_price=8000.0, stop=7000.0, target_1=9000.0,
+        signal_date_str="2026-05-15T15:30:00+09:00",
+        now=now, timeframe="1W",
+    )
+    assert status == "STALE"

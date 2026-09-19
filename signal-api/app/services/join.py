@@ -24,6 +24,7 @@ if _REPO_ROOT not in sys.path:
 from core.dates import trading_days_since  # noqa: E402
 from core.decision.signal_status import (  # noqa: E402
     STALE_THRESHOLD_1D,
+    STALE_THRESHOLD_1W,
     compute_signal_status,
 )
 
@@ -44,7 +45,7 @@ def compute_freshness_meta(
     keys:
       bars_since_trigger: 신호 발생일 이후 경과 봉 수 (1D=거래일, 1h=거래일×6)
       price_drift_pct: (current - entry) / entry × 100, current 없으면 None
-      plan_expired: bars_since_trigger > timeframe별 STALE 임계
+      plan_expired: bars_since_trigger > 임계 (1D=1, 1W=5, 1h=2)
     """
     now = now or datetime.now(tz=_KST)
     today = now.astimezone(_KST).date()
@@ -68,7 +69,12 @@ def compute_freshness_meta(
         drift_pct = round((current_price - entry_price) / entry_price * 100, 4)
 
     # plan_expired 는 timeframe별 STALE 임계 초과 여부
-    threshold = STALE_THRESHOLD_1D if timeframe in (None, "1D", "1W") else 2
+    if timeframe == "1W":
+        threshold = STALE_THRESHOLD_1W
+    elif timeframe in (None, "1D"):
+        threshold = STALE_THRESHOLD_1D
+    else:
+        threshold = 2
     plan_expired = bars is not None and bars > threshold
 
     return {
