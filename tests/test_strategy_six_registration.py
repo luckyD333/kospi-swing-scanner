@@ -9,25 +9,36 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 SID = "strategy_six_channel_grid"
+SID_W = "strategy_six_channel_grid_w"
 ROOT = Path(__file__).parent.parent
 
 
 def test_weights_yml_세_표에_모두_등록된다():
     w = yaml.safe_load((ROOT / "weights.yml").read_text())
     assert SID in w["strategy_weights"]
+    assert SID_W in w["strategy_weights"]
     for regime in ("BULL", "NEUTRAL", "BEAR",
                    "UPTREND_STRONG", "UPTREND_WEAK", "RANGE", "RANGE_TIGHT",
                    "DOWNTREND_WEAK", "DOWNTREND_STRONG", "MIXED"):
         assert SID in w["strategy_weights_by_regime"][regime], regime
+        assert SID_W in w["strategy_weights_by_regime"][regime], regime
     assert w["strategy_weights_by_regime"]["DOWNTREND_STRONG"][SID] == 0.0
+    assert w["strategy_weights_by_regime"]["DOWNTREND_STRONG"][SID_W] == 0.0
 
 
 def test_signals_builder_기본_전략_라벨_가중치():
     from output.signals_builder import _STRATEGY_LABELS, _base_strategy, _build_market_configs
     assert _base_strategy(SID) == "strategy_six"
     assert _STRATEGY_LABELS[SID] == ("STRATEGY SIX", "CHANNEL GRID")
+    assert _base_strategy(SID_W) == "strategy_six"
+    assert _STRATEGY_LABELS[SID_W] == ("STRATEGY SIX", "CHANNEL GRID")
     for market, cfg in _build_market_configs().items():
         assert "strategy_six" in cfg.strategy_score_weights, market
+
+
+def test_registry_에_주봉_변형이_등록된다():
+    from strategies import REGISTRY
+    assert REGISTRY[SID_W]().timeframe == "1W"
 
 
 def test_strategy_performance_canonical_key():

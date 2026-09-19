@@ -58,3 +58,5 @@ def test_전략육도_인버스를_제외한다():
     """채널 격자는 레벨 0 상향 돌파를 전제하는 롱 온리 추세 계열이다."""
     kept = _drop_inverse_for_trend("strategy_six_channel_grid", list(_CANDIDATES))
     assert [c.ticker for c in kept] == ["462330", "005930"]
+    kept_w = _drop_inverse_for_trend("strategy_six_channel_grid_w", list(_CANDIDATES))
+    assert [c.ticker for c in kept_w] == ["462330", "005930"]

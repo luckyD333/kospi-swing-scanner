@@ -45,6 +45,7 @@ _STRATEGY_ID_BASE: dict[str, str] = {
     "strategy_five_bull_flag_30m": "strategy_five",
 
     "strategy_six_channel_grid": "strategy_six",
+    "strategy_six_channel_grid_w": "strategy_six",
 }
 
 

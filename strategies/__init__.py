@@ -114,6 +114,7 @@ REGISTRY: dict[str, Callable[[], Strategy]] = {
     "strategy_five_bull_flag":       lambda: StrategyFiveBullFlag(timeframe="1D"),
     "strategy_five_bull_flag_1h":    lambda: StrategyFiveBullFlag(timeframe="1h"),
     "strategy_five_bull_flag_30m":   lambda: StrategyFiveBullFlag(timeframe="30m"),
+    "strategy_six_channel_grid_w": lambda: StrategySixChannelGrid(timeframe="1W"),
 }
 
 
