@@ -21,8 +21,10 @@
                        - market_snapshot.json (fundamentals / flow / external_links — fresh override)
                        - market_snapshot.json (live_quote.current_price — Job C 갱신분 override)
                        - merge_rsi_by_timeframe(rsi_1d/1h)
-                       → /api/signals, /api/signals/{ticker}, /api/signals/health
+                       → /api/signals, /api/signals/{ticker}
                               (SIGNAL_API_DATA_DIR 환경변수)
+                       /api/health — 파일 신선도는 보지 않는 liveness 확인용.
+                              신선도는 /api/signals 응답의 scan_freshness_warning 으로 본다.
                                           ↓
 [signal-web  :3000]   Next.js  fetch(${NEXT_PUBLIC_API_URL}/api/signals)
                               CatalogClient + DetailClient (2분 주기 router.refresh 자동 갱신)
@@ -37,6 +39,8 @@
 - `data/strategy_performance.json` — Job B 성공 직후 실행되는 Job E 산출물. 없으면 `/api/strategy-performance`가 `not_ready`를 반환하고 ABOUT에 준비 중 상태 표시. 손상 archive가 있으면 정상 파일 결과와 `partial` 경고를 함께 반환.
 - `weights.yml` (프로젝트 루트) — `--decide` 와 ranking.decision 채움. 없으면 FACTOR BREAKDOWN 미노출.
 - `.cache/regime_analysis.json` — `core.decision.market_regime.save_regime_analysis` 산출물. 없으면 TopNav 국면 뱃지 누락.
+- `data/holding_recommendations.json` — 상황별 최적 보유기간 표. git 미추적. Job F 가 만든다.
+- `.cache_wf/1D/*.parquet` — WF 검증 전용 장기 일봉. git 미추적. Job G 가 만든다.
 
 **중요**: `signal-web/src/data/` 디렉토리는 사용하지 않아요(레거시). `.gitignore`에 등재되어 있어요. 데이터 갱신은 cli.py 실행 또는 cron Job B 트리거가 유일한 경로예요.
 
@@ -313,6 +317,9 @@ LOCK=/tmp/kospi-scanner.lock
 
 # Job C (실시간 현재가): 시장 지수 + 시그널 종목 현재가만 갱신 (2분 주기, 09:00-15:59)
 */2 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1
+
+# Job G + F (매주 토요일 02:00): WF 장기 이력 수집 → holding 추천 테이블 집계
+0 2 * * 6 cd $APP_DIR && $VENV_PYTHON scripts/collect_wf_history.py --cache-root .cache --output-root .cache_wf --years 2 >> $LOG_DIR/wf_collect.log 2>&1 && $VENV_PYTHON scripts/aggregate_holding_recommendations.py --lookback-buffer-days 320 >> $LOG_DIR/holding_agg.log 2>&1
 ```
 
 ### 6-1. 스케줄 설명
@@ -325,6 +332,8 @@ LOCK=/tmp/kospi-scanner.lock
 | Job C30 | 1,31분 (09~15시) | collect(1h) → cli 페어링. `flock`으로 Job B14와 직렬화 |
 | Job B14 | 14:00 | 1D 포함 강제 갱신 (`--no-smart-skip`). 오늘 14:00 현재가를 1D close로 반영 |
 | Job C | 2분 주기 (09~15시) | `collect_live.py` — 현재가·시장지수만 부분 갱신 |
+| Job G | 토 02:00 | `collect_wf_history.py --years 2` — WF 검증용 장기 일봉 수집 (`.cache_wf/1D/*.parquet`) |
+| Job F | Job G 직후 (`&&`) | `aggregate_holding_recommendations.py --lookback-buffer-days 320` — 입력은 `.cache` 가 아니라 `.cache_wf`. Job G 가 먼저 돌아야 새 시장 구간이 반영된다. 산출물은 `data/holding_recommendations.json` |
 
 **Job C30과 Job B14의 분리 이유**: C30은 1h만 수집해 속도를 높이고, 14:00에는 1D도 함께 갱신해 오늘 시가·현재가를 일봉에 반영해요. 오늘 날짜의 1D 수집은 캐시 마지막 봉부터 다시 받아 미완료 종가를 교체합니다.
 
