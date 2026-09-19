@@ -125,3 +125,27 @@ def daily_regime_series(ohlcv: pd.DataFrame, period: int = 20) -> pd.Series:
         frame = compute_donchian(ohlcv.iloc[: i + 1], timeframe="1d", period=period)
         labels.append("MIXED" if frame is None else daily_regime(frame))
     return pd.Series(labels, index=ohlcv.index, dtype=object)
+
+
+def build_regime_grid(
+    ohlcv_1d_by_ticker: dict[str, pd.DataFrame], period: int = 20
+) -> dict[str, pd.Series]:
+    """전 종목 regime 시계열 선계산. 백테스트 실행당 1회만 부른다."""
+    return {
+        ticker: daily_regime_series(df, period=period)
+        for ticker, df in ohlcv_1d_by_ticker.items()
+    }
+
+
+def regime_at(
+    grid: dict[str, pd.Series], ticker: str, target_date: pd.Timestamp
+) -> str | None:
+    """target_date 이하 마지막 봉의 regime. 없으면 None.
+
+    None 은 entry_gate 에서 "게이트 우회" 를 뜻한다. 기존 동작을 그대로 둔다.
+    """
+    series = grid.get(ticker)
+    if series is None or len(series) == 0:
+        return None
+    sub = series[series.index <= target_date]
+    return None if len(sub) == 0 else str(sub.iloc[-1])
