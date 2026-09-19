@@ -145,6 +145,19 @@ def test_status_1h_signal_valid_within_2h():
     assert status == "VALID"
 
 
+def test_status_1h_signal_stale_on_next_trading_day():
+    """1h 신호는 거래일이 바뀌면 STALE. join.compute_freshness_meta(bars=거래일×6 > 2) 와 같은 판정."""
+    status = compute_signal_status(
+        current_price=1000,
+        stop=975,
+        target_1=1030,
+        signal_date_str="2026-05-11T14:00:00+09:00",
+        now=_now("2026-05-12T09:30:00+09:00"),  # 다음 거래일, 1거래일 경과
+        timeframe="1h",
+    )
+    assert status == "STALE"
+
+
 def test_status_1h_stale_does_not_override_stopped_out():
     """1h 신호가 2h+ 경과해도 STOPPED_OUT 이면 STOPPED_OUT 유지."""
     status = compute_signal_status(
