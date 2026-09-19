@@ -733,7 +733,8 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
         pq = cache / f"{ticker}.parquet"
         if not pq.exists():
             continue
-        df = pd.read_parquet(pq, columns=["close", "high", "low", "volume"])
+        # open 은 1W 리샘플(resample_to)이 요구 — RSI(1W) 산출용
+        df = pd.read_parquet(pq, columns=["open", "close", "high", "low", "volume"])
         if df.empty:
             continue
         df = df.tail(252)  # 52주 = 약 252 거래일
@@ -752,6 +753,15 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
 
         # 1D RSI — strategy 후보 여부와 무관하게 ticker 의 indicator
         rsi_by_tf: dict[str, float | None] = {"1D": _rsi_last(df["close"])}
+
+        # 1W RSI — 주봉 전략(strategy_one_w_v2, strategy_six_channel_grid_w)용.
+        # runner 와 같은 resample_to 를 써서 W-FRI 봉 경계를 맞춘다.
+        try:
+            weekly = resample_to(df, "1W")
+            rsi_by_tf["1W"] = _rsi_last(weekly["close"]) if not weekly.empty else None
+        except Exception as e:
+            logger.debug(f"  {ticker}/1W 리샘플 실패: {e}")
+            rsi_by_tf["1W"] = None
 
         # 1m raw → 1h 리샘플 + 마지막 분봉 close
         mpq = minute_cache / f"{ticker}.parquet"
@@ -778,6 +788,7 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
 
         # 분봉 raw 가 없거나 리샘플 실패 시 1h 키는 None 으로 명시
         rsi_by_tf.setdefault("1h", None)
+        rsi_by_tf.setdefault("1W", None)
         entry["rsi_by_tf"] = rsi_by_tf
 
         result[ticker] = entry

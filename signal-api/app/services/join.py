@@ -28,7 +28,7 @@ from core.decision.signal_status import (  # noqa: E402
 )
 
 # UI catalog 카드용 timeframe 라벨 (signal-web/src/types/signal.ts 와 매칭)
-_TIMEFRAME_KEYS = {"1D": "rsi_1d", "1h": "rsi_1h"}
+_TIMEFRAME_KEYS = {"1D": "rsi_1d", "1W": "rsi_1w", "1h": "rsi_1h"}
 _KST = ZoneInfo("Asia/Seoul")
 
 
@@ -171,9 +171,9 @@ def merge_rsi_by_timeframe(
     우선순위: snapshot.tickers[ticker].rsi_by_tf (ticker 의 indicator, strategy 후보 여부와 무관) →
     signals 의 strategy entries 의 rsi_14 (fallback).
 
-    반환: {"rsi_1d": ..., "rsi_1h": ...}.
+    반환: {"rsi_1d": ..., "rsi_1w": ..., "rsi_1h": ...}.
     """
-    out: dict[str, float | None] = {"rsi_1d": None, "rsi_1h": None}
+    out: dict[str, float | None] = {key: None for key in _TIMEFRAME_KEYS.values()}
     # 1) snapshot 의 ticker 단위 RSI 우선
     if snapshot_rsi:
         for tf, key in _TIMEFRAME_KEYS.items():

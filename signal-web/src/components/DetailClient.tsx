@@ -158,7 +158,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
     opportunityScore, opportunityFactors,
     topTradePlan,
     matches,
-    rsi1d, rsi1h,
+    rsi1d, rsi1w, rsi1h,
     per, high52w, low52w,
     foreignRatioPct, volumeDisplay, marketCapDisplay,
     atr14, changePct, currentPrice,
@@ -472,17 +472,18 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
 
         {/* RSI 멀티 타임프레임 */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0',
+          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0',
           borderBottom: '1px solid var(--hairline)',
         }}>
           {[
             { label: 'RSI(1D)',  value: rsi1d },
+            { label: 'RSI(1W)',  value: rsi1w },
             { label: 'RSI(1h)',  value: rsi1h },
           ].map(({ label, value }, i) => (
             <div key={label} style={{
               padding: '20px 0',
-              borderRight: i < 1 ? '1px solid var(--hairline)' : 'none',
-              paddingRight: i < 1 ? '32px' : '0',
+              borderRight: i < 2 ? '1px solid var(--hairline)' : 'none',
+              paddingRight: i < 2 ? '32px' : '0',
               paddingLeft: i > 0 ? '32px' : '0',
             }}>
               <div style={{ ...LABEL, marginBottom: '10px' }}>

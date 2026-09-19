@@ -657,6 +657,43 @@ def test_rsi_by_tf_computed_even_when_last_idx_is_not_today(tmp_path):
     assert rsi.get("1h") is not None, "전일 1m 데이터로도 1h RSI 계산되어야 함"
 
 
+def test_rsi_by_tf_는_주봉_RSI도_채운다(tmp_path):
+    """주봉 전략용 RSI(1W)가 일봉 parquet 리샘플로 계산돼야 한다.
+
+    주봉 RSI(14)는 15봉 이상 필요 = 거래일 75일 이상.
+    """
+    from scripts.collect import _extract_ohlcv_latest
+
+    ticker = "005930"
+    _write_parquet(
+        tmp_path / "1D" / f"{ticker}.parquet",
+        pd.date_range("2026-01-01", periods=120, freq="B"),
+        [100.0 + i * 0.3 for i in range(120)],
+    )
+
+    rsi = _extract_ohlcv_latest(str(tmp_path), {ticker: {}})[ticker]["rsi_by_tf"]
+
+    assert rsi.get("1W") is not None, "일봉 120봉이면 주봉 RSI가 계산되어야 함"
+    assert 0.0 <= rsi["1W"] <= 100.0
+
+
+def test_rsi_by_tf_는_주봉_봉수가_모자라면_1W를_None으로_명시한다(tmp_path):
+    """주봉 15봉 미만이면 키는 있고 값만 None — UI 가 키 부재와 값 부재를 구분하지 않도록."""
+    from scripts.collect import _extract_ohlcv_latest
+
+    ticker = "005930"
+    _write_parquet(
+        tmp_path / "1D" / f"{ticker}.parquet",
+        pd.date_range("2026-01-01", periods=20, freq="B"),  # 주봉 4봉
+        [100.0] * 20,
+    )
+
+    rsi = _extract_ohlcv_latest(str(tmp_path), {ticker: {}})[ticker]["rsi_by_tf"]
+
+    assert "1W" in rsi
+    assert rsi["1W"] is None
+
+
 def test_realized_volatility_pct_는_최근_120봉_창으로_고정된다():
     """일봉 이력이 2년으로 늘어도 변동성 측정은 최근 _VOLATILITY_WINDOW_BARS 봉만 본다."""
     from scripts.collect import _realized_volatility_pct
