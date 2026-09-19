@@ -27,6 +27,7 @@ from backtest_engine.walk_forward import (  # noqa: E402
     WalkForwardConfig,
     _generate_windows,
 )
+from core.decision.per_ticker_regime import build_regime_grid  # noqa: E402
 from scripts.wf_validate_s2_to_s5 import (  # noqa: E402
     _s2_factory,
     _s3_factory,
@@ -64,6 +65,7 @@ def evaluate_strategy(
     ohlcv_data: dict[str, pd.DataFrame],
     windows: list,
     cfg: ScanBarConfig,
+    regime_grid: dict | None = None,
 ) -> dict:
     """전략 default 로 windows 안 모든 trade 누적 → 집계 통계."""
     strategy = factory({})  # default config
@@ -85,7 +87,7 @@ def evaluate_strategy(
         signal_dates = [d for d in all_dates if test_start <= d <= test_end]
 
         for d in signal_dates:
-            ctx = _build_ctx(d, sliced, market=cfg.market)
+            ctx = _build_ctx(d, sliced, market=cfg.market, regime_grid=regime_grid)
             try:
                 candidates = strategy.scan(ctx, top_n=cfg.top_n)
             except Exception:
@@ -142,7 +144,7 @@ def evaluate_strategy(
     }
 
 
-def main() -> None:
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="5 전략 default WF OOS 비교")
     parser.add_argument("--cache-root", default=".cache_wf")
     parser.add_argument("--start-date", default="2025-05-19")
@@ -157,7 +159,15 @@ def main() -> None:
         help="전략 min_bars 확보용 과거 데이터 버퍼(캘린더 일). "
              "S6 는 150, S7(vp_lookback=200) 은 320 이상 필요.",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--no-entry-gate", dest="entry_gate", action="store_false", default=True,
+        help="per_ticker_regime 미주입 → entry gate 우회 (게이트 적용 이전 기준선 재현)",
+    )
+    return parser
+
+
+def main() -> None:
+    args = build_arg_parser().parse_args()
 
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
@@ -187,10 +197,13 @@ def main() -> None:
         emit_stats=False,
     )
 
+    grid = build_regime_grid(data) if args.entry_gate else None
+    logger.info(f"entry_gate={'on' if args.entry_gate else 'off'}")
+
     results = []
     for name, factory in STRATEGIES:
         logger.info(f"=== {name} ===")
-        r = evaluate_strategy(factory, data, windows, scan_cfg)
+        r = evaluate_strategy(factory, data, windows, scan_cfg, regime_grid=grid)
         r["name"] = name
         results.append(r)
         logger.info(
@@ -202,6 +215,7 @@ def main() -> None:
     # 표 형식 출력
     print()
     print("=" * 100)
+    print(f"entry_gate={'on' if args.entry_gate else 'off'}")
     print(
         f"{'전략':<22} {'trades':>7} {'win%':>7} {'total%':>9} "
         f"{'mean%':>8} {'sharpe':>7} {'avgBars':>8} "

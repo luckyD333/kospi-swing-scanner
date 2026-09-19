@@ -32,6 +32,7 @@ from backtest_engine.walk_forward import (  # noqa: E402
     WalkForwardConfig,
     _generate_windows,
 )
+from core.decision.per_ticker_regime import build_regime_grid  # noqa: E402
 from scripts.wf_strategy_compare import STRATEGIES  # noqa: E402
 from scripts.wf_validate_s2_to_s5 import load_history  # noqa: E402
 
@@ -58,6 +59,7 @@ def collect_trades(
     ohlcv_data: dict[str, pd.DataFrame],
     windows: list,
     cfg: ScanBarConfig,
+    regime_grid: dict | None = None,
 ) -> list[dict]:
     """전략 default 로 OOS 윈도우 전체 trade 수집 (비용 미적용 gross + 진입 갭%).
 
@@ -80,7 +82,7 @@ def collect_trades(
         signal_dates = [d for d in all_dates if test_start <= d <= test_end]
 
         for d in signal_dates:
-            ctx = _build_ctx(d, sliced, market=cfg.market)
+            ctx = _build_ctx(d, sliced, market=cfg.market, regime_grid=regime_grid)
             try:
                 candidates = strategy.scan(ctx, top_n=cfg.top_n)
             except Exception:
@@ -167,10 +169,12 @@ def main() -> None:
         lookback_buffer_days=60,
     )
 
+    grid = build_regime_grid(data)
+
     per_strategy: dict[str, list[dict]] = {}
     for name, factory in STRATEGIES:
         logger.info(f"=== {name} 수집 ===")
-        trades = collect_trades(factory, data, windows, scan_cfg)
+        trades = collect_trades(factory, data, windows, scan_cfg, regime_grid=grid)
         per_strategy[name] = trades
         logger.info(f"  {len(trades)} trades")
 
