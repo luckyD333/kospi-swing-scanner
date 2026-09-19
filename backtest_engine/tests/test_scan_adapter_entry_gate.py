@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from backtest_engine.scan_adapter import (
     ScanBarConfig,
@@ -17,7 +19,8 @@ from backtest_engine.scan_adapter import (
     make_scan_bartracker_scorer,
     make_scan_pnl_scorer,
 )
-from core.decision.per_ticker_regime import build_regime_grid, daily_regime_series
+from core.decision.entry_gate import is_strategy_allowed
+from core.decision.per_ticker_regime import build_regime_grid, daily_regime_series, regime_at
 from core.strategy_base import Candidate, ScanContext
 
 
@@ -250,3 +253,55 @@ def test_통계에_게이트_적용_여부를_남긴다():
     off_scorer(data, {}, d, d)
 
     assert off_scorer.last_stats["entry_gate_applied"] is False
+
+
+CACHE_1D = Path(__file__).resolve().parents[2] / ".cache_wf" / "1D"
+
+
+def _S7_후보_국면(data, dates, regime_grid):
+    """S7 후보를 훑어 각 후보의 국면 라벨을 모은다."""
+    from scripts.wf_validate_s2_to_s5 import _s7_factory
+
+    strat = _s7_factory({})
+    labels = []
+    for d in dates:
+        ctx = _build_ctx(d, data, market="KOSPI", regime_grid=regime_grid)
+        for cand in strat.scan(ctx, 5):
+            labels.append((strat.name, cand.ticker, d))
+    return labels
+
+
+@pytest.mark.skipif(not CACHE_1D.exists(), reason=".cache_wf/1D 없음")
+def test_게이트를_켜면_차단_국면_후보가_사라진다():
+    """S7 은 후보의 약 15%가 차단 국면이다 (2026-09-19 실측).
+
+    게이트를 끄면 그 후보들이 나오고, 켜면 하나도 나오지 않아야 한다.
+    후보 '수' 가 아니라 후보의 '국면' 을 본다 — 추세 전략은 후보가 대부분
+    UPTREND_STRONG 이라 수 비교로는 게이트 동작을 증명할 수 없다.
+    """
+    from scripts.wf_validate_s2_to_s5 import load_history
+
+    data = dict(list(load_history(CACHE_1D.parent).items())[:80])
+    dates = sorted(set().union(*[df.index for df in data.values()]))[-30:]
+    grid = build_regime_grid(data)
+
+    off = _S7_후보_국면(data, dates, regime_grid=None)
+    off_blocked = [
+        (name, t, d)
+        for name, t, d in off
+        if not is_strategy_allowed(name, regime_at(grid, t, d), None)
+    ]
+    if not off_blocked:
+        pytest.skip("이 캐시 구간에는 차단 국면 후보가 없어 게이트를 검증할 수 없다")
+
+    on = _S7_후보_국면(data, dates, regime_grid=grid)
+    on_blocked = [
+        (name, t, d)
+        for name, t, d in on
+        if not is_strategy_allowed(name, regime_at(grid, t, d), None)
+    ]
+
+    assert on_blocked == [], (
+        f"게이트를 켰는데 차단 국면 후보가 {len(on_blocked)}건 남았다. "
+        f"(게이트 해제 시 {len(off_blocked)}건) regime 주입을 확인하라"
+    )
