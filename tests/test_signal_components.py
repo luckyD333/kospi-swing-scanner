@@ -145,9 +145,9 @@ def test_strategy_three_low_volume_warn():
     assert vol["status"] == "warn"
 
 
-def test_strategy_three_30m_uses_same_rules():
+def test_strategy_three_1h_uses_same_rules():
     metadata = {"breakout_pct": 0.03, "vol_ratio": 2.0}
-    components = build_signal_components(metadata, "strategy_three_30m")
+    components = build_signal_components(metadata, "strategy_three_1h")
     assert len(components) == 2
 
 

@@ -35,14 +35,13 @@ from core.indicators import calc_atr, latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
 from ._trade_plan_apply import apply_dynamic_trade_plan
-from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+from .price_utils import floor_to_tick, round_to_tick
 
 logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
     "1D": "strategy_five_bull_flag",
     "1h": "strategy_five_bull_flag_1h",
-    "30m": "strategy_five_bull_flag_30m",
 }
 
 
@@ -56,7 +55,6 @@ class StrategyFiveConfig:
     stop_loss_pct: float = 0.025
     min_bars: int = 35
     min_daily_volume: int = 100_000
-    use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
 
 
 class StrategyFiveBullFlag:
@@ -176,9 +174,6 @@ class StrategyFiveBullFlag:
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
-                df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
-                limit_entry, limit_stop = populate_limit_fields(df_30m, entry, stop_loss)
-
                 # Entry gate: 1d regime + 1h setup_score (추세 추종 setup)
                 regime = ctx.per_ticker_regime.get(ticker)
                 d_1h = ctx.donchian_1h_by_ticker.get(ticker)
@@ -204,8 +199,6 @@ class StrategyFiveBullFlag:
                     stop_loss=stop_loss,
                     target_1=t1,
                     target_2=t2,
-                    limit_entry=limit_entry,
-                    limit_stop=limit_stop,
                     market_cap_bil=cap_bil,
                     volume_20d_avg=avg_volume,
                     conditions_met={

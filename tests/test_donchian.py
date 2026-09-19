@@ -365,20 +365,6 @@ class TestEdgeCases:
         assert result.period == 10
         assert result.timeframe == "1h"
 
-    def test_timeframe_30m(self):
-        """30m timeframe"""
-        data = pd.DataFrame({
-            "open": list(range(100, 121)),
-            "high": list(range(101, 122)),
-            "low": list(range(99, 120)),
-            "close": list(range(100, 121)),
-            "volume": [1000] * 21,
-        })
-        result = compute_donchian(data, timeframe="30m", period=20)
-
-        assert result is not None
-        assert result.timeframe == "30m"
-
     def test_nan_in_data(self):
         """NaN 포함 데이터 → 계산 여전히 가능 (pandas rolling 처리)"""
         closes = list(range(100, 115)) + [np.nan] + list(range(115, 121))

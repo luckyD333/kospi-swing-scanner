@@ -130,7 +130,6 @@ class TestResampling:
 
 class TestSupportedTimeframes:
     def test_all_timeframes_are_supported(self):
-        assert "30m" in SUPPORTED_TIMEFRAMES
         assert "1h" in SUPPORTED_TIMEFRAMES
         assert "2h" in SUPPORTED_TIMEFRAMES
         assert "4h" in SUPPORTED_TIMEFRAMES

@@ -41,7 +41,7 @@ def _make_client():
 def test_no_cache_root_uses_7day_minute_window():
     """cache_root 미지정 시 1m window는 7일 (기존 동작)."""
     cfg = RunnerConfig(
-        timeframes=["30m"],
+        timeframes=["1h"],
         cache_root=None,
         lookback_days=60,
         max_universe_size=2,
@@ -96,7 +96,7 @@ def test_cache_root_pins_minute_start_to_fixed_window(tmp_path):
         ohlcv_sources=[_OneSrc()],
     )
     cfg = RunnerConfig(
-        timeframes=["30m"],
+        timeframes=["1h"],
         cache_root=tmp_path / ".cache",
         lookback_days=60,
         max_universe_size=2,

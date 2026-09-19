@@ -175,31 +175,24 @@ _STRATEGY_LABELS: dict[str, tuple[str, str]] = {
     "strategy_one_d_v2":      _STRATEGY_ONE_LABEL,
     "strategy_one_w_v2":      _STRATEGY_ONE_LABEL,
     "strategy_one_1h_v2":     _STRATEGY_ONE_LABEL,
-    "strategy_one_30m_v2":    _STRATEGY_ONE_LABEL,
     "strategy_one_d_v2_r1":   _STRATEGY_ONE_LABEL,
     "strategy_one_d_v2_r2":   _STRATEGY_ONE_LABEL,
     "strategy_one_w_v2_r1":   _STRATEGY_ONE_LABEL,
     "strategy_one_w_v2_r2":   _STRATEGY_ONE_LABEL,
     "strategy_one_1h_v2_r1":  _STRATEGY_ONE_LABEL,
     "strategy_one_1h_v2_r2":  _STRATEGY_ONE_LABEL,
-    "strategy_one_30m_v2_r1": _STRATEGY_ONE_LABEL,
-    "strategy_one_30m_v2_r2": _STRATEGY_ONE_LABEL,
     # 전략 2: Cross-sectional Momentum
     "strategy_two_cross_sectional_momentum": ("STRATEGY TWO", "MOMENTUM"),
     "strategy_two_1h":  ("STRATEGY TWO", "MOMENTUM"),
-    "strategy_two_30m": ("STRATEGY TWO", "MOMENTUM"),
     # 전략 3: Trend Following (Donchian)
     "strategy_three_trend_following": ("STRATEGY THREE", "TREND FOLLOWING"),
     "strategy_three_1h":  ("STRATEGY THREE", "TREND FOLLOWING"),
-    "strategy_three_30m": ("STRATEGY THREE", "TREND FOLLOWING"),
     # 전략 4: Pullback to MA
     "strategy_four_pullback_ma":     ("STRATEGY FOUR", "PULLBACK MA"),
     "strategy_four_pullback_ma_1h":  ("STRATEGY FOUR", "PULLBACK MA"),
-    "strategy_four_pullback_ma_30m": ("STRATEGY FOUR", "PULLBACK MA"),
     # 전략 5: Bull Flag
     "strategy_five_bull_flag":     ("STRATEGY FIVE", "BULL FLAG"),
     "strategy_five_bull_flag_1h":  ("STRATEGY FIVE", "BULL FLAG"),
-    "strategy_five_bull_flag_30m": ("STRATEGY FIVE", "BULL FLAG"),
     # 전략 6: Channel Grid (추세선·채널 격자)
     "strategy_six_channel_grid": ("STRATEGY SIX", "CHANNEL GRID"),
     "strategy_six_channel_grid_w": ("STRATEGY SIX", "CHANNEL GRID"),
@@ -233,8 +226,6 @@ _ETF_DEDUP_STRIP_TOKENS = ("레버리지", "(합성)", "합성", "(H)")
 def _infer_timeframe_from_id(strategy_id: str) -> str:
     """strategy_id 토큰으로 timeframe 추정. Candidate.timeframe 이 비어있을 때 fallback."""
     sid = strategy_id.lower()
-    if "_30m" in sid:
-        return "30m"
     if "_1h" in sid:
         return "1h"
     if "_w_v2" in sid or sid.endswith("_w") or "_1w" in sid:
@@ -292,7 +283,7 @@ def _format_target_display(target_date: str | None, now_kst: datetime) -> str:
 
 
 def _timeframe_sort_key(tf: str) -> tuple[int, str]:
-    order = {"1D": 0, "1W": 1, "1h": 2, "30m": 3}
+    order = {"1D": 0, "1W": 1, "1h": 2}
     return (order.get(tf, 99), tf)
 
 
@@ -570,7 +561,7 @@ def build_signals_payload(
             # 1D/1W 풀: aggregator 팩터(fundamentals, momentum_3m, regime)가 1D 개념
             # Intraday 풀: 1D/1W 에 없는 ticker 를 별도 pool 로 독립 ranking
             _RANKING_TFS = {"1D", "1W"}
-            _INTRADAY_TFS = {"1h", "30m"}
+            _INTRADAY_TFS = {"1h"}
             best_per_ticker: dict[str, object] = {}
             for _sid, c in all_candidates:
                 if _infer_timeframe_from_id(_sid) not in _RANKING_TFS:
@@ -698,11 +689,6 @@ def build_signals_payload(
         if t2 is not None and entry > 0 and (t2 - t1) < entry * 0.015:
             t2 = None
 
-        limit_entry_raw = getattr(c, "limit_entry", None)
-        limit_stop_raw  = getattr(c, "limit_stop", None)
-        limit_entry = int(limit_entry_raw) if limit_entry_raw else None
-        limit_stop  = int(limit_stop_raw)  if limit_stop_raw  else None
-
         rr_ratio = float(meta.get("rr_ratio", 0.0))
         rr_band_raw = str(meta.get("rr_band", "below")).lower()
         rr_band = _BAND_MAP.get(rr_band_raw, "UNDER")
@@ -778,7 +764,7 @@ def build_signals_payload(
             except (TypeError, ValueError):
                 _es_val = None
             # 상황별 holding 추천 (data/holding_recommendations.json lookup).
-            # 현재 추천표는 1D 백테스트 기반이므로 1h/30m/1W 에는 노출하지 않는다.
+            # 현재 추천표는 1D 백테스트 기반이므로 1h/1W 에는 노출하지 않는다.
             _hold_rec = None
             _holding_strategy = _canonical_holding_strategy(c.strategy, tf)
             if _holding_strategy is not None:
@@ -841,8 +827,8 @@ def build_signals_payload(
             (market_regime or {}).get("1d", {}).get("regime") or None
         )
 
-        # PR-C (P1-1): 주문 타입 의도 분류 — limit_entry 우선, 없으면 entry 사용
-        ref_entry = float(limit_entry if limit_entry else entry)
+        # PR-C (P1-1): 주문 타입 의도 분류
+        ref_entry = float(entry)
         try:
             order_intent = (
                 classify_order_type(ref_entry, float(cp))
@@ -852,10 +838,10 @@ def build_signals_payload(
             order_intent = OrderTypeIntent.IMMEDIATE
         order_label_ko = korean_label(order_intent)
 
-        # 감사 F6 (WF 검증 4da6020): limit 부재 + 시장가 의도 → 갭상승 추격 상한.
+        # 감사 F6 (WF 검증 4da6020): 시장가 의도 → 갭상승 추격 상한.
         # T+1 시가가 max_chase 초과면 진입 보류 — '시장가' 대신 상한 지정가 안내
         max_chase: int | None = None
-        if limit_entry is None and order_intent == OrderTypeIntent.IMMEDIATE:
+        if order_intent == OrderTypeIntent.IMMEDIATE:
             max_chase = floor_to_tick(float(entry) * (1 + _MAX_CHASE_GAP_PCT))
             order_label_ko = "상한 지정가"
 
@@ -881,7 +867,6 @@ def build_signals_payload(
             trade_plan=TradePlan(
                 entry=entry, stop=stop, target_1=t1, target_2=t2,
                 rr_ratio=rr_ratio, rr_band=rr_band, atr_14=atr_14, rsi_14=rsi_14,
-                limit_entry=limit_entry, limit_stop=limit_stop,
                 order_type_intent=order_intent.value,
                 order_type_label_ko=order_label_ko,
                 max_chase=max_chase,
@@ -932,7 +917,7 @@ def build_signals_payload(
         """
         status = compute_signal_status(
             current_price=sig.live_quote.current_price,
-            stop=sig.trade_plan.limit_stop or sig.trade_plan.stop,
+            stop=sig.trade_plan.stop,
             target_1=sig.trade_plan.target_1,
             signal_date_str=sig.signal_date,
             timeframe=sig.strategy.timeframe,

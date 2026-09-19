@@ -3,8 +3,7 @@ core/decision/multi_timeframe.py — 멀티 TF RSI 역할 분리 헬퍼 (PR-I).
 
 역할:
   1D  → 추세 게이트 (StrategyD rsi_oversold 조건에서 이미 처리)
-  1h  → 진입 트리거 정밀도 (score 가산 1회)
-  30m → 과열 감지 (RSI 80+ 시 페널티)
+  1h  → 진입 트리거 정밀도 (score 가산 1회) + 과열 감지 (RSI 80+ 시 페널티)
 
 동시 과열/과매도:
   모든 유효 TF 가 동시에 RSI > 80 이거나 RSI < 20 이면 confirmation × 0.85.

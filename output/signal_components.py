@@ -18,31 +18,24 @@ _STRATEGY_ID_BASE: dict[str, str] = {
     "strategy_one_d_v2":      "strategy_one",
     "strategy_one_w_v2":      "strategy_one",
     "strategy_one_1h_v2":     "strategy_one",
-    "strategy_one_30m_v2":    "strategy_one",
     "strategy_one_d_v2_r1":   "strategy_one",
     "strategy_one_d_v2_r2":   "strategy_one",
     "strategy_one_w_v2_r1":   "strategy_one",
     "strategy_one_w_v2_r2":   "strategy_one",
     "strategy_one_1h_v2_r1":  "strategy_one",
     "strategy_one_1h_v2_r2":  "strategy_one",
-    "strategy_one_30m_v2_r1": "strategy_one",
-    "strategy_one_30m_v2_r2": "strategy_one",
 
     "strategy_two_cross_sectional_momentum": "strategy_two",
     "strategy_two_1h":  "strategy_two",
-    "strategy_two_30m": "strategy_two",
 
     "strategy_three_trend_following": "strategy_three",
     "strategy_three_1h":  "strategy_three",
-    "strategy_three_30m": "strategy_three",
 
     "strategy_four_pullback_ma":     "strategy_four",
     "strategy_four_pullback_ma_1h":  "strategy_four",
-    "strategy_four_pullback_ma_30m": "strategy_four",
 
     "strategy_five_bull_flag":     "strategy_five",
     "strategy_five_bull_flag_1h":  "strategy_five",
-    "strategy_five_bull_flag_30m": "strategy_five",
 
     "strategy_six_channel_grid": "strategy_six",
     "strategy_six_channel_grid_w": "strategy_six",

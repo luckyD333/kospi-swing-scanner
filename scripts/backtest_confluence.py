@@ -12,7 +12,7 @@ OOS hold-out confluence 백테스트.
   - 결과: confluence bucket (1-전략 / 2-전략 / 3+-전략) 별 승률·평균PnL·PF 비교
 
 주의:
-  - TF 변형(1h/30m)은 포함하지 않음 — base strategy(1D)만 카운트
+  - TF 변형(1h)은 포함하지 않음 — base strategy(1D)만 카운트
   - 동일 종목이 같은 전략에서 중복 신호 시 1회만 카운트
 """
 from __future__ import annotations

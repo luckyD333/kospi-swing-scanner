@@ -81,7 +81,7 @@ DEFAULT_WEIGHTS = RegretWeights()
 
 # TF별 신호강도 가중치 배율 (1D 기준 1.0)
 _TF_SIGNAL_FACTOR: dict[str, float] = {
-    "1D": 1.0, "1W": 1.0, "1h": 0.7, "30m": 0.5,
+    "1D": 1.0, "1W": 1.0, "1h": 0.7,
 }
 # 4-Score 합성 기본 가중치 — timing-study confluence 반영 (2026-05-18)
 # 직전(KOSDAQ Rank 1 sig_heavy): opp=0.20, pot=0.23, sig=0.57
@@ -96,8 +96,6 @@ _W_ENS: float = 0.20        # ensemble (weighted strategy confluence)
 def _infer_tf(strategy_id: str) -> str:
     """strategy_id 토큰으로 timeframe 추정 (signals_builder._infer_timeframe_from_id 동일 로직)."""
     sid = (strategy_id or "").lower()
-    if "_30m" in sid:
-        return "30m"
     if "_1h" in sid:
         return "1h"
     if "_w_v2" in sid or sid.endswith("_w") or "_1w" in sid:

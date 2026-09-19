@@ -102,7 +102,7 @@ from backtest_engine.strategy import StrategyDConfig
 
 screener = MultiTimeframeScreener(
     strategy_config=StrategyDConfig(min_lookback_bars=25),
-    timeframes=["30m", "1h", "2h", "4h", "1D"],
+    timeframes=["1h", "2h", "4h", "1D"],
 )
 
 # universe = {ticker: {timeframe: DataFrame}}

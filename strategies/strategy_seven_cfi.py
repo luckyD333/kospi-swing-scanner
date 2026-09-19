@@ -36,7 +36,7 @@ from core.strategy_base import Candidate, ScanContext
 from ._atr_stop import compute_atr_stop
 from ._cfi import cfi_direction, heikin_ashi, last_wave_fib, volume_poc
 from ._trade_plan_apply import apply_dynamic_trade_plan
-from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+from .price_utils import floor_to_tick, round_to_tick
 
 logger = logging.getLogger(__name__)
 
@@ -201,9 +201,6 @@ class StrategySevenCfi:
         rr_band = "below" if rr_ratio < 2.0 else ("sweet" if rr_ratio < 2.5 else "over")
         avg_vol_20 = float(volume[max(0, t - 19):t + 1].mean())
         cap_bil = float(ctx.market_caps.get(ticker, 0.0)) / 100_000_000
-        df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
-        limit_entry, limit_stop = populate_limit_fields(df_30m, entry, stop_loss)
-
         return Candidate(
             ticker=ticker,
             name=ctx.names.get(ticker, ticker),
@@ -214,8 +211,6 @@ class StrategySevenCfi:
             stop_loss=stop_loss,
             target_1=target_1,
             target_2=target_2,
-            limit_entry=limit_entry,
-            limit_stop=limit_stop,
             market_cap_bil=cap_bil,
             volume_20d_avg=avg_vol_20,
             conditions_met={

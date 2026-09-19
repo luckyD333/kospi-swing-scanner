@@ -13,7 +13,6 @@ core/decision/entry_gate.py — 전략별 entry gate 정책 매트릭스.
 위계 원칙:
   - 1d regime은 환경 게이트 (Yes/No)
   - 1h setup_score는 메타 정보 (품질 점수)
-  - 30m은 실행 가격 산출 (Task 5d)
 
 Calibration (Phase 2):
   - STRONG_SETUP_THRESHOLD = 60 (adjust via weights.yml or CLI flag)
@@ -147,9 +146,8 @@ def _normalize_family(strategy_id: str) -> str:
         - strategy_one_d_v2 → strategy_one
         - strategy_one_w_v2 → strategy_one
         - strategy_two_1h → strategy_two
-        - strategy_three_30m_v2 → strategy_three
         - strategy_four_pullback_ma_1h → strategy_four
-        - strategy_five_bull_flag_30m → strategy_five
+        - strategy_five_bull_flag_1h → strategy_five
     """
     for family in (
         "strategy_one",

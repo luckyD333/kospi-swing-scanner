@@ -1,7 +1,7 @@
 """
 core/decision/donchian.py — Donchian 채널 분석 (Multi-TF).
 
-DonchianFrame dataclass: 시간대별(1d/1h/30m) 채널 위치·폭·기울기·신호 정보.
+DonchianFrame dataclass: 시간대별(1d/1h) 채널 위치·폭·기울기·신호 정보.
 compute_donchian: OHLCV 시계열 → DonchianFrame 계산.
 
 특징:
@@ -21,7 +21,7 @@ import pandas as pd
 class DonchianFrame:
     """시간대별 Donchian 채널 분석 결과."""
 
-    timeframe: str  # "1d" / "1h" / "30m"
+    timeframe: str  # "1d" / "1h"
     period: int  # 기본 20
 
     # 채널 경계
@@ -52,7 +52,7 @@ def compute_donchian(
 
     Args:
         ohlcv: columns=[open/high/low/close/volume], index=시간순
-        timeframe: "1d" / "1h" / "30m"
+        timeframe: "1d" / "1h"
         period: Donchian lookback (기본 20)
         width_window: width_percentile_60 계산 윈도우 (기본 60)
         slope_window: slope 계산 윈도우 (기본 5)

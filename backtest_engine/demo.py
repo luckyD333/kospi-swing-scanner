@@ -7,7 +7,7 @@ demo.py — 백테스트 엔진 + 스크리너 통합 실행 데모
 동작:
   1. 6가지 시나리오별 백테스트 + 결과 출력
   2. 3가지 detector 구현 비교 백테스트
-  3. 여러 타임프레임(30m/1h/2h/4h/1D) 스크리너 데모
+  3. 여러 타임프레임(1h/2h/4h/1D) 스크리너 데모
   4. 가상 multi-ticker 유니버스 스크리닝 → 매수/매도/손절 가격 출력
 """
 from __future__ import annotations
@@ -163,7 +163,7 @@ def demo_detector_comparison():
 
 def _make_ticker_data(base_scenario_func, _ticker_name: str, seed: int):
     """타임프레임별 동일 패턴의 가상 데이터 생성"""
-    # 30m/1h/2h/4h/1D 모두 같은 시나리오의 복사본 (freq만 변경)
+    # 1h/2h/4h/1D 모두 같은 시나리오의 복사본 (freq만 변경)
     data = {}
     # 1D 시나리오에서 시작
     scenario_1d = base_scenario_func(freq="1D", seed=seed)
@@ -171,7 +171,7 @@ def _make_ticker_data(base_scenario_func, _ticker_name: str, seed: int):
 
     # 다른 타임프레임은 1D 데이터를 복제하되 index만 달리 부여
     n = len(scenario_1d.df)
-    for tf, periods in [("30m", "30min"), ("1h", "1h"), ("2h", "2h"), ("4h", "4h")]:
+    for tf, periods in [("1h", "1h"), ("2h", "2h"), ("4h", "4h")]:
         df_tf = scenario_1d.df.copy()
         df_tf.index = pd.date_range(
             start=datetime(2026, 1, 5, 9, 0),

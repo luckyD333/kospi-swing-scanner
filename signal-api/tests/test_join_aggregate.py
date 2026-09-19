@@ -20,10 +20,10 @@ def fixture_486290_entries():
             "live_quote": {"current_price": 11300, "change_pct": 1.5, "volume": 100000},
             "external_links": {"href": "https://example.com"},
             "strategy": {
-                "id": "strategy_two_30m",
+                "id": "strategy_two_1h",
                 "label": "STRATEGY TWO",
                 "category": "MOMENTUM",
-                "timeframe": "30m",
+                "timeframe": "1h",
             },
             "trade_plan": {"entry": 11300, "stop": 11000, "target_1": 11600, "target_2": 12000},
             "ranking": {
@@ -51,10 +51,10 @@ def fixture_486290_entries():
             "live_quote": {"current_price": 11300, "change_pct": 1.5, "volume": 100000},
             "external_links": {"href": "https://example.com"},
             "strategy": {
-                "id": "strategy_four_pullback_ma_30m",
+                "id": "strategy_four_pullback_ma_1h",
                 "label": "STRATEGY FOUR",
                 "category": "PULLBACK",
-                "timeframe": "30m",
+                "timeframe": "1h",
             },
             "trade_plan": {"entry": 11280, "stop": 11150, "target_1": 11500, "target_2": 11800},
             "ranking": {
@@ -204,7 +204,7 @@ def test_aggregate_entries_for_ticker_multi_strategy(fixture_486290_entries):
 
     # 첫 번째 match (strategy_two)
     match_0 = result["matches"][0]
-    assert match_0["strategy"]["id"] == "strategy_two_30m"
+    assert match_0["strategy"]["id"] == "strategy_two_1h"
     assert match_0["signal_strength"] == 84.6
     assert match_0["opportunity_score"] == 44.6
     assert isinstance(match_0["opportunity_factors"], list)
@@ -214,7 +214,7 @@ def test_aggregate_entries_for_ticker_multi_strategy(fixture_486290_entries):
 
     # 두 번째 match (strategy_four)
     match_1 = result["matches"][1]
-    assert match_1["strategy"]["id"] == "strategy_four_pullback_ma_30m"
+    assert match_1["strategy"]["id"] == "strategy_four_pullback_ma_1h"
     assert match_1["signal_strength"] == 67.3
     assert match_1["opportunity_score"] == 32.1
     assert match_1["trade_plan"]["entry"] == 11280

@@ -77,7 +77,6 @@ export interface DetailProps {
   marketCapDisplay_detail?: string | null;
   rsi1d: number | null;
   rsi1h: number | null;
-  rsi30m: number | null;
   atr14: number | null;
   confirmationLevel: string | null;
   activeRegime: string | null;
@@ -101,8 +100,8 @@ export interface CardProps {
   priceDisplay: string;
   changeDisplay: string;
   direction: 'up' | 'down' | 'flat';
-  entry: number;                 // UI 주 진입가 (limit_entry 있으면 limit_entry, 없으면 EOD 종가)
-  stop: number;                  // UI 주 손절가 (limit_stop 또는 원래 stop)
+  entry: number;                 // UI 주 진입가 (EOD 종가)
+  stop: number;                  // UI 주 손절가
   target1: number | null;
   target2: number | null;
   score: number | null;
@@ -129,7 +128,6 @@ export interface CardProps {
   rsi: number | null;
   rsi1d: number | null;
   rsi1h: number | null;
-  rsi30m: number | null;
   naverUrl: string | null;
   generatedAtDisplay: string;
   signalDate: string | null;
@@ -143,14 +141,11 @@ export interface CardProps {
   decisionRegretFactors: RegretFactor[] | null;  // 기회 점수 4축 breakdown
   rank: number | null;
   allStrategyTags?: Array<{ label: string; timeframe: string }>;
-  // 30m limit_entry 활성 여부와 EOD 참고값
-  limitEntryActive: boolean;     // limit_entry/limit_stop 적용 여부
-  eodEntry: number | null;       // 원래 EOD 종가 진입가 (limit 활성 시 보조 표시)
   signalStatus: SignalStatus;    // VALID | TARGET_REACHED | STOPPED_OUT | STALE
   // PR-C (P1-1): 주문 타입 의도
   orderTypeIntent: string | null;
   orderTypeLabel: string | null;
-  maxChase: number | null;       // 감사 F6: 갭상승 추격 상한 (limit 부재 + IMMEDIATE 한정)
+  maxChase: number | null;       // 감사 F6: 갭상승 추격 상한 (IMMEDIATE 한정)
   // PR-B (P0-2): 상품 유형 + 풀
   productType: string | null;
   pool: string | null;
@@ -284,7 +279,6 @@ export function adaptDetailV2(raw: any): DetailProps {
     matches,
     rsi1d: firstMatch?.trade_plan?.rsi_1d ?? null,
     rsi1h: firstMatch?.trade_plan?.rsi_1h ?? null,
-    rsi30m: firstMatch?.trade_plan?.rsi_30m ?? null,
     atr14: firstMatch?.trade_plan?.atr_14 ?? null,
     confirmationLevel: raw.confirmation_level ?? null,
     activeRegime: raw.active_regime ?? null,
@@ -363,7 +357,6 @@ export function adaptDetailLegacy(raw: any): DetailProps {
     matches: [match],
     rsi1d: card.rsi1d,
     rsi1h: card.rsi1h,
-    rsi30m: card.rsi30m,
     atr14: card.atr14,
     confirmationLevel: card.confirmationLevel,
     activeRegime: card.activeRegime,
@@ -409,34 +402,14 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
       ? 'warn'
       : 'ok';
 
-  // limit_entry 활성 여부에 따라 표시값 분기
-  const limitEntryActive =
-    tp.limit_entry != null && tp.limit_stop != null;
-  const displayEntry = limitEntryActive ? tp.limit_entry! : tp.entry;
-  const displayStop = limitEntryActive ? tp.limit_stop! : tp.stop;
-  const displayRrRatio = limitEntryActive
-    ? (tp.rr_ratio_limit ?? null)
-    : (tp.rr_ratio ?? null);
-  const displayRrBand = limitEntryActive
-    ? (tp.rr_band_limit ?? null)
-    : (tp.rr_band ?? null);
-
-  // limit 활성 시 risk/reward 도 limit 기준 재계산
-  const displayRiskPerShare = limitEntryActive
-    ? displayEntry - displayStop
-    : (der?.risk_per_share ?? null);
-  const displayRiskPct =
-    limitEntryActive && displayEntry > 0
-      ? Math.round(((displayEntry - displayStop) / displayEntry) * 10000) / 100
-      : (der?.risk_pct ?? null);
-  const displayReward1Pct =
-    limitEntryActive && displayEntry > 0 && tp.target_1 != null
-      ? Math.round(((tp.target_1 - displayEntry) / displayEntry) * 10000) / 100
-      : (der?.reward_1_pct ?? null);
-  const displayReward2Pct =
-    limitEntryActive && displayEntry > 0 && tp.target_2 != null
-      ? Math.round(((tp.target_2 - displayEntry) / displayEntry) * 10000) / 100
-      : (der?.reward_2_pct ?? null);
+  const displayEntry = tp.entry;
+  const displayStop = tp.stop;
+  const displayRrRatio = tp.rr_ratio ?? null;
+  const displayRrBand = tp.rr_band ?? null;
+  const displayRiskPerShare = der?.risk_per_share ?? null;
+  const displayRiskPct = der?.risk_pct ?? null;
+  const displayReward1Pct = der?.reward_1_pct ?? null;
+  const displayReward2Pct = der?.reward_2_pct ?? null;
 
   return {
     ticker: signal.ticker,
@@ -471,7 +444,6 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     rsi: tp.rsi_14 ?? null,
     rsi1d: tp.rsi_1d ?? (signal.strategy.timeframe === '1D' ? tp.rsi_14 : null),
     rsi1h: tp.rsi_1h ?? (signal.strategy.timeframe === '1h' ? tp.rsi_14 : null),
-    rsi30m: tp.rsi_30m ?? (signal.strategy.timeframe === '30m' ? tp.rsi_14 : null),
     strategyId: signal.strategy.id,
     strategyLabel: formatStrategyLabel(signal.strategy.id, signal.strategy.label),
     strategyCategory: signal.strategy.category ?? '',
@@ -494,8 +466,6 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
       ?? null,
     decisionRegretFactors: signal.ranking?.decision?.regret_factors ?? null,
     rank: signal.ranking?.rank ?? null,
-    limitEntryActive,
-    eodEntry: limitEntryActive ? tp.entry : null,
     signalStatus: signal.signal_status ?? 'VALID',
     orderTypeIntent: tp.order_type_intent ?? null,
     orderTypeLabel: tp.order_type_label_ko ?? null,

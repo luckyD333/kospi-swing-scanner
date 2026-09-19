@@ -65,7 +65,7 @@ def canonical_holding_strategy(
     """런타임 strategy id 를 holding 백테스트 strategy key 로 변환.
 
     현재 data/holding_recommendations.json 은 1D 백테스트 기반 전략군 key
-    (S1_MeanReversion 등) 만 가진다. 1h/30m/1W 신호에는 같은 값을 억지
+    (S1_MeanReversion 등) 만 가진다. 1h/1W 신호에는 같은 값을 억지
     환산하지 않기 위해 None 을 반환한다.
     """
     if timeframe is not None and timeframe != "1D":

@@ -5,8 +5,8 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 ## Tech Stack
 - **Runtime**: Python 3.10+
 - **Core**: pandas, numpy, scipy
-- **Data sources**: 네이버 금융 — `stock.naver.com` 주식 목록 JSON(KOSPI/KOSDAQ 종목·시총·거래량·PER/ROE/외인비율) + `etfItemList`(ETF) + `siseJson` API + `m.stock` 지수·`marketIndex/productDetail`(USD/KRW, WTI, 국고채3Y) + VIX(yfinance). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
-- **Test**: pytest (현재 1356개, 날짜 의존 기존 실패 3건 제외 1353 통과)
+- **Data sources**: 네이버 금융 — `stock.naver.com` 주식 목록 JSON(KOSPI/KOSDAQ 종목·시총·거래량·PER/ROE/외인비율) + `etfItemList`(ETF) + `siseJson` API + `m.stock` 지수·`marketIndex/productDetail`(USD/KRW, WTI, 국고채3Y) + VIX(yfinance). 1D/1m raw, 1h/4h는 1m 리샘플링.
+- **Test**: pytest (현재 1323개, 날짜 의존 기존 실패 3건 제외 1313 통과)
 
 ## Project Structure
 - `cli.py` — CLI 진입점 (스캔 + Phase 2 가중치 인터뷰 모드 `--interview`)
@@ -40,7 +40,7 @@ pip install -r requirements.txt
 python -m backtest_engine.demo
 
 # Job A: 시장 데이터 수집 (장 마감 후 1회) — KOSPI/KOSDAQ + ETF + 매크로
-python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1W 1h 30m
+python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1W 1h
 
 # Job B: 전략 실행 + UI 직접 소비 포맷 (signals.json 생성, SSOT)
 python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui
@@ -54,17 +54,17 @@ python cli.py --interview
 ```
 
 ## Available Strategies
-- `strategy_one_d_v2` (+ `_w_v2`/`_1h_v2`/`_30m_v2`) — Mean Reversion (RSI+BB+쌍바닥+장악형 양봉)
+- `strategy_one_d_v2` (+ `_w_v2`/`_1h_v2`) — Mean Reversion (RSI+BB+쌍바닥+장악형 양봉)
 - `strategy_one_*_r1` / `_r2` — 동일 전략 fallback 변형(engulf_strict 완화, db_freshness=4). 0건 시 자동 시도
-- `strategy_two_cross_sectional_momentum` (+ `_1h`/`_30m`) — Jegadeesh-Titman 15일 상대 수익률
-- `strategy_three_trend_following` (+ `_1h`/`_30m`) — Donchian 20일 채널 돌파
-- `strategy_four_pullback_ma` (+ `_1h`/`_30m`) — MA20 추세 + MA5 눌림목 회복
-- `strategy_five_bull_flag` (+ `_1h`/`_30m`) — Flagpole +8% → flag 거래량 수축 → 돌파
+- `strategy_two_cross_sectional_momentum` (+ `_1h`) — Jegadeesh-Titman 15일 상대 수익률
+- `strategy_three_trend_following` (+ `_1h`) — Donchian 20일 채널 돌파
+- `strategy_four_pullback_ma` (+ `_1h`) — MA20 추세 + MA5 눌림목 회복
+- `strategy_five_bull_flag` (+ `_1h`) — Flagpole +8% → flag 거래량 수축 → 돌파
 - `strategy_six_channel_grid` — 추세선·채널 격자. 고점 2개 하락 추세선(레벨 0) 상향 돌파 후 격자선/상승 지지선을 위에서 리테스트하면 매수. 일봉 + 주봉(`strategy_six_channel_grid_w`, 같은 봉 수 규칙). 주봉 80봉 확보를 위해 일봉 수집·스캔 깊이 2년(`_DAILY_HISTORY_FLOOR_DAYS=760`, runner/cli `lookback_days=600`). HMM 국면 창은 `REGIME_LOOKBACK_DAYS=180` 으로 고정. 목표가는 선 값(`apply_dynamic_trade_plan` 미호출)
 - `strategy_seven_cfi` — CFI 하이킨아시 추세 전환. 하이킨아시 종가가 직전 5봉 하이킨아시 채널 상단을 넘어 추세 방향이 하락에서 상승으로 바뀐 봉에서 매수. 매물대 POC 상단 또는 직전 파동 피보나치 61.8% 밴드 중 하나를 충족해야 통과. 일봉 전용, 매물대 룩백 200봉 때문에 215봉 필요. 손절가는 추적 손절선 tsl 을 `trade_plan_support_floor` 로 넘겨 하한 보장 (원본: TradingView Pine Script "CLUVIC Favorite Indicator" 의 CFI기법)
 
 ## Verification
-변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1353개 이상 통과해야 함.
+변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1313개 이상 통과해야 함.
 `tests/test_signal_status_core.py` 3건은 날짜 의존으로 2026-09-19 이전부터 실패 중 — 별도 이슈.
 정적 분석: `.venv/bin/ruff check . --exclude .venv` 통과 유지.
 

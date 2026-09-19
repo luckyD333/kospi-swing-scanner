@@ -10,7 +10,7 @@ core/runner.py — 멀티 전략 + 멀티 타임프레임 스캔 오케스트레
 설계 결정:
   - 전략 인스턴스는 호출자가 주입 (Strategy Protocol 충족 + .timeframe 속성)
   - Cache 는 인스턴스 생명주기 = run() 1회. cache_root 주어지면 디스크 영속화.
-  - 30m/1h 는 1m fetch 후 resample. 1W 는 1D fetch 후 resample.
+  - 1h 는 1m fetch 후 resample. 1W 는 1D fetch 후 resample.
   - run() 안에서 예외 → 해당 전략만 실패 표시, 다른 전략은 계속 진행
 """
 from __future__ import annotations
@@ -512,7 +512,7 @@ class ScanRunner:
             )
             funnel["source_counts"][source] += 1
             return resample_to(df_d, "1W") if not df_d.empty else df_d
-        if tf in ("30m", "1h", "2h", "4h"):
+        if tf in ("1h", "2h", "4h"):
             # 분봉 end 는 YYYYMMDD2359 — 그 날 분봉 raw 끝까지 포함 (장중 미완료 분봉도)
             minute_end = f"{end_str}2359"
             source, df_m = cache.get_or_fetch_with_source(

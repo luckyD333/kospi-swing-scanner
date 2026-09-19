@@ -5,8 +5,8 @@ Plan: .claude/plans/active/2026-04-30-incremental-checkpoint-multi-timeframe.md 
 
 목적:
   - api.finance.naver.com/siseJson.naver?timeframe=X 가 어떤 X 를 지원하는지 확인
-  - "minute"·"1m"·"30m"·"1h" 응답 포맷이 어떤지 (rows·cols·sample)
-  - 결과로 plan 의 30m/1h scope 확정 여부 결정
+  - "minute"·"1m"·"1h" 응답 포맷이 어떤지 (rows·cols·sample)
+  - 결과로 plan 의 1h scope 확정 여부 결정
 
 사용:
   .venv/bin/python scripts/probe_naver_minute.py
@@ -59,7 +59,7 @@ def probe(timeframe: str, ticker: str = "005930"):
 
 
 if __name__ == "__main__":
-    for tf in ["day", "minute", "1m", "30m", "1h"]:
+    for tf in ["day", "minute", "1m", "1h"]:
         result = probe(tf)
         if "error" in result:
             print(f"[{tf}] ERROR: {result['error']}")

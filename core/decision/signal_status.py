@@ -33,11 +33,10 @@ def compute_signal_status(
       1. 장외 시간 (signal_date 거래일 ≠ 오늘 거래일) → STALE 또는 VALID
       2. 같은 거래일 + cp ≤ stop → STOPPED_OUT
       3. 같은 거래일 + cp ≥ target_1 → TARGET_REACHED
-      4. 장중 TF 신호 만료 (1h: 2봉, 30m: 2봉) → STALE
+      4. 장중 TF 신호 만료 (1h: 2봉) → STALE
       5. 그 외 → VALID
 
-    stop 인자: 호출자가 limit_stop 우선, 없으면 stop 으로 결정해서 전달.
-    timeframe: "1h" / "30m" 일 때 장중 신호 만료 감지 적용.
+    timeframe: "1h" 일 때 장중 신호 만료 감지 적용.
     """
     now = now or datetime.now(tz=_KST)
     today = now.date()
@@ -65,9 +64,9 @@ def compute_signal_status(
         return "TARGET_REACHED"
 
     # 장중 TF 신호 만료: 가격 미발동(VALID 후보) 상태에서만 검사
-    # 1h: 2봉(2h) 경과, 30m: 2봉(1h) 경과 → 재진입 기회 소멸로 간주
-    if sd_dt is not None and timeframe in ("1h", "30m"):
-        stale_hours = 2.0 if timeframe == "1h" else 1.0
+    # 1h: 2봉(2h) 경과 → 재진입 기회 소멸로 간주
+    if sd_dt is not None and timeframe == "1h":
+        stale_hours = 2.0
         age_hours = (now - sd_dt.astimezone(_KST)).total_seconds() / 3600
         if age_hours > stale_hours:
             return "STALE"

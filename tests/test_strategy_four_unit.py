@@ -131,7 +131,6 @@ def test_timeframe_name_mapping():
     """timeframe별 name 속성 정확성."""
     assert StrategyFourPullbackMa(timeframe="1D").name == "strategy_four_pullback_ma"
     assert StrategyFourPullbackMa(timeframe="1h").name == "strategy_four_pullback_ma_1h"
-    assert StrategyFourPullbackMa(timeframe="30m").name == "strategy_four_pullback_ma_30m"
 
 
 def test_invalid_timeframe_raises():

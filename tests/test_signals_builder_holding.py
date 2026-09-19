@@ -191,7 +191,7 @@ def test_signals_builder_maps_1d_runtime_strategy_to_holding_rec(mock_rec_file):
 
 
 def test_signals_builder_omits_holding_rec_for_intraday(mock_rec_file):
-    """signals_builder — 1h/30m 에는 1D holding 추천을 노출하지 않는다."""
+    """signals_builder — 1h 에는 1D holding 추천을 노출하지 않는다."""
     from output.signals_builder import build_signals_payload
 
     cand = _candidate("strategy_two_1h", timeframe="1h")

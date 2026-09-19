@@ -26,11 +26,6 @@ class TradePlan(BaseModel):
     rr_band: str | None = None
     atr_14: float | None = None
     derived: TradePlanDerived | None = None
-    # 30m 지지선 기반 권장 지정가 진입
-    limit_entry: float | None = None
-    limit_stop: float | None = None
-    rr_ratio_limit: float | None = None
-    rr_band_limit: str | None = None
     # PR-C (P1-1): 주문 타입 의도 분류
     order_type_intent: str | None = None    # BREAKOUT / PULLBACK / IMMEDIATE
     order_type_label_ko: str | None = None  # 역지정가 / 지정가 / 시장가

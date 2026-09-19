@@ -19,11 +19,11 @@ pip install -r requirements.txt
 | A: 시장 데이터 수집 | `python scripts/collect.py ...` | `.cache/{tf}/{ticker}.parquet` + `data/market_snapshot.json` | 매일 장 마감 후 1회 |
 | B-일봉 | `python cli.py --format signals_ui ...` | `data/signals.json` (SSOT) | Job A 완료 후 1회 |
 | E: 전략 성과 집계 | `python scripts/aggregate_strategy_performance.py ...` | `data/strategy_performance.json` | Job B 성공 직후 |
-| B-장중 (30m/1h) | `collect.py + cli.py 페어링` | `data/signals.json` | 장 중 30분마다 (09:01, 09:31 …) |
+| B-장중 (1h) | `collect.py + cli.py 페어링` | `data/signals.json` | 장 중 30분마다 (09:01, 09:31 …) |
 | C: 실시간 현재가 | `python scripts/collect_live.py` | `data/market_snapshot.json` 부분 갱신 | 장 중 2분마다 (09:00~15:59) |
 
-> **TF별 재계산 필요 주기**: 1D/1W 전략은 장 마감 후 1회로 충분. 30m/1h 전략은 새 캔들이 확정되는 시점마다 재실행이 필요해요.
-> 30m 파일은 디스크에 캐시되지 않고 매 실행마다 `.cache/1m/` parquet에서 리샘플링해 즉석 생성돼요.
+> **TF별 재계산 필요 주기**: 1D/1W 전략은 장 마감 후 1회로 충분. 1h 전략은 새 캔들이 확정되는 시점마다 재실행이 필요해요.
+> 1h 파일은 디스크에 캐시되지 않고 매 실행마다 `.cache/1m/` parquet에서 리샘플링해 즉석 생성돼요.
 
 #### Job A: 시장 데이터 수집
 
@@ -68,8 +68,8 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 # Job B + E (일봉): 스캔 성공 직후 같은 lock 안에서 성과 집계
 30 16 * * 1-5 cd /path/to/project && flock -n /tmp/kospi-scanner.lock sh -c '/path/to/project/.venv/bin/python cli.py --strategy all --cache-root .cache --format signals_ui --output-dir data && /path/to/project/.venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json'
 
-# Job B (장중): 30m/1h 전략 — bar close + 1분 지연 (09:01, 09:31, …, 15:31)
-1,31 9-15 * * 1-5 cd /path/to/project && /path/to/scripts/run_30m.sh
+# Job B (장중): 1h 전략 — bar close + 1분 지연 (09:01, 09:31, …, 15:31)
+1,31 9-15 * * 1-5 cd /path/to/project && /path/to/scripts/run_intraday.sh
 
 # Job C: 실시간 현재가 — 2분 주기 경량 갱신 (09:00~15:59)
 */2 9-15 * * 1-5 cd /path/to/project && /path/to/project/.venv/bin/python scripts/collect_live.py
@@ -92,7 +92,7 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 ### 매수 (BUY) 방법
 
 1. **시점**: 전날 장 마감 후 신호 생성 → 다음 거래일 **T+1 시초가(open) 매수**
-2. **가격**: `trade_plan.entry` (EOD 종가 기준 신호 가격). `limit_entry` 권장값 있으면 지정가. 없으면 `max_chase`(신호가 +3%, tick 내림) **상한 지정가** — T+1 시가가 max_chase 초과 갭상승이면 진입 보류 (WF 검증: 갭 추격 trade 는 순손실 집단, `docs/audit/trading_system_audit.md` F6)
+2. **가격**: `trade_plan.entry` (EOD 종가 기준 신호 가격). 시장가 의도일 때는 `max_chase`(신호가 +3%, tick 내림) **상한 지정가** — T+1 시가가 max_chase 초과 갭상승이면 진입 보류 (WF 검증: 갭 추격 trade 는 순손실 집단, `docs/audit/trading_system_audit.md` F6)
 3. **차단**: Detail 페이지에 **"진입 비추천 (강한 하락 추세)"** 표시되면 매수 X (per_ticker_regime = DOWNTREND_STRONG)
 4. **국면 가중치**: `weights.yml` 의 `strategy_weights_by_regime` 매트릭스로 BULL/NEUTRAL/BEAR 자동 조정. BEAR 에서 S5=0.0 자동 차단
 
@@ -201,7 +201,7 @@ UI 직접 소비. `_display` 서브객체로 포매팅 완료.
    │   ├─ strategy_three_trend_.. Donchian 20일 채널 돌파       │
    │   ├─ strategy_four_pullback_ma  MA20+MA5 눌림목 회복      │
    │   └─ strategy_five_bull_flag    Flagpole+8% → 압축 돌파   │
-   │   * 모든 전략 1D / 1h / 30m 변형 (자동 등록)               │
+   │   * 모든 전략 1D / 1h 변형 (자동 등록)                     │
    └──────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -251,11 +251,11 @@ kospi-swing-scanner/
 │
 ├── strategies/                       # 전략 구현체 (plug-in)
 │   ├── __init__.py                   # REGISTRY dict + autodiscover + FALLBACKS
-│   ├── strategy_one_d_v2.py          # Mean Reversion (1D/1W/1h/30m + r1/r2)
-│   ├── strategy_two_cross_sectional_momentum.py  # (1D/1h/30m)
-│   ├── strategy_three_trend_following.py         # (1D/1h/30m)
-│   ├── strategy_four_pullback_ma.py              # (1D/1h/30m)
-│   └── strategy_five_bull_flag.py                # (1D/1h/30m)
+│   ├── strategy_one_d_v2.py          # Mean Reversion (1D/1W/1h + r1/r2)
+│   ├── strategy_two_cross_sectional_momentum.py  # (1D/1h)
+│   ├── strategy_three_trend_following.py         # (1D/1h)
+│   ├── strategy_four_pullback_ma.py              # (1D/1h)
+│   └── strategy_five_bull_flag.py                # (1D/1h)
 │
 ├── output/                           # 출력 포맷터
 │   ├── formatters.py                 # table/json/csv/markdown/signals_ui
@@ -310,7 +310,7 @@ kospi-swing-scanner/
 | 종목 리스트 + 시총 + PER/ROE/외인비율 | 네이버 `stock.naver.com` 주식 목록 JSON | KOSPI/KOSDAQ, 시장별 1회 호출 |
 | ETF 유니버스 | 네이버 `etfItemList.nhn` JSON | 거래대금 상위 200 |
 | 일봉/분봉 OHLCV | 네이버 `siseJson` API (수정주가) | timeframe=day 또는 minute |
-| 30m / 1h / 4h | 네이버 1m → 리샘플링 | core/runner.py 내부 처리 |
+| 1h / 4h | 네이버 1m → 리샘플링 | core/runner.py 내부 처리 |
 | 시장 지수 | 네이버 `m.stock` `index/{code}/basic` JSON | KOSPI/KOSDAQ |
 | 매크로 지수 | 네이버 `m.stock` `marketIndex/productDetail` JSON | USD/KRW, WTI, 국고채3Y (VIX 는 yfinance) |
 | V-KOSPI | 증권플러스 `KOREA-O2901P` 일봉 JSON | F&G와 분리된 정보용 지표, 매수 판단 미반영 |

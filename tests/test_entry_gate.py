@@ -97,9 +97,9 @@ class TestIsStrategyAllowed:
 
     def test_range_tight_strategy_four(self):
         """strategy_four + RANGE_TIGHT → allow_strong_only."""
-        assert is_strategy_allowed("strategy_four_30m", "RANGE_TIGHT") is False
+        assert is_strategy_allowed("strategy_four_1h", "RANGE_TIGHT") is False
         assert (
-            is_strategy_allowed("strategy_four_30m", "RANGE_TIGHT", setup_score=70)
+            is_strategy_allowed("strategy_four_1h", "RANGE_TIGHT", setup_score=70)
             is True
         )
 
@@ -114,16 +114,16 @@ class TestIsStrategyAllowed:
         assert is_strategy_allowed("strategy_two_1h", "UPTREND_STRONG") is True
 
     def test_normalize_family_variant_three(self):
-        """strategy_three_30m_v2 → strategy_three."""
-        assert is_strategy_allowed("strategy_three_30m_v2", "UPTREND_STRONG") is True
+        """strategy_three_1h_v2 → strategy_three."""
+        assert is_strategy_allowed("strategy_three_1h_v2", "UPTREND_STRONG") is True
 
     def test_normalize_family_variant_four(self):
         """strategy_four_pullback_ma_1h → strategy_four."""
         assert is_strategy_allowed("strategy_four_pullback_ma_1h", "UPTREND_STRONG") is True
 
     def test_normalize_family_variant_five(self):
-        """strategy_five_bull_flag_30m → strategy_five."""
-        assert is_strategy_allowed("strategy_five_bull_flag_30m", "UPTREND_STRONG") is True
+        """strategy_five_bull_flag_1h → strategy_five."""
+        assert is_strategy_allowed("strategy_five_bull_flag_1h", "UPTREND_STRONG") is True
 
     def test_normalize_family_variant_six(self):
         """strategy_six_channel_grid → strategy_six (추세 계열 정책)."""

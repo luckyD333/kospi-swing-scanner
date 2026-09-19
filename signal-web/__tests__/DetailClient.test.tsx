@@ -64,7 +64,7 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
           trade_plan: { entry: 41950, stop: 41000, target_1: 43200, target_2: 44500, rr_ratio: 1.32, rr_band: 'SWEET' },
         },
         {
-          strategy: { id: 'strategy_four_30m', label: 'STRATEGY FOUR', timeframe: '30m' },
+          strategy: { id: 'strategy_four_pullback_ma_1h', label: 'STRATEGY FOUR', timeframe: '1h' },
           signal_strength: 67,
           opportunity_score: 55,
           opportunity_factors: [],

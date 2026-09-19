@@ -74,18 +74,12 @@ class TradePlan(BaseModel):
     rsi_14: Optional[float] = None
     derived: Optional[TradePlanDerived] = Field(default=None)
 
-    # 30m 지지선 기반 권장 지정가 진입 (UI 주 표시값)
-    limit_entry: Optional[int] = None
-    limit_stop: Optional[int] = None
-    rr_ratio_limit: Optional[float] = None
-    rr_band_limit: Optional[Literal["SWEET", "UNDER", "OVER"]] = None
-
     # PR-C (P1-1): 주문 타입 의도 + 한국어 UI 라벨.
     # entry vs current 비율 기반 분류 — 발주 client 부재이므로 출력 표시 한정.
     order_type_intent: Optional[str] = None      # BREAKOUT / PULLBACK / IMMEDIATE
     order_type_label_ko: Optional[str] = None    # 역지정가 / 지정가 / 시장가 / 상한 지정가
 
-    # 감사 F6: limit_entry 부재 + IMMEDIATE 시 갭상승 추격 상한 (entry×1.03 tick 내림).
+    # 감사 F6: IMMEDIATE 의도 시 갭상승 추격 상한 (entry×1.03 tick 내림).
     # T+1 시가가 이 값 초과 갭상승이면 진입 보류 (WF 검증: 갭 추격 trade 순손실 집단)
     max_chase: Optional[int] = None
 
@@ -100,17 +94,6 @@ class TradePlan(BaseModel):
             reward_1_pct=round(reward1 / self.entry * 100, 2),
             reward_2_pct=round(reward2 / self.entry * 100, 2) if reward2 else None,
         )
-        # limit_entry/limit_stop 있으면 R/R 자동 계산
-        if self.limit_entry and self.limit_stop:
-            risk_l = self.limit_entry - self.limit_stop
-            reward_l = self.target_1 - self.limit_entry
-            if risk_l > 0:
-                self.rr_ratio_limit = round(reward_l / risk_l, 2)
-                self.rr_band_limit = (
-                    "UNDER" if self.rr_ratio_limit < 2.0
-                    else "SWEET" if self.rr_ratio_limit < 2.5
-                    else "OVER"
-                )
         return self
 
 

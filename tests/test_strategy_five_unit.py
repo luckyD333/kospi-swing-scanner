@@ -203,7 +203,6 @@ def test_data_too_short_returns_empty():
 def test_timeframe_name_mapping():
     assert StrategyFiveBullFlag(timeframe="1D").name == "strategy_five_bull_flag"
     assert StrategyFiveBullFlag(timeframe="1h").name == "strategy_five_bull_flag_1h"
-    assert StrategyFiveBullFlag(timeframe="30m").name == "strategy_five_bull_flag_30m"
 
 
 def test_invalid_timeframe_raises():

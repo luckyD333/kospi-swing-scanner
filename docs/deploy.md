@@ -20,7 +20,7 @@
                        - signals.json (trade_plan / signal_date — freeze)
                        - market_snapshot.json (fundamentals / flow / external_links — fresh override)
                        - market_snapshot.json (live_quote.current_price — Job C 갱신분 override)
-                       - merge_rsi_by_timeframe(rsi_1d/1h/30m)
+                       - merge_rsi_by_timeframe(rsi_1d/1h)
                        → /api/signals, /api/signals/{ticker}, /api/signals/health
                               (SIGNAL_API_DATA_DIR 환경변수)
                                           ↓
@@ -303,13 +303,13 @@ LOCK=/tmp/kospi-scanner.lock
 # Job B + E: 일봉 신호 생성 성공 직후 최근 6개월 전략 성과 갱신 (평일 16:40 KST)
 40 16 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1 && $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1"
 
-# Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
+# Job C30 (장중 1h 신호): 30분 간격 collect(1h) → cli 페어링
 # flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)
-1,31 9-15 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1h 30m >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
+1,31 9-15 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1h >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
 
 # Job B14 (14:00 1D 포함 전체 갱신): 오늘 14:00 현재가를 1D close로 반영
 # smart-skip 없이 1D 강제 갱신. flock으로 C30(14:01)과 직렬화
-0 14 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m --no-smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
+0 14 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h --no-smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
 
 # Job C (실시간 현재가): 시장 지수 + 시그널 종목 현재가만 갱신 (2분 주기, 09:00-15:59)
 */2 9-15 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1
@@ -319,14 +319,14 @@ LOCK=/tmp/kospi-scanner.lock
 
 | Job | 시각 | 내용 |
 |-----|------|------|
-| Job A | 16:10 | `collect.py` — 1D/1W/1h/30m OHLCV 수집 |
+| Job A | 16:10 | `collect.py` — 1D/1W/1h OHLCV 수집 |
 | Job B | 16:40 | `cli.py` — 일봉 기준 signals.json 갱신 |
 | Job E | Job B 성공 직후 | `aggregate_strategy_performance.py` — 최근 6개월 성과 갱신 |
-| Job C30 | 1,31분 (09~15시) | collect(1h/30m) → cli 페어링. `flock`으로 Job B14와 직렬화 |
+| Job C30 | 1,31분 (09~15시) | collect(1h) → cli 페어링. `flock`으로 Job B14와 직렬화 |
 | Job B14 | 14:00 | 1D 포함 강제 갱신 (`--no-smart-skip`). 오늘 14:00 현재가를 1D close로 반영 |
 | Job C | 2분 주기 (09~15시) | `collect_live.py` — 현재가·시장지수만 부분 갱신 |
 
-**Job C30과 Job B14의 분리 이유**: C30은 1h/30m만 수집해 속도를 높이고, 14:00에는 1D도 함께 갱신해 오늘 시가·현재가를 일봉에 반영해요. 오늘 날짜의 1D 수집은 캐시 마지막 봉부터 다시 받아 미완료 종가를 교체합니다.
+**Job C30과 Job B14의 분리 이유**: C30은 1h만 수집해 속도를 높이고, 14:00에는 1D도 함께 갱신해 오늘 시가·현재가를 일봉에 반영해요. 오늘 날짜의 1D 수집은 캐시 마지막 봉부터 다시 받아 미완료 종가를 교체합니다.
 
 | 항목 | 값 | 이유 |
 |------|-----|------|
@@ -381,7 +381,7 @@ cp -r public .next/standalone/public
 기본값은 안전한 운영 배포 기준입니다:
 - `GIT_PULL=1`: 작업트리가 깨끗할 때만 `git pull --ff-only`
 - `PIP_INSTALL=1`: Python 의존성 재설치
-- `COLLECT_TIMEFRAMES="1D 1W 1h 30m"`
+- `COLLECT_TIMEFRAMES="1D 1W 1h"`
 - `COLLECT_NO_SMART_SKIP=1`: collect smart-skip 비활성화
 - `NPM_INSTALL=ci`
 - `NEXT_PUBLIC_API_URL=https://sigbora.com`

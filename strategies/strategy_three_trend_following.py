@@ -39,14 +39,13 @@ from core.strategy_base import Candidate, ScanContext
 
 from ._atr_stop import compute_atr_stop
 from ._trade_plan_apply import apply_dynamic_trade_plan
-from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+from .price_utils import floor_to_tick, round_to_tick
 
 logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
     "1D": "strategy_three_trend_following",
     "1h": "strategy_three_1h",
-    "30m": "strategy_three_30m",
 }
 
 
@@ -61,7 +60,6 @@ class StrategyThreeConfig:
     target_1_pct: float = 0.03          # +3%
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
     score_scale: float = 20000.0        # breakout_pct × scale → score (0..1000 cap; 5% 돌파 = 1000점)
-    use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
 
 
 class StrategyThreeTrendFollowing:
@@ -231,9 +229,6 @@ class StrategyThreeTrendFollowing:
 
                 rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
-                df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
-                limit_entry, limit_stop = populate_limit_fields(df_30m, entry, stop_loss)
-
                 candidates.append(Candidate(
                     ticker=ticker,
                     name=ctx.names.get(ticker, ticker),
@@ -244,8 +239,6 @@ class StrategyThreeTrendFollowing:
                     stop_loss=stop_loss,
                     target_1=t1,
                     target_2=t2,
-                    limit_entry=limit_entry,
-                    limit_stop=limit_stop,
                     market_cap_bil=cap_bil,
                     volume_20d_avg=avg_vol_20,
                     conditions_met={

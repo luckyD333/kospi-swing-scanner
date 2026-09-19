@@ -22,7 +22,7 @@ KOSPI 스윙 스캐너의 수집(collect) 및 전략 스캔(strategy scan)을 cr
   Job D (1,31 9-15): collect.py (1m 포함) → cli.py → signals.json + market_snapshot.json 전체 재빌드
 
 [장 마감 후]
-  Job A (16:10): collect.py (1D 1W 1h 30m) → cache 채우기
+  Job A (16:10): collect.py (1D 1W 1h) → cache 채우기
   Job B (16:40): cli.py --strategy all → signals.json + market_snapshot.json 재빌드
     └─ 성공 직후 Job E: aggregate_strategy_performance.py → strategy_performance.json
 ```
@@ -42,7 +42,7 @@ PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 LOCK=/tmp/kospi-scanner.lock
 
 # Job A: 장 마감 후 OHLCV 수집 (평일 16:10 KST)
-10 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1W 1h 30m >> /opt/apps/logs/kospi-scanner/collect.log 2>&1
+10 16 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1W 1h >> /opt/apps/logs/kospi-scanner/collect.log 2>&1
 
 # Job B + E: 일봉 신호 스캔 성공 직후 성과 갱신 (평일 16:40 KST)
 40 16 * * 1-5 cd /opt/apps/kospi-scanner && flock -n $LOCK sh -c ".venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals.log 2>&1 && .venv/bin/python scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> /opt/apps/logs/kospi-scanner/performance.log 2>&1"
@@ -51,14 +51,14 @@ LOCK=/tmp/kospi-scanner.lock
 */2 9-14 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect_live.py >> /opt/apps/logs/kospi-scanner/live.log 2>&1
 
 # Job D: 장중 30분 주기 수집 + 신호 재스캔 (09:01-15:31 KST)
-1,31 9-15 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m 1m >> /opt/apps/logs/kospi-scanner/collect_intraday.log 2>&1 && .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals_intraday.log 2>&1
+1,31 9-15 * * 1-5 cd /opt/apps/kospi-scanner && .venv/bin/python scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 1m >> /opt/apps/logs/kospi-scanner/collect_intraday.log 2>&1 && .venv/bin/python cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> /opt/apps/logs/kospi-scanner/signals_intraday.log 2>&1
 ```
 
 ### Job 실행 시간표
 
 | Job | 스케줄 | 역할 |
 |-----|--------|------|
-| A | 평일 16:10 | 장 마감 후 전체 OHLCV 수집 (1D 1W 1h 30m) |
+| A | 평일 16:10 | 장 마감 후 전체 OHLCV 수집 (1D 1W 1h) |
 | B | 평일 16:40 | 일봉 기준 전략 전체 스캔 → signals.json |
 | E | Job B 성공 직후 | 최초 노출 signal의 다음 거래일 종가 성과 집계 → strategy_performance.json |
 | C | 평일 09:00-14:58, 2분 주기 | 시그널 종목 현재가만 경량 패치 |
@@ -87,7 +87,7 @@ V-KOSPI도 Job A/D의 full collect에서 증권플러스 일봉 JSON으로 갱�
 |------|-----|------|
 | `--market` | `KOSPI` \| `KOSDAQ` | 시장 선택. **단일값만 지원** (argparse `choices` 제한) |
 | `--cache-root` | `.cache` | 캐시 저장 경로 |
-| `--timeframes` | `1D 1W 1h 30m 1m` | 수집할 타임프레임. 장중 수집 시 `1m` 포함 필수 |
+| `--timeframes` | `1D 1W 1h 1m` | 수집할 타임프레임. 장중 수집 시 `1m` 포함 필수 |
 | `--lookback-days` | `90` | 과거 몇 일까지 수집할지 (기본: 90) |
 | `--no-smart-skip` | flag | smart-skip 비활성화 (기본: 활성화) |
 | `--max-universe` | `500` | 시총 상위 N개만 수집 (빠른 수집용) |

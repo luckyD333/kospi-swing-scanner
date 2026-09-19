@@ -77,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", help="JSON/CSV 저장 디렉토리. 미지정 시 stdout만")
     parser.add_argument(
         "--timeframes", nargs="+", metavar="TF",
-        help="스캔할 타임프레임 목록 (예: 1D 1W 1h 30m). 지정 시 해당 TF의 전략 자동 선택",
+        help="스캔할 타임프레임 목록 (예: 1D 1W 1h). 지정 시 해당 TF의 전략 자동 선택",
     )
     parser.add_argument(
         "--cache-root", metavar="DIR",
@@ -448,7 +448,7 @@ def _handle_signals_ui_format(args, result) -> int:
             logger.warning(f"regime overlay 적용 실패: {_e}. base weight 사용")
 
     # candidates_by_strategy 는 1D timeframe 만 담음 (legacy alias).
-    # 1h/30m 전략 결과까지 포함하려면 candidates_by_strategy_tf 를 평면화.
+    # 1h 전략 결과까지 포함하려면 candidates_by_strategy_tf 를 평면화.
     candidates_for_signals: dict[str, list] = {
         name: cands
         for (name, _tf), cands in result.candidates_by_strategy_tf.items()

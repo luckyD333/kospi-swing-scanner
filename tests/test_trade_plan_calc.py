@@ -40,12 +40,11 @@ def test_resolve_base_handles_d_v2_variants():
     assert resolve_base_strategy_id("strategy_one_d_v2") == "strategy_one"
     assert resolve_base_strategy_id("strategy_one_w_v2") == "strategy_one"
     assert resolve_base_strategy_id("strategy_one_1h_v2") == "strategy_one"
-    assert resolve_base_strategy_id("strategy_one_30m_v2") == "strategy_one"
 
 
 def test_resolve_base_handles_r1_r2_fallbacks():
     assert resolve_base_strategy_id("strategy_one_d_v2_r1") == "strategy_one"
-    assert resolve_base_strategy_id("strategy_one_30m_v2_r2") == "strategy_one"
+    assert resolve_base_strategy_id("strategy_one_1h_v2_r2") == "strategy_one"
     assert resolve_base_strategy_id("strategy_one_w_v2_r1") == "strategy_one"
 
 
@@ -57,9 +56,9 @@ def test_resolve_base_handles_full_descriptive_names():
 
 
 def test_resolve_base_handles_intraday_suffixes():
-    assert resolve_base_strategy_id("strategy_two_30m") == "strategy_two"
+    assert resolve_base_strategy_id("strategy_two_1h") == "strategy_two"
     assert resolve_base_strategy_id("strategy_three_1h") == "strategy_three"
-    assert resolve_base_strategy_id("strategy_four_pullback_ma_30m") == "strategy_four"
+    assert resolve_base_strategy_id("strategy_four_pullback_ma_1h") == "strategy_four"
     assert resolve_base_strategy_id("strategy_five_bull_flag_1h") == "strategy_five"
 
 
@@ -133,12 +132,12 @@ def test_score_low_widens_stop():
 def test_score_clamps_above_one():
     r1 = compute_trade_plan(
         entry=10000.0, atr_14=200.0,
-        strategy_id="strategy_two_30m",
+        strategy_id="strategy_two_1h",
         score_percentile=1.5,
     )
     r2 = compute_trade_plan(
         entry=10000.0, atr_14=200.0,
-        strategy_id="strategy_two_30m",
+        strategy_id="strategy_two_1h",
         score_percentile=1.0,
     )
     assert abs(r1.k_used - r2.k_used) < 1e-9

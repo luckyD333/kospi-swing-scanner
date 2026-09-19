@@ -96,7 +96,7 @@ SAMPLE_MARKET = {
             "external_links": {
                 "naver_finance": "https://finance.naver.com/item/main.naver?code=006340"
             },
-            "rsi_by_tf": {"1D": 60.0, "1h": 50.0, "30m": 45.0},
+            "rsi_by_tf": {"1D": 60.0, "1h": 50.0},
         }
     },
 }
@@ -140,7 +140,6 @@ SAMPLE_SIGNALS_MULTI_TF = {
     "signals": [
         _make_entry("strategy_one_d_v2",   "STRATEGY ONE", "1D", 80.0, 65.5),
         _make_entry("strategy_one_1h_v2",  "STRATEGY ONE", "1h", 90.0, 72.3),
-        _make_entry("strategy_one_30m_v2", "STRATEGY ONE", "30m", 85.0, 58.1),
     ],
 }
 
