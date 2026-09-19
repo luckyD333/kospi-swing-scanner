@@ -6,6 +6,7 @@ import { ts } from '@/lib/typography';
 import { confirmationColor, signalStatusBadge } from '@/lib/signal-colors';
 import { formatTickerState } from '@/lib/ticker-state';
 import { buildCheckItem, buildReasonItem } from '@/lib/card-display';
+import { NaverIconLink, TradingViewIconLink } from '@/components/ExternalLinkButtons';
 
 interface Props {
   card: CardProps;
@@ -180,16 +181,20 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
         {name}
       </div>
 
-      {/* 종목 코드 — muted-soft로 한 톤 낮춤 */}
-      <div style={{
-        fontFamily: 'var(--f-mono-stack)',
-        fontSize: tickerFontSize,
-        fontWeight: 400,
-        lineHeight: 1,
-        letterSpacing: '1px',
-        color: 'var(--muted-soft)',
-      }}>
-        {ticker}
+      {/* 종목 코드 + 외부 서비스 바로가기 — 코드는 muted-soft로 한 톤 낮춤 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{
+          fontFamily: 'var(--f-mono-stack)',
+          fontSize: tickerFontSize,
+          fontWeight: 400,
+          lineHeight: 1,
+          letterSpacing: '1px',
+          color: 'var(--muted-soft)',
+        }}>
+          {ticker}
+        </span>
+        <NaverIconLink ticker={ticker} />
+        <TradingViewIconLink ticker={ticker} />
       </div>
 
       {/* 상품 유형 배지 (STOCK·UNKNOWN 이외만 표시) */}

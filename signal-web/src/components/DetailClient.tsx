@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { DetailProps, MatchProps } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot, VKospiSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
+import { tradingViewUrl } from '@/lib/external-links';
 import { confirmationColor, confirmationBg, signalStatusBadge } from '@/lib/signal-colors';
 import TopNav from './TopNav';
 import PriceScramble from './PriceScramble';
@@ -22,7 +23,7 @@ interface Props {
   vKospi?: VKospiSnapshot | null;
 }
 
-function NaverLink({ href }: { href: string }) {
+function ExternalPill({ href, label }: { href: string; label: string }) {
   const [hov, setHov] = useState(false);
   return (
     <a
@@ -46,7 +47,7 @@ function NaverLink({ href }: { href: string }) {
         transition: 'background 150ms ease-out',
       }}
     >
-      네이버 금융에서 보기
+      {label}
     </a>
   );
 }
@@ -279,11 +280,10 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
           </div>
         )}
 
-        {naverUrl && (
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', marginTop: '32px' }}>
-            <NaverLink href={naverUrl} />
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', marginTop: '32px' }}>
+          {naverUrl && <ExternalPill href={naverUrl} label="네이버 금융에서 보기" />}
+          <ExternalPill href={tradingViewUrl(ticker)} label="트레이딩뷰 차트 보기" />
+        </div>
       </div>
 
       {/* 매매 파라미터 */}
