@@ -428,7 +428,7 @@ def make_scan_bartracker_scorer(
                 "avg_bars_held": (
                     float(np.mean(bars_held_all)) if bars_held_all else 0.0
                 ),
-                "setup_score_unavailable": grid is not None,
+                "entry_gate_applied": grid is not None,
             }
         if cfg.emit_per_trade:
             scorer.per_trade_records = per_trade  # type: ignore[attr-defined]

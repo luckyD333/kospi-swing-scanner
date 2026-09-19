@@ -167,6 +167,31 @@ def test_grid_는_파라미터를_바꿔도_한_번만_만든다():
     assert calls["n"] == 1
 
 
+def test_grid_는_다른_ohlcv_data_면_다시_만든다():
+    """id() 재사용 방어는 결정적으로 못 재현하지만, 다른 dict 는 다시 만든다."""
+    import backtest_engine.scan_adapter as sa
+
+    calls = {"n": 0}
+    original = sa.build_regime_grid
+
+    def 세는_래퍼(*args, **kwargs):
+        calls["n"] += 1
+        return original(*args, **kwargs)
+
+    sa.build_regime_grid = 세는_래퍼
+    try:
+        data_a = {"AAA": _합성_일봉(120, 1)}
+        data_b = {"AAA": _합성_일봉(120, 2)}
+        scorer = make_scan_pnl_scorer(lambda _p: _국면_기록기(), ScanPnlConfig(top_n=1))
+        d = data_a["AAA"].index[110]
+        scorer(data_a, {}, d, d)
+        scorer(data_b, {}, data_b["AAA"].index[110], data_b["AAA"].index[110])
+    finally:
+        sa.build_regime_grid = original
+
+    assert calls["n"] == 2
+
+
 def test_1h_부재_경고는_grid_를_만들_때만_남긴다(caplog):
     """파라미터를 5번 바꿔도 grid 는 한 번만 만들어지므로 경고도 한 번이다."""
     data = {"AAA": _합성_일봉(120, 1)}
@@ -206,7 +231,7 @@ def test_게이트를_끄면_경고도_없다(caplog):
     assert [r for r in caplog.records if "setup_score" in r.getMessage()] == []
 
 
-def test_통계에_setup_score_부재를_남긴다():
+def test_통계에_게이트_적용_여부를_남긴다():
     data = {"AAA": _합성_일봉(120, 1)}
     scorer = make_scan_bartracker_scorer(
         lambda _p: _국면_기록기(), ScanBarConfig(top_n=1, emit_stats=True)
@@ -215,4 +240,13 @@ def test_통계에_setup_score_부재를_남긴다():
 
     scorer(data, {}, d, d)
 
-    assert scorer.last_stats["setup_score_unavailable"] is True
+    assert scorer.last_stats["entry_gate_applied"] is True
+
+    off_scorer = make_scan_bartracker_scorer(
+        lambda _p: _국면_기록기(),
+        ScanBarConfig(top_n=1, emit_stats=True, apply_entry_gate=False),
+    )
+
+    off_scorer(data, {}, d, d)
+
+    assert off_scorer.last_stats["entry_gate_applied"] is False
