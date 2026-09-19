@@ -193,9 +193,6 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
     ? Math.round(((target2 - entry) / entry) * 10000) / 100
     : null;
 
-  // statusBadge는 더 이상 사용되지 않음 (legacy)
-  const statusBadge = null;
-
   const pct52w =
     currentPrice != null && high52w != null && low52w != null && high52w > low52w
       ? ((currentPrice - low52w) / (high52w - low52w)) * 100

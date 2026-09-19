@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { fetchSignal, fetchSignals } from '@/lib/api';
-import { adaptDetailSignal } from '@/lib/adapt';
+import { adaptDetailV2 } from '@/lib/adapt';
 import DetailClient from '@/components/DetailClient';
 
 export default async function Page({ params }: { params: Promise<{ ticker: string }> }) {
@@ -13,7 +13,7 @@ export default async function Page({ params }: { params: Promise<{ ticker: strin
 
   if (!signal) notFound();
 
-  const detail = adaptDetailSignal(signal);
+  const detail = adaptDetailV2(signal);
 
   return (
     <DetailClient
