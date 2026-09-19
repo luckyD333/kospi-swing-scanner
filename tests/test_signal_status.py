@@ -68,17 +68,18 @@ def test_status_stale_old_signal():
     assert status == "STALE"
 
 
-def test_status_other_trading_day_returns_valid():
+def test_status_other_trading_day_evaluates_price():
     # signal_date 가 1거래일 전 (오늘 ≠ signal_date 이지만 STALE 아님)
-    # current_price 가 stop 이하라도 비교 스킵 → VALID 유지
+    # 거래일이 바뀌어도 손절 도달은 판정한다 — current_price 가 전일 종가여도
+    # 그 종가가 손절선 아래면 이미 손절된 것이므로 STALE 이 아닌 한 비교를 건너뛰면 안 된다.
     status = compute_signal_status(
-        current_price=970,  # 같은 날이면 STOPPED_OUT 일 가격
+        current_price=970,  # <= stop
         stop=975,
         target_1=1030,
         signal_date_str="2026-05-08T16:00:00+09:00",  # 금요일
         now=_now(),
     )
-    assert status == "VALID"
+    assert status == "STOPPED_OUT"
 
 
 def test_status_invalid_signal_date_format():
