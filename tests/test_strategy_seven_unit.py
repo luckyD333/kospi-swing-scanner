@@ -142,3 +142,33 @@ def test_잘못된_설정값은_생성자에서_거부한다():
         StrategySevenCfi(config=StrategySevenConfig(depth=1))
     with pytest.raises(ValueError, match="vp_lookback"):
         StrategySevenCfi(config=StrategySevenConfig(vp_lookback=0))
+
+
+def _multi_ctx():
+    """반등 폭이 다른 3종목 — 돌파 강도 차이로 점수가 갈린다."""
+    dfs = {}
+    for ticker, last in (("AAAAAA", 1089.0), ("BBBBBB", 1088.0), ("CCCCCC", 1087.0)):
+        close = reversal_close()
+        close[-1] = last
+        vol = np.full(len(close), 200_000.0)
+        vol[-1] = 900_000.0
+        dfs[ticker] = make_df(close, vol)
+    return make_ctx(dfs)
+
+
+def test_score_percentile_은_top_n_이_아니라_전체_후보_분포_기준이다():
+    """apply_dynamic_trade_plan 을 자르기 전에 부르는지 검증 (S3/S4/S5 와 동일 규약).
+
+    자른 뒤에 부르면 후보 1건짜리 분포가 되어 percentile 이 0.5 로 고정되고,
+    손절 폭(k_adj)이 전략 간 일관되지 않는다.
+    """
+    ctx = _multi_ctx()
+    all_cands = StrategySevenCfi().scan(ctx, top_n=3)
+    assert len(all_cands) == 3, "3종목 모두 후보가 되어야 하는 시나리오다"
+    assert len({c.score for c in all_cands}) == 3, "점수가 서로 달라야 percentile 이 갈린다"
+
+    top1 = StrategySevenCfi().scan(ctx, top_n=1)
+    assert len(top1) == 1
+    # 전체 3건 분포에서 1위 → percentile 1.0. 1건 분포였다면 0.5 로 고정된다.
+    assert top1[0].metadata["score_percentile"] == 1.0
+    assert top1[0].stop_loss == all_cands[0].stop_loss

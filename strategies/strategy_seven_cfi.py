@@ -116,9 +116,10 @@ class StrategySevenCfi:
                 candidates.append(cand)
 
         candidates.sort(key=lambda c: c.score, reverse=True)
-        result = candidates[:top_n]
-        apply_dynamic_trade_plan(result, self.name)
-        return result
+        # S3/S4/S5 와 동일하게 자르기 전 전체 후보에 적용한다. score percentile 이
+        # top_n 안이 아니라 전체 분포 기준이어야 손절 폭이 전략 간 일관된다.
+        apply_dynamic_trade_plan(candidates, self.name)
+        return candidates[:top_n]
 
     # ------------------------------------------------------------------
 
