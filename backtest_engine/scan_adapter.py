@@ -102,6 +102,36 @@ def _gap_exceeds(
     return entry_price / signal_close - 1.0 > max_gap_pct
 
 
+# regime grid 는 파라미터와도, scorer 인스턴스와도 무관하다. ohlcv_data 객체당 1회만 만든다.
+# 모듈 수준인 이유: scripts/aggregate_holding_recommendations.py 가 전략 × holdings
+# 이중 루프 안에서 scorer factory 를 28번 부른다. 클로저 캐시면 grid 도 28번 만들어진다.
+# clear() 로 1칸만 유지하고, 참조를 함께 들고 있어 id() 재사용으로 엉뚱한 grid 를 쓰지 않는다.
+_REGIME_GRID_CACHE: dict[int, tuple[dict, dict]] = {}
+
+
+def _regime_grid_for(
+    ohlcv_data: dict[str, pd.DataFrame], apply_entry_gate: bool
+) -> dict | None:
+    if not apply_entry_gate:
+        return None
+    key = id(ohlcv_data)
+    hit = _REGIME_GRID_CACHE.get(key)
+    if hit is not None and hit[0] is ohlcv_data:
+        return hit[1]
+    grid = build_regime_grid(ohlcv_data)
+    # .cache_wf 에 1h 가 없어 setup_score 가 항상 None 이다.
+    # entry_gate 의 allow_strong_only 셀이 전부 block 되므로
+    # S1(UPTREND_STRONG·RANGE_TIGHT·MIXED)과 S4(RANGE_TIGHT)는 실운영보다 엄격하다.
+    # grid 를 새로 만들 때만 남긴다 — scorer 본문에 두면 파라미터 시도마다 찍힌다.
+    logger.warning(
+        "WF entry gate: 1h 데이터 없음 → setup_score=None, "
+        "allow_strong_only 셀은 전부 block (S1·S4 편향 주의)"
+    )
+    _REGIME_GRID_CACHE.clear()
+    _REGIME_GRID_CACHE[key] = (ohlcv_data, grid)
+    return grid
+
+
 def make_scan_pnl_scorer(
     strategy_factory: Callable[[dict], Strategy],
     scoring: ScanPnlConfig | None = None,
@@ -121,30 +151,6 @@ def make_scan_pnl_scorer(
         WF run_walk_forward 의 evaluator 인자에 그대로 전달 가능.
     """
     cfg = scoring or ScanPnlConfig()
-
-    # regime grid 는 파라미터와 무관하다. ohlcv_data 객체당 1회만 만든다.
-    # 참조를 함께 들고 있어야 id() 재사용으로 엉뚱한 grid 를 쓰는 일이 없다.
-    _grid_cache: dict[int, tuple[dict, dict]] = {}
-
-    def _regime_grid(ohlcv_data: dict[str, pd.DataFrame]) -> dict | None:
-        if not cfg.apply_entry_gate:
-            return None
-        key = id(ohlcv_data)
-        hit = _grid_cache.get(key)
-        if hit is not None and hit[0] is ohlcv_data:
-            return hit[1]
-        grid = build_regime_grid(ohlcv_data)
-        # .cache_wf 에 1h 가 없어 setup_score 가 항상 None 이다.
-        # entry_gate 의 allow_strong_only 셀이 전부 block 되므로
-        # S1(UPTREND_STRONG·RANGE_TIGHT·MIXED)과 S4(RANGE_TIGHT)는 실운영보다 엄격하다.
-        # grid 를 새로 만들 때만 남긴다 — scorer 본문에 두면 파라미터 시도마다 찍힌다.
-        logger.warning(
-            "WF entry gate: 1h 데이터 없음 → setup_score=None, "
-            "allow_strong_only 셀은 전부 block (S1·S4 편향 주의)"
-        )
-        _grid_cache.clear()
-        _grid_cache[key] = (ohlcv_data, grid)
-        return grid
 
     def scorer(
         ohlcv_data: dict[str, pd.DataFrame],
@@ -174,7 +180,7 @@ def make_scan_pnl_scorer(
         except Exception:
             return float("nan"), 0
 
-        grid = _regime_grid(ohlcv_data)
+        grid = _regime_grid_for(ohlcv_data, cfg.apply_entry_gate)
 
         # 4) 각 signal date 에서 scan → T+1 진입 → T+1+holding_bars 청산
         trades_pnl: list[float] = []
@@ -317,30 +323,6 @@ def make_scan_bartracker_scorer(
     """
     cfg = scoring or ScanBarConfig()
 
-    # regime grid 는 파라미터와 무관하다. ohlcv_data 객체당 1회만 만든다.
-    # 참조를 함께 들고 있어야 id() 재사용으로 엉뚱한 grid 를 쓰는 일이 없다.
-    _grid_cache: dict[int, tuple[dict, dict]] = {}
-
-    def _regime_grid(ohlcv_data: dict[str, pd.DataFrame]) -> dict | None:
-        if not cfg.apply_entry_gate:
-            return None
-        key = id(ohlcv_data)
-        hit = _grid_cache.get(key)
-        if hit is not None and hit[0] is ohlcv_data:
-            return hit[1]
-        grid = build_regime_grid(ohlcv_data)
-        # .cache_wf 에 1h 가 없어 setup_score 가 항상 None 이다.
-        # entry_gate 의 allow_strong_only 셀이 전부 block 되므로
-        # S1(UPTREND_STRONG·RANGE_TIGHT·MIXED)과 S4(RANGE_TIGHT)는 실운영보다 엄격하다.
-        # grid 를 새로 만들 때만 남긴다 — scorer 본문에 두면 파라미터 시도마다 찍힌다.
-        logger.warning(
-            "WF entry gate: 1h 데이터 없음 → setup_score=None, "
-            "allow_strong_only 셀은 전부 block (S1·S4 편향 주의)"
-        )
-        _grid_cache.clear()
-        _grid_cache[key] = (ohlcv_data, grid)
-        return grid
-
     def scorer(
         ohlcv_data: dict[str, pd.DataFrame],
         params: dict,
@@ -369,7 +351,7 @@ def make_scan_bartracker_scorer(
         except Exception:
             return float("nan"), 0
 
-        grid = _regime_grid(ohlcv_data)
+        grid = _regime_grid_for(ohlcv_data, cfg.apply_entry_gate)
 
         # 4) 각 signal date 에서 scan → T+1 진입 → bar-by-bar 청산
         trades_pnl: list[float] = []

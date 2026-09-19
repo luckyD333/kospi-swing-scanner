@@ -195,6 +195,37 @@ def test_grid_는_다른_ohlcv_data_면_다시_만든다():
     assert calls["n"] == 2
 
 
+def test_grid_는_factory_를_여러_번_만들어도_한_번만_만든다():
+    """aggregate_holding_recommendations.py 가 전략×holdings 이중 루프 안에서
+    make_scan_bartracker_scorer 를 매번 새로 부른다. 캐시가 factory 클로저 안에
+    있으면 factory 를 부를 때마다 grid 도 다시 만들어진다 — 모듈 수준 캐시로
+    같은 ohlcv_data 면 factory 를 몇 번 만들어도 grid 는 1회만 만들어져야 한다.
+    """
+    import backtest_engine.scan_adapter as sa
+
+    sa._REGIME_GRID_CACHE.clear()
+    calls = {"n": 0}
+    original = sa.build_regime_grid
+
+    def 세는_래퍼(*args, **kwargs):
+        calls["n"] += 1
+        return original(*args, **kwargs)
+
+    sa.build_regime_grid = 세는_래퍼
+    try:
+        data = {"AAA": _합성_일봉(120, 1)}
+        d = data["AAA"].index[110]
+        for hold in (1, 3, 5):
+            scorer = make_scan_bartracker_scorer(
+                lambda _p: _국면_기록기(), ScanBarConfig(top_n=1, holding_bars=hold)
+            )
+            scorer(data, {}, d, d)
+    finally:
+        sa.build_regime_grid = original
+
+    assert calls["n"] == 1
+
+
 def test_1h_부재_경고는_grid_를_만들_때만_남긴다(caplog):
     """파라미터를 5번 바꿔도 grid 는 한 번만 만들어지므로 경고도 한 번이다."""
     data = {"AAA": _합성_일봉(120, 1)}
