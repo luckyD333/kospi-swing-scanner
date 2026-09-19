@@ -56,7 +56,7 @@ def compute_signal_status(
         except ValueError:
             return "STALE"
         if not is_same_trading_day(sd, today):
-            # current_price 가 전일 종가일 가능성 → cp 비교 의미 없음
+            # 전일 종가여도 손절선 아래면 손절된 것 — STALE 이 아니면 가격 검사로 흘려보낸다.
             # join.compute_freshness_meta 의 plan_expired 와 같은 판정이어야 한다.
             # 어긋나면 같은 응답 안에서 signal_status 와 plan_expired 가 모순된다.
             if timeframe == "1W":
@@ -64,8 +64,8 @@ def compute_signal_status(
             elif timeframe in (None, "1D"):
                 threshold = STALE_THRESHOLD_1D
             else:
-                # 1h 등 장중 TF: 거래일이 바뀌면 2봉(2h) 창을 이미 넘었으므로 즉시 STALE.
-                # join 은 bars=거래일×6 > 2 로 같은 결과를 낸다.
+                # 1h 등 장중 TF: 거래일이 실제로 바뀔 때만(trading_days_since > 0) STALE 처리.
+                # 주말(금→토/일)은 거래일 수가 0 이라 여기를 통과하고 아래 절대 2시간 검사로 넘어간다.
                 threshold = 0
             if trading_days_since(sd, today) > threshold:
                 return "STALE"

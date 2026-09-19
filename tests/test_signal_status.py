@@ -147,7 +147,7 @@ def test_status_1h_signal_valid_within_2h():
 
 
 def test_status_1h_signal_stale_on_next_trading_day():
-    """1h 신호는 거래일이 바뀌면 STALE. join.compute_freshness_meta(bars=거래일×6 > 2) 와 같은 판정."""
+    """1h 신호는 거래일이 바뀌면 STALE. join.compute_freshness_meta(bars=올림한 경과 시간 > 2) 와 같은 판정."""
     status = compute_signal_status(
         current_price=1000,
         stop=975,
