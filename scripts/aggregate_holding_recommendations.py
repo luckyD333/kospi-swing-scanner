@@ -198,10 +198,13 @@ def primary_table(trades: list[dict], min_n: int = 30) -> dict:
     # best holding per (strategy, regime)
     final: dict = {}
     for strat, by_regime in result.items():
-        final[strat] = {}
         for regime, info in by_regime.items():
             best = max(info["candidates"], key=lambda c: c["mean_pnl"])
-            final[strat][regime] = {
+            if best["mean_pnl"] <= 0:
+                # 후보가 전부 음수면 "덜 나쁜 보유기간"을 추천하게 된다.
+                # 셀을 통째로 버려서 런타임이 LOW_CONFIDENCE 로 떨어지게 한다.
+                continue
+            final.setdefault(strat, {})[regime] = {
                 "best": best["holding"],
                 "n_trades": best["n"],
                 "mean_pnl": best["mean_pnl"],
