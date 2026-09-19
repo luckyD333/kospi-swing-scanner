@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { adaptSignal, adaptDetailV2, adaptDetailLegacy } from '@/lib/adapt';
+import { adaptSignal, adaptDetailV2 } from '@/lib/adapt';
 import type { Signal } from '@/types/signal';
 
 const minimal: Signal = {
@@ -50,21 +50,7 @@ describe('adaptSignal', () => {
     expect(c.name).toBe('000000');
   });
 
-  test('current_price가 null이면 dataQuality=warn', () => {
-    const flagged: Signal = {
-      ...minimal,
-      live_quote: {
-        current_price: null,
-        change_pct: null,
-        volume: null,
-        market_cap_krw: null,
-      },
-    };
-    const c = adaptSignal(flagged, '2026-05-03');
-    expect(c.dataQuality).toBe('warn');
-  });
-
-  test('정상 시그널은 dataQuality=ok', () => {
+  test('정상 시그널의 가격·등락률 표기', () => {
     const ok: Signal = {
       ...minimal,
       live_quote: {
@@ -76,24 +62,8 @@ describe('adaptSignal', () => {
       trade_plan: { ...minimal.trade_plan, atr_14: 1173 },
     };
     const c = adaptSignal(ok, '2026-05-03');
-    expect(c.dataQuality).toBe('ok');
     expect(c.priceDisplay).toBe('15,050');
     expect(c.changeDisplay).toBe('+0.50%');
-  });
-
-  test('atr/entry < 0.5%면 dataQuality=warn', () => {
-    const tight: Signal = {
-      ...minimal,
-      live_quote: {
-        current_price: 100000,
-        change_pct: 0,
-        volume: 1,
-        market_cap_krw: null,
-      },
-      trade_plan: { ...minimal.trade_plan, entry: 100000, atr_14: 100 }, // 0.1%
-    };
-    const c = adaptSignal(tight, '2026-05-03');
-    expect(c.dataQuality).toBe('warn');
   });
 
   test('_display.current_price가 있으면 그것을 우선', () => {
@@ -252,31 +222,6 @@ describe('adaptDetailV2 — signal_components', () => {
   });
 });
 
-
-describe('adaptDetailLegacy — signal_components', () => {
-  test('legacy 단일 entry 의 signal_components 도 매핑', () => {
-    const raw = {
-      ticker: '005930',
-      name: '삼성전자',
-      strategy: { id: 'strategy_three_trend_following', label: 'THREE', category: 'TREND', timeframe: '1D' },
-      trade_plan: { entry: 71000, stop: 69000, target_1: 73500, target_2: 75000 },
-      ranking: { score: 65, signal_strength: 60 },
-      live_quote: { current_price: 71000, change_pct: 0.5, volume: 100, market_cap_krw: null },
-      fundamentals: {},
-      flow: {},
-      external_links: {},
-      generated_at_display: '2026-05-08',
-      signal_components: [
-        { key: 'donchian_breakout', label: 'Donchian 돌파', status: 'ok', value: '+2.40%' },
-      ],
-    };
-    const detail = adaptDetailLegacy(raw);
-    expect(detail.matches).toHaveLength(1);
-    expect(detail.matches[0].signalComponents).toEqual([
-      { key: 'donchian_breakout', label: 'Donchian 돌파', status: 'ok', value: '+2.40%' },
-    ]);
-  });
-});
 
 describe('주문 타입 라벨 + max_chase 매핑 (감사 F6)', () => {
   test('adaptSignal: order_type_label_ko / max_chase 를 카드에 매핑', () => {

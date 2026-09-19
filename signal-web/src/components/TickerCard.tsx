@@ -81,7 +81,7 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     const sdRaw = signalDate.includes('+') || signalDate.endsWith('Z')
       ? signalDate
       : `${signalDate}+09:00`;
-    const expiry = new Date(sdRaw).getTime() + (timeframe === '1h' ? 2 : 1) * 3600_000;
+    const expiry = new Date(sdRaw).getTime() + 2 * 3600_000;  // 1h 신호 = 2봉
     if (Number.isNaN(expiry)) return null;
     const remainMin = Math.floor((expiry - Date.now()) / 60_000);
     if (remainMin <= 0) return '만료';

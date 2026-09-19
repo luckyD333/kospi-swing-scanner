@@ -56,6 +56,7 @@ describe('정보용 시장 심리 지표', () => {
 
     const html = renderToStaticMarkup(createElement(TopNav, {
       marketIndices: {},
+      generatedAtDisplay: '',
       fearGreed,
       marketRegime: {
         '1d': { score: 67, regime: 'NEUTRAL' },

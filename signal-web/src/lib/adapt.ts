@@ -74,7 +74,6 @@ export interface DetailProps {
     maxChase: number | null;         // 감사 F6: 갭상승 추격 상한
   } | null;
   matches: MatchProps[];
-  marketCapDisplay_detail?: string | null;
   rsi1d: number | null;
   rsi1h: number | null;
   atr14: number | null;
@@ -86,7 +85,6 @@ export interface DetailProps {
   // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
   ensembleScore: number | null;
   regimeLabel: string | null;
-  fngLabel: string | null;
   // 2026-05-20 상황별 holding 추천
   recommendedHoldingBars: number | null;
   holdingConfidence: number | null;
@@ -123,7 +121,6 @@ export interface CardProps {
   signalComponents: SignalComponent[];
   strategyId: string;
   strategyLabel: string;
-  strategyCategory: string;
   timeframe: string;
   rsi: number | null;
   rsi1d: number | null;
@@ -131,19 +128,12 @@ export interface CardProps {
   naverUrl: string | null;
   generatedAtDisplay: string;
   signalDate: string | null;
-  dataQuality: 'ok' | 'warn';
   decisionScore: number | null;
-  decisionFactors: DecisionFactor[] | null;
-  decisionMaxRegret: number | null;
-  // 신규 — 명확한 의미 매핑 (Task 6/7/8 에서 score/decisionMaxRegret 대체)
   signalStrength: number | null;          // c.score / 10 (0~100)
   decisionRegretScore: number | null;     // 기회 점수 (0~100, 높을수록 매수 우선순위)
-  decisionRegretFactors: RegretFactor[] | null;  // 기회 점수 4축 breakdown
   rank: number | null;
   allStrategyTags?: Array<{ label: string; timeframe: string }>;
   signalStatus: SignalStatus;    // VALID | TARGET_REACHED | STOPPED_OUT | STALE
-  // PR-C (P1-1): 주문 타입 의도
-  orderTypeIntent: string | null;
   orderTypeLabel: string | null;
   maxChase: number | null;       // 감사 F6: 갭상승 추격 상한 (IMMEDIATE 한정)
   // PR-B (P0-2): 상품 유형 + 풀
@@ -160,7 +150,6 @@ export interface CardProps {
   // Phase 3 (2026-05-19) — regime-aware ensemble wiring 노출
   ensembleScore: number | null;
   regimeLabel: string | null;
-  fngLabel: string | null;
   recommendedHoldingBars: number | null;
   holdingConfidence: number | null;
   holdingStatus: string | null;
@@ -212,7 +201,8 @@ export function adaptDetailV2(raw: any): DetailProps {
   const matches: MatchProps[] = (raw.matches || []).map((m: any) => ({
     strategy: {
       id: m.strategy?.id || '',
-      label: m.strategy?.label || 'Unknown',
+      // 카탈로그 카드와 동일한 "전략 N" 표기로 통일
+      label: formatStrategyLabel(m.strategy?.id || '', m.strategy?.label || 'Unknown'),
       timeframe: m.strategy?.timeframe || '',
     },
     signalStrength: m.signal_strength ?? null,
@@ -287,96 +277,10 @@ export function adaptDetailV2(raw: any): DetailProps {
     tradabilityScore: raw.tradability_score ?? null,
     ensembleScore: raw.ensemble_score ?? null,
     regimeLabel: raw.regime_label ?? null,
-    fngLabel: raw.fng_label ?? null,
     recommendedHoldingBars: raw.recommended_holding_bars ?? null,
     holdingConfidence: raw.holding_confidence ?? null,
     holdingStatus: raw.holding_status ?? null,
   };
-}
-
-export function adaptDetailLegacy(raw: any): DetailProps {
-  // 기존 단일 entry 응답을 matches 배열로 wrap
-  const card = adaptSignal(raw, raw.generated_at_display || '');
-
-  const match: MatchProps = {
-    strategy: {
-      id: raw.strategy?.id || '',
-      label: card.strategyLabel,
-      timeframe: card.timeframe,
-    },
-    signalStrength: card.signalStrength,
-    opportunityScore: card.decisionRegretScore,
-    opportunityFactors: card.decisionRegretFactors
-      ? (card.decisionRegretFactors || []).map((f) => ({
-          ...f,
-          label: getFactorLabel(f.key),
-        }))
-      : null,
-    signalComponents: normalizeSignalComponents(raw.signal_components),
-    signalStatus: card.signalStatus,
-  };
-
-  // 잠재력 factor는 기존 decisionFactors 사용
-  const potentialFactors = (card.decisionFactors || []).map((f) => ({
-    ...f,
-    label: getFactorLabel(f.key),
-  }));
-
-  return {
-    ticker: card.ticker,
-    name: card.name,
-    nameEn: card.nameEn,
-    priceDisplay: card.priceDisplay,
-    changeDisplay: card.changeDisplay,
-    direction: card.direction,
-    per: card.per,
-    high52w: card.high52w,
-    low52w: card.low52w,
-    foreignRatioPct: card.foreignRatioPct,
-    volumeDisplay: card.volumeDisplay,
-    marketCapDisplay: card.marketCapDisplay,
-    currentPrice: card.currentPrice,
-    changePct: card.changePct,
-    naverUrl: card.naverUrl,
-    generatedAtDisplay: card.generatedAtDisplay,
-    signalDate: card.signalDate,
-    potentialScore: card.decisionScore,
-    potentialFactors,
-    opportunityScore: match.opportunityScore,
-    opportunityFactors: match.opportunityFactors,
-    topTradePlan: {
-      entry: card.entry,
-      stop: card.stop,
-      target1: card.target1,
-      target2: card.target2,
-      rrRatio: card.rrRatio,
-      rrBand: card.rrBand,
-      orderTypeLabel: card.orderTypeLabel,
-      maxChase: card.maxChase,
-    },
-    matches: [match],
-    rsi1d: card.rsi1d,
-    rsi1h: card.rsi1h,
-    atr14: card.atr14,
-    confirmationLevel: card.confirmationLevel,
-    activeRegime: card.activeRegime,
-    perTickerRegime: card.perTickerRegime,
-    atrBucket: card.atrBucket,
-    tradabilityScore: card.tradabilityScore,
-    ensembleScore: card.ensembleScore,
-    regimeLabel: card.regimeLabel,
-    fngLabel: card.fngLabel,
-    recommendedHoldingBars: null,
-    holdingConfidence: null,
-    holdingStatus: null,
-  };
-}
-
-export function adaptDetailSignal(raw: any): DetailProps {
-  if (raw?.schema_version === "2.0") {
-    return adaptDetailV2(raw);
-  }
-  return adaptDetailLegacy(raw);
 }
 
 export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardProps {
@@ -395,13 +299,6 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
 
   const tp = signal.trade_plan;
   const der = tp.derived;
-  const atrEntryRatio =
-    tp.atr_14 != null && tp.entry > 0 ? tp.atr_14 / tp.entry : null;
-  const dataQuality: 'ok' | 'warn' =
-    cp == null || (atrEntryRatio != null && atrEntryRatio < 0.005)
-      ? 'warn'
-      : 'ok';
-
   const displayEntry = tp.entry;
   const displayStop = tp.stop;
   const displayRrRatio = tp.rr_ratio ?? null;
@@ -446,15 +343,11 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     rsi1h: tp.rsi_1h ?? (signal.strategy.timeframe === '1h' ? tp.rsi_14 : null),
     strategyId: signal.strategy.id,
     strategyLabel: formatStrategyLabel(signal.strategy.id, signal.strategy.label),
-    strategyCategory: signal.strategy.category ?? '',
     timeframe: signal.strategy.timeframe ?? '',
     naverUrl: signal.external_links?.naver_finance ?? null,
     generatedAtDisplay,
     signalDate: signal.signal_date ?? null,
-    dataQuality,
     decisionScore: signal.ranking?.decision?.final_score ?? null,
-    decisionFactors: signal.ranking?.decision?.factors ?? null,
-    decisionMaxRegret: signal.ranking?.decision?.max_regret ?? null,
     // 신규 매핑 — backend 신규 필드 우선, 구버전 fallback
     signalStrength:
       signal.ranking?.signal_strength
@@ -464,10 +357,8 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
       signal.ranking?.decision?.regret_score
       ?? signal.ranking?.decision?.max_regret
       ?? null,
-    decisionRegretFactors: signal.ranking?.decision?.regret_factors ?? null,
     rank: signal.ranking?.rank ?? null,
     signalStatus: signal.signal_status ?? 'VALID',
-    orderTypeIntent: tp.order_type_intent ?? null,
     orderTypeLabel: tp.order_type_label_ko ?? null,
     maxChase: tp.max_chase ?? null,
     productType: signal.product_type ?? null,
@@ -480,7 +371,6 @@ export function adaptSignal(signal: Signal, generatedAtDisplay: string): CardPro
     signalFreshness: signal.signal_freshness ?? undefined,
     ensembleScore: signal.ranking?.decision?.ensemble_score ?? null,
     regimeLabel: signal.ranking?.decision?.regime_label ?? null,
-    fngLabel: signal.ranking?.decision?.fng_label ?? null,
     recommendedHoldingBars: signal.ranking?.decision?.recommended_holding_bars ?? null,
     holdingConfidence: signal.ranking?.decision?.holding_confidence ?? null,
     holdingStatus: signal.ranking?.decision?.holding_status ?? null,

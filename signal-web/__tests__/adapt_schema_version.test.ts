@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { adaptDetailSignal, adaptDetailV2, adaptDetailLegacy, getFactorLabel } from '@/lib/adapt';
+import { adaptDetailV2, getFactorLabel } from '@/lib/adapt';
 
 describe('getFactorLabel', () => {
   test('신규 factor key를 한국어로 매핑', () => {
@@ -26,8 +26,8 @@ describe('getFactorLabel', () => {
   });
 });
 
-describe('adaptDetailSignal - dual parser', () => {
-  test('schema_version 2.0 응답은 adaptDetailV2 사용', () => {
+describe('adaptDetailV2 - 상세 응답 파서', () => {
+  test('matches 를 DetailProps 로 매핑', () => {
     const raw = {
       schema_version: '2.0',
       ticker: '005930',
@@ -53,71 +53,12 @@ describe('adaptDetailSignal - dual parser', () => {
       generated_at_display: '2026-05-08',
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
     expect(detail.potentialScore).toBe(75);
     expect(detail.matches.length).toBe(1);
-    expect(detail.matches[0].strategy.label).toBe('STRATEGY ONE');
+    expect(detail.matches[0].strategy.label).toBe('전략 1');
     expect(detail.matches[0].signalStrength).toBe(82);
     expect(detail.opportunityScore).toBe(68);
-  });
-
-  test('schema_version 없거나 1.x 응답은 adaptDetailLegacy 사용', () => {
-    const raw = {
-      ticker: '000000',
-      name: 'Test Stock',
-      name_en: 'Test',
-      strategy: {
-        id: 'strategy_one_1d_v2',
-        label: 'STRATEGY ONE',
-        category: 'Mean Reversion',
-        timeframe: '1D',
-        description: null,
-      },
-      trade_plan: {
-        entry: 10000,
-        stop: 9800,
-        target_1: 10500,
-        target_2: 11000,
-        rr_ratio: 2.5,
-        rr_band: 'SWEET',
-        atr_14: 150,
-        rsi_14: 45,
-        derived: null,
-      },
-      ranking: {
-        score: 82,
-        rank: 5,
-        percentile: 95,
-        signal_strength: 82,
-        decision: {
-          final_score: 75,
-          factors: [
-            { key: 'momentum_pct', label: 'momentum_pct', weight: 25, normalized: 0.8, contribution: 20 },
-          ],
-          max_regret: 68,
-          regret_score: 68,
-          regret_factors: [
-            { key: 'bull_reward', label: 'bull_reward', weight: 40, normalized: 0.6, contribution: 24 },
-          ],
-        },
-      },
-      live_quote: {
-        current_price: 10000,
-        change_pct: 1.2,
-        volume: 500000,
-        market_cap_krw: 5000000000,
-      },
-      fundamentals: { per: 10 },
-      external_links: { naver_finance: 'https://finance.naver.com' },
-      flow: { foreign_ratio_pct: 5.2, institutional_net_krw: 100000000 },
-    };
-
-    const detail = adaptDetailSignal(raw);
-    expect(detail.ticker).toBe('000000');
-    expect(detail.potentialScore).toBe(75);
-    expect(detail.matches.length).toBe(1);
-    // formatStrategyLabel은 "전략 1" 형식으로 변환됨
-    expect(detail.matches[0].strategy.label).toBe('전략 1');
   });
 
   test('matches 배열이 없으면 빈 배열로 처리', () => {
@@ -130,7 +71,7 @@ describe('adaptDetailSignal - dual parser', () => {
       matches: [],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
     expect(detail.matches.length).toBe(0);
   });
 
@@ -146,7 +87,7 @@ describe('adaptDetailSignal - dual parser', () => {
       matches: [],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
     expect(detail.potentialFactors![0].label).toBe('가격 모멘텀 (3개월)');
     expect(detail.potentialFactors![1].label).toBe('유동성');
   });
@@ -171,7 +112,7 @@ describe('adaptDetailSignal - dual parser', () => {
       ],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
     expect(detail.opportunityFactors![0].label).toBe('목표 수익');
     expect(detail.opportunityFactors![1].label).toBe('신호 신선도');
   });

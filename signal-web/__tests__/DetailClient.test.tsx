@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { adaptDetailSignal } from '@/lib/adapt';
+import { adaptDetailV2 } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore } from '@/types/signal';
 
 describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
@@ -32,11 +32,11 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
       tradability_score: 85,
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
 
     // matches 1개 확인
     expect(detail.matches).toHaveLength(1);
-    expect(detail.matches[0].strategy.label).toBe('STRATEGY ONE');
+    expect(detail.matches[0].strategy.label).toBe('전략 1');
     expect(detail.matches[0].strategy.timeframe).toBe('1D');
     expect(detail.matches[0].signalStrength).toBe(82);
     expect(detail.opportunityScore).toBe(68);
@@ -73,12 +73,12 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
       ],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
 
     // matches 2개 확인
     expect(detail.matches).toHaveLength(2);
-    expect(detail.matches[0].strategy.label).toBe('STRATEGY TWO');
-    expect(detail.matches[1].strategy.label).toBe('STRATEGY FOUR');
+    expect(detail.matches[0].strategy.label).toBe('전략 2');
+    expect(detail.matches[1].strategy.label).toBe('전략 4');
     expect(detail.matches[0].signalStrength).toBe(82);
     expect(detail.matches[1].signalStrength).toBe(67);
     expect(detail.opportunityScore).toBe(68);
@@ -97,7 +97,7 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
       matches: [],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
 
     expect(detail.potentialFactors).toHaveLength(2);
     expect(detail.potentialFactors![0].label).toBe('가격 모멘텀 (3개월)');
@@ -127,7 +127,7 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
       ],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
 
     expect(detail.opportunityFactors).toHaveLength(4);
     expect(detail.opportunityFactors![0].label).toBe('목표 수익');
@@ -154,7 +154,7 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
       ],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
     const tp = detail.topTradePlan!;
 
     expect(tp.entry).toBe(70000);
@@ -183,7 +183,7 @@ describe('DetailClient - 다중 매칭 렌더링 데이터 구조', () => {
       ],
     };
 
-    const detail = adaptDetailSignal(raw);
+    const detail = adaptDetailV2(raw);
     expect(detail.opportunityFactors).toBeNull();
   });
 });
