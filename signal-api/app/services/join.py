@@ -9,6 +9,7 @@ override 안 함 (사용자 의도: 현재가·trade_plan 일관성).
 """
 from __future__ import annotations
 
+import math
 import os
 import sys
 from copy import deepcopy
@@ -43,7 +44,7 @@ def compute_freshness_meta(
     """응답 시점의 신호 신선도 메타 (UI 표시·필터용).
 
     keys:
-      bars_since_trigger: 신호 발생일 이후 경과 봉 수 (1D=거래일, 1h=거래일×6)
+      bars_since_trigger: 신호 발생일 이후 경과 (1D·1W=거래일, 1h=올림한 경과 시간)
       price_drift_pct: (current - entry) / entry × 100, current 없으면 None
       plan_expired: bars_since_trigger > 임계 (1D=1, 1W=5, 1h=2)
     """
@@ -56,11 +57,15 @@ def compute_freshness_meta(
             if sd_dt.tzinfo is None:
                 sd_dt = sd_dt.replace(tzinfo=_KST)
             sd = sd_dt.astimezone(_KST).date()
-            elapsed_days = trading_days_since(sd, today)
             if timeframe == "1h":
-                bars = elapsed_days * 6  # 한국 장중 6.5h ≈ 6봉
+                # 1h 는 거래일 수로 재면 같은 거래일 안에서 항상 0 봉이 되어
+                # signal_status 의 절대 2시간 판정과 어긋난다. 실제 경과 시간을 쓴다.
+                # 내림(int)을 쓰면 2.5시간이 2봉이 되어 `2 > 2` 가 거짓 — 2~3시간
+                # 구간에서 STALE 인데 plan_expired 가 거짓인 틈이 다시 생긴다.
+                age_hours = (now - sd_dt.astimezone(_KST)).total_seconds() / 3600
+                bars = max(0, math.ceil(age_hours))
             else:
-                bars = elapsed_days  # 1D / 1W 등 거래일 기준
+                bars = trading_days_since(sd, today)  # 1D / 1W 등 거래일 기준
         except ValueError:
             bars = None
 

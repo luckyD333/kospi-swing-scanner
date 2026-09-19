@@ -108,3 +108,44 @@ def build_per_ticker_regime_map(
         d = compute_donchian(ohlcv, timeframe="1d", period=period)
         result[ticker] = "MIXED" if d is None else daily_regime(d)
     return result
+
+
+def daily_regime_series(ohlcv: pd.DataFrame, period: int = 20) -> pd.Series:
+    """종목 하나의 OHLCV → 봉별 regime 라벨 시계열.
+
+    s.iloc[i] 는 daily_regime(compute_donchian(ohlcv.iloc[:i+1])) 과 같다
+    (계산 불가 봉은 "MIXED"). 각 값이 해당 봉 이하만 참조하므로 룩어헤드가 없다.
+
+    ponytail: 봉마다 다시 계산하는 O(n^2). 341종목 245봉 grid 가 실행당 약 54초다.
+    grid 는 실행당 1회만 만들므로(Task 13) 지금은 이걸로 충분하다. WF 실행 시간의
+    유의미한 몫이 되면 그때 벡터화한다.
+    """
+    labels = []
+    for i in range(len(ohlcv)):
+        frame = compute_donchian(ohlcv.iloc[: i + 1], timeframe="1d", period=period)
+        labels.append("MIXED" if frame is None else daily_regime(frame))
+    return pd.Series(labels, index=ohlcv.index, dtype=object)
+
+
+def build_regime_grid(
+    ohlcv_1d_by_ticker: dict[str, pd.DataFrame], period: int = 20
+) -> dict[str, pd.Series]:
+    """전 종목 regime 시계열 선계산. 백테스트 실행당 1회만 부른다."""
+    return {
+        ticker: daily_regime_series(df, period=period)
+        for ticker, df in ohlcv_1d_by_ticker.items()
+    }
+
+
+def regime_at(
+    grid: dict[str, pd.Series], ticker: str, target_date: pd.Timestamp
+) -> str | None:
+    """target_date 이하 마지막 봉의 regime. 없으면 None.
+
+    None 은 entry_gate 에서 "게이트 우회" 를 뜻한다. 기존 동작을 그대로 둔다.
+    """
+    series = grid.get(ticker)
+    if series is None or len(series) == 0:
+        return None
+    sub = series[series.index <= target_date]
+    return None if len(sub) == 0 else str(sub.iloc[-1])

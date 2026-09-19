@@ -62,3 +62,15 @@ describe('TickerCard 외부 서비스 링크', () => {
     expect(html).toContain('symbol=KRX%3A069500');
   });
 });
+
+describe('보유 가이드 노출 차단', () => {
+  it('holdingStatus 가 OK 여도 보유 가이드를 그리지 않는다', () => {
+    const html = render({
+      holdingStatus: 'OK',
+      recommendedHoldingBars: 7,
+      holdingConfidence: 0.42,
+    });
+    expect(html).not.toContain('보유 가이드');
+    expect(html).not.toContain('매도 검토');
+  });
+});

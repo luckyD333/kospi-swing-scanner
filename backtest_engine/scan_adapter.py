@@ -14,13 +14,17 @@ WF scorer 시그니처 (walk_forward.run_walk_forward 와 동일):
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
+from core.decision.per_ticker_regime import build_regime_grid, regime_at
 from core.strategy_base import ScanContext, Strategy
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -32,16 +36,24 @@ class ScanPnlConfig:
     lookback_buffer_days: int = 60  # S3·S4 lookback 30 + 여유 (S1=45, S3·S4 더 필요)
     market: str = "KOSPI"
     max_entry_gap_pct: float | None = None  # T+1 open 갭상승 한도 — 초과 시 체결 skip (감사 F6). None=무제한
+    # False 면 per_ticker_regime 을 안 채워 entry_gate 가 우회된다.
+    # 게이트 적용 이전 기준선을 재현할 때만 쓴다.
+    apply_entry_gate: bool = True
 
 
 def _build_ctx(
     target_date: pd.Timestamp,
     ohlcv: dict[str, pd.DataFrame],
     market: str,
+    regime_grid: dict[str, pd.Series] | None = None,
 ) -> ScanContext:
     """target_date 이하 봉만 포함한 ScanContext 생성. look-ahead 방지.
 
     lookback 부족 시 스킵은 각 전략이 책임 (S2~S5 의 min_bars 검사).
+
+    regime_grid: build_regime_grid() 결과. 주면 per_ticker_regime 이 채워져
+      entry gate 가 실제로 동작한다. None 이면 entry_gate 가 우회된다.
+      donchian_1h_by_ticker 는 .cache_wf 에 1h 가 없어 항상 비어 있다.
     """
     sliced: dict[str, pd.DataFrame] = {}
     for ticker, df in ohlcv.items():
@@ -49,6 +61,14 @@ def _build_ctx(
         if len(sub) > 0:
             sliced[ticker] = sub
     universe = tuple(sliced.keys())
+
+    per_ticker_regime: dict[str, str] = {}
+    if regime_grid is not None:
+        for ticker in universe:
+            label = regime_at(regime_grid, ticker, target_date)
+            if label is not None:
+                per_ticker_regime[ticker] = label
+
     return ScanContext(
         target_date=target_date.strftime("%Y%m%d"),
         universe=universe,
@@ -56,6 +76,7 @@ def _build_ctx(
         names={t: t for t in universe},
         market_caps={t: 10_000.0 for t in universe},  # fragility 측정에는 무관
         market=market,
+        per_ticker_regime=per_ticker_regime,
     )
 
 
@@ -79,6 +100,36 @@ def _gap_exceeds(
     if signal_close <= 0:
         return False
     return entry_price / signal_close - 1.0 > max_gap_pct
+
+
+# regime grid 는 파라미터와도, scorer 인스턴스와도 무관하다. ohlcv_data 객체당 1회만 만든다.
+# 모듈 수준인 이유: scripts/aggregate_holding_recommendations.py 가 전략 × holdings
+# 이중 루프 안에서 scorer factory 를 28번 부른다. 클로저 캐시면 grid 도 28번 만들어진다.
+# clear() 로 1칸만 유지하고, 참조를 함께 들고 있어 id() 재사용으로 엉뚱한 grid 를 쓰지 않는다.
+_REGIME_GRID_CACHE: dict[int, tuple[dict, dict]] = {}
+
+
+def _regime_grid_for(
+    ohlcv_data: dict[str, pd.DataFrame], apply_entry_gate: bool
+) -> dict | None:
+    if not apply_entry_gate:
+        return None
+    key = id(ohlcv_data)
+    hit = _REGIME_GRID_CACHE.get(key)
+    if hit is not None and hit[0] is ohlcv_data:
+        return hit[1]
+    grid = build_regime_grid(ohlcv_data)
+    # .cache_wf 에 1h 가 없어 setup_score 가 항상 None 이다.
+    # entry_gate 의 allow_strong_only 셀이 전부 block 되므로
+    # S1(UPTREND_STRONG·RANGE_TIGHT·MIXED)과 S4(RANGE_TIGHT)는 실운영보다 엄격하다.
+    # grid 를 새로 만들 때만 남긴다 — scorer 본문에 두면 파라미터 시도마다 찍힌다.
+    logger.warning(
+        "WF entry gate: 1h 데이터 없음 → setup_score=None, "
+        "allow_strong_only 셀은 전부 block (S1·S4 편향 주의)"
+    )
+    _REGIME_GRID_CACHE.clear()
+    _REGIME_GRID_CACHE[key] = (ohlcv_data, grid)
+    return grid
 
 
 def make_scan_pnl_scorer(
@@ -129,10 +180,12 @@ def make_scan_pnl_scorer(
         except Exception:
             return float("nan"), 0
 
+        grid = _regime_grid_for(ohlcv_data, cfg.apply_entry_gate)
+
         # 4) 각 signal date 에서 scan → T+1 진입 → T+1+holding_bars 청산
         trades_pnl: list[float] = []
         for d in signal_dates:
-            ctx = _build_ctx(d, sliced, market=cfg.market)
+            ctx = _build_ctx(d, sliced, market=cfg.market, regime_grid=grid)
             try:
                 candidates = strategy.scan(ctx, top_n=cfg.top_n)
             except Exception:
@@ -187,6 +240,9 @@ class ScanBarConfig:
     emit_stats: bool = False  # True 시 scorer.last_stats 로 exit_reason 분포 노출
     emit_per_trade: bool = False  # True 시 scorer.per_trade_records 로 trade 단위 기록 노출
     max_entry_gap_pct: float | None = None  # T+1 open 갭상승 한도 — 초과 시 체결 skip (감사 F6). None=무제한
+    # False 면 per_ticker_regime 을 안 채워 entry_gate 가 우회된다.
+    # 게이트 적용 이전 기준선을 재현할 때만 쓴다.
+    apply_entry_gate: bool = True
 
 
 def _track_position(
@@ -295,6 +351,8 @@ def make_scan_bartracker_scorer(
         except Exception:
             return float("nan"), 0
 
+        grid = _regime_grid_for(ohlcv_data, cfg.apply_entry_gate)
+
         # 4) 각 signal date 에서 scan → T+1 진입 → bar-by-bar 청산
         trades_pnl: list[float] = []
         bars_held_all: list[int] = []
@@ -302,7 +360,7 @@ def make_scan_bartracker_scorer(
         per_trade: list[dict] = []
 
         for d in signal_dates:
-            ctx = _build_ctx(d, sliced, market=cfg.market)
+            ctx = _build_ctx(d, sliced, market=cfg.market, regime_grid=grid)
             try:
                 candidates = strategy.scan(ctx, top_n=cfg.top_n)
             except Exception:
@@ -352,6 +410,7 @@ def make_scan_bartracker_scorer(
                 "avg_bars_held": (
                     float(np.mean(bars_held_all)) if bars_held_all else 0.0
                 ),
+                "entry_gate_applied": grid is not None,
             }
         if cfg.emit_per_trade:
             scorer.per_trade_records = per_trade  # type: ignore[attr-defined]

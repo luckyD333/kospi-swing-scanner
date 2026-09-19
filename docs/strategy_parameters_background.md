@@ -1,5 +1,13 @@
 # 전략별 파라미터 상세 문서
 
+> **신뢰도 주의 (2026-09-19 확인)**
+> 이 문서는 2026-05-19 기준이고 그 뒤로 갱신하지 않았습니다. 다음 두 가지를 감안하고
+> 읽으세요.
+> - 파라미터 7건이 현재 코드와 다릅니다. 실제 값은 각 전략의 `strategies/strategy_*.py`
+>   config 데이터클래스와 `core/trade_plan_calc.py` 의 `STRATEGY_PARAMS` 가 기준입니다.
+> - Strategy Six(채널 격자)와 Strategy Seven(CFI)은 이 문서에 없습니다. 두 전략의 파라미터
+>   근거는 `CLAUDE.md` 의 Available Strategies 절을 보세요.
+
 > 작성일: 2026-05-19  
 > 대상: KOSPI/KOSDAQ 일봉 기반 1~7일 스윙 스캐너  
 > 범위: 5개 전략 × 기본 로직 + 파라미터 + 선정 배경

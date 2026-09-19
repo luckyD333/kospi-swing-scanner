@@ -33,10 +33,10 @@ def compute_signal_status(
     """API 응답 시점에 신호 상태 계산.
 
     우선순위:
-      1. 장외 시간 (signal_date 거래일 ≠ 오늘 거래일) → STALE 또는 VALID
+      1. 거래일 교차 + 임계 초과 → STALE
          (임계: 1D 는 1거래일, 1W 는 5거래일, 1h 등 장중 TF 는 거래일 교차 즉시)
-      2. 같은 거래일 + cp ≤ stop → STOPPED_OUT
-      3. 같은 거래일 + cp ≥ target_1 → TARGET_REACHED
+      2. cp ≤ stop → STOPPED_OUT (거래일 교차 여부와 무관)
+      3. cp ≥ target_1 → TARGET_REACHED (거래일 교차 여부와 무관)
       4. 장중 TF 신호 만료 (1h: 2봉) → STALE
       5. 그 외 → VALID
 
@@ -56,7 +56,7 @@ def compute_signal_status(
         except ValueError:
             return "STALE"
         if not is_same_trading_day(sd, today):
-            # current_price 가 전일 종가일 가능성 → cp 비교 의미 없음
+            # 전일 종가여도 손절선 아래면 손절된 것 — STALE 이 아니면 가격 검사로 흘려보낸다.
             # join.compute_freshness_meta 의 plan_expired 와 같은 판정이어야 한다.
             # 어긋나면 같은 응답 안에서 signal_status 와 plan_expired 가 모순된다.
             if timeframe == "1W":
@@ -64,12 +64,13 @@ def compute_signal_status(
             elif timeframe in (None, "1D"):
                 threshold = STALE_THRESHOLD_1D
             else:
-                # 1h 등 장중 TF: 거래일이 바뀌면 2봉(2h) 창을 이미 넘었으므로 즉시 STALE.
-                # join 은 bars=거래일×6 > 2 로 같은 결과를 낸다.
+                # 1h 등 장중 TF: 거래일이 실제로 바뀔 때만(trading_days_since > 0) STALE 처리.
+                # 주말(금→토/일)은 거래일 수가 0 이라 여기를 통과하고 아래 절대 2시간 검사로 넘어간다.
                 threshold = 0
             if trading_days_since(sd, today) > threshold:
                 return "STALE"
-            return "VALID"
+            # STALE 이 아니면 아래 가격 검사·1h 만료 검사로 계속 진행한다.
+            # 조기 반환하면 휴장일에 손절·목표가 도달을 영영 판정하지 못한다.
 
     # STOPPED_OUT / TARGET_REACHED 는 신호 발생 시각과 무관하게 우선 적용
     if current_price is not None and stop is not None and current_price <= stop:

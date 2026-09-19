@@ -49,6 +49,32 @@ from scripts.wf_validate_s2_to_s5 import load_history  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
+def resolve_date_range(
+    data: dict[str, "pd.DataFrame"],
+    start_date: str | None,
+    end_date: str | None,
+    cache_root: Path,
+) -> tuple[str, str]:
+    """집계 날짜 창을 정한다. 인자가 없으면 캐시에 실제로 담긴 구간을 쓴다.
+
+    고정 기본값을 쓰면 .cache_wf 가 늘어나도 매주 같은 구간만 재집계하게 된다.
+    """
+    if start_date and end_date:
+        return start_date, end_date
+
+    indices = [df.index for df in data.values() if len(df) > 0]
+    if not indices:
+        logger.error(
+            "%s 에 일봉이 없습니다. scripts/collect_wf_history.py 로 먼저 수집하세요.",
+            cache_root,
+        )
+        raise SystemExit(1)
+
+    cache_start = min(idx.min() for idx in indices).strftime("%Y-%m-%d")
+    cache_end = max(idx.max() for idx in indices).strftime("%Y-%m-%d")
+    return start_date or cache_start, end_date or cache_end
+
+
 # ---- 라벨 cache 생성 -------------------------------------------------------
 
 
@@ -198,10 +224,13 @@ def primary_table(trades: list[dict], min_n: int = 30) -> dict:
     # best holding per (strategy, regime)
     final: dict = {}
     for strat, by_regime in result.items():
-        final[strat] = {}
         for regime, info in by_regime.items():
             best = max(info["candidates"], key=lambda c: c["mean_pnl"])
-            final[strat][regime] = {
+            if best["mean_pnl"] <= 0:
+                # 후보가 전부 음수면 "덜 나쁜 보유기간"을 추천하게 된다.
+                # 셀을 통째로 버려서 런타임이 LOW_CONFIDENCE 로 떨어지게 한다.
+                continue
+            final.setdefault(strat, {})[regime] = {
                 "best": best["holding"],
                 "n_trades": best["n"],
                 "mean_pnl": best["mean_pnl"],
@@ -275,8 +304,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="상황별 최적 holding 추천 집계")
     parser.add_argument("--cache-root", default=".cache_wf")
     parser.add_argument("--output", default="data/holding_recommendations.json")
-    parser.add_argument("--start-date", default="2025-05-19")
-    parser.add_argument("--end-date", default="2026-05-19")
+    parser.add_argument(
+        "--start-date", default=None,
+        help="집계 시작일 (기본: 캐시에 담긴 첫 거래일)",
+    )
+    parser.add_argument(
+        "--end-date", default=None,
+        help="집계 종료일 (기본: 캐시에 담긴 마지막 거래일)",
+    )
     parser.add_argument("--holdings", default="1,3,5,7")
     parser.add_argument("--min-trades", type=int, default=30)
     parser.add_argument(
@@ -300,9 +335,14 @@ def main() -> None:
     data = load_history(cache_root)
     logger.info(f"로드 완료: {len(data)}개 ticker")
 
+    start_date, end_date = resolve_date_range(
+        data, args.start_date, args.end_date, cache_root,
+    )
+    logger.info(f"집계 구간: {start_date} ~ {end_date}")
+
     wf_cfg = WalkForwardConfig(
         train_days=90, test_days=30, step_days=30,
-        start_date=args.start_date, end_date=args.end_date,
+        start_date=start_date, end_date=end_date,
         metric_name="sharpe", min_trades_for_metric=1,
     )
     windows = list(_generate_windows(wf_cfg))

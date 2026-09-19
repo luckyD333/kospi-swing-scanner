@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { CardProps } from '@/lib/adapt';
+import { HOLDING_GUIDE_ENABLED } from '@/lib/adapt';
 import { ts } from '@/lib/typography';
 import { confirmationColor, signalStatusBadge } from '@/lib/signal-colors';
 import { formatTickerState } from '@/lib/ticker-state';
@@ -69,7 +70,8 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     { label: '잠재력 점수', value: decisionScore != null ? decisionScore.toFixed(1) : '—' },
     { label: '기회 점수', value: decisionRegretScore != null ? decisionRegretScore.toFixed(1) : '—' },
   ];
-  const showHoldingGuide = holdingStatus === 'OK' && recommendedHoldingBars != null;
+  const showHoldingGuide =
+    HOLDING_GUIDE_ENABLED && holdingStatus === 'OK' && recommendedHoldingBars != null;
   const holdingConfidencePct = holdingConfidence != null
     ? `${Math.round(holdingConfidence * 100)}%`
     : null;

@@ -37,6 +37,7 @@ from backtest_engine.walk_forward import (  # noqa: E402
     WFWindow,
     _generate_windows,
 )
+from core.decision.per_ticker_regime import build_regime_grid  # noqa: E402
 from scripts.wf_strategy_compare import STRATEGIES  # noqa: E402
 from scripts.wf_validate_s2_to_s5 import load_history  # noqa: E402
 
@@ -54,6 +55,7 @@ def collect_trades_full(
     start: pd.Timestamp,
     end: pd.Timestamp,
     cfg: ScanBarConfig,
+    regime_grid: dict | None = None,
 ) -> list[dict]:
     """전략 default 로 [start, end] 전 거래일 scan → per-trade 기록 (비용 미적용)."""
     strategy = factory({})
@@ -62,7 +64,7 @@ def collect_trades_full(
     trades: list[dict] = []
 
     for d in signal_dates:
-        ctx = _build_ctx(d, ohlcv_data, market=cfg.market)
+        ctx = _build_ctx(d, ohlcv_data, market=cfg.market, regime_grid=regime_grid)
         try:
             candidates = strategy.scan(ctx, top_n=cfg.top_n)
         except Exception:
@@ -155,10 +157,13 @@ def main() -> None:
 
     collect_start = pd.Timestamp(args.start_date)
     collect_end = pd.Timestamp(args.end_date)
+    grid = build_regime_grid(data)
 
     for name, factory in STRATEGIES:
         logger.info(f"=== {name} 수집 ===")
-        trades = collect_trades_full(factory, data, collect_start, collect_end, scan_cfg)
+        trades = collect_trades_full(
+            factory, data, collect_start, collect_end, scan_cfg, regime_grid=grid,
+        )
         logger.info(f"  {len(trades)} trades (전 기간)")
 
         # (a) 고정 +3% 필터 vs 무필터 — 윈도우별 OOS 비교
