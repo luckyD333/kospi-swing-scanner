@@ -7,11 +7,16 @@ modifier_table_by_regime: market_regime 별 modifier marginal 산출 검증.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+import pandas as pd
+import pytest
 
 from scripts.aggregate_holding_recommendations import (
     modifier_table,
     modifier_table_by_regime,
     primary_table,
+    resolve_date_range,
 )
 
 
@@ -142,3 +147,60 @@ def test_거래_건수_미달은_기존대로_제외한다():
     result = primary_table(trades, min_n=30)
 
     assert result == {}
+
+
+def test_캐시_구간에서_날짜를_유도한다():
+    data = {
+        "005930": pd.DataFrame(
+            {"close": [1.0, 2.0, 3.0]},
+            index=pd.to_datetime(["2025-06-02", "2026-01-05", "2026-09-18"]),
+        ),
+        "000660": pd.DataFrame(
+            {"close": [1.0, 2.0]},
+            index=pd.to_datetime(["2025-05-30", "2026-09-19"]),
+        ),
+    }
+
+    start, end = resolve_date_range(data, None, None, cache_root=Path(".cache_wf"))
+
+    assert start == "2025-05-30"
+    assert end == "2026-09-19"
+
+
+def test_명시한_날짜가_캐시보다_우선한다():
+    data = {
+        "005930": pd.DataFrame(
+            {"close": [1.0]}, index=pd.to_datetime(["2025-06-02"]),
+        ),
+    }
+
+    start, end = resolve_date_range(
+        data, "2025-01-01", "2025-12-31", cache_root=Path(".cache_wf"),
+    )
+
+    assert start == "2025-01-01"
+    assert end == "2025-12-31"
+
+
+def test_한쪽_날짜만_주면_나머지는_캐시에서_채운다():
+    """Review Focus 3 — "이 날짜부터 지금까지" 가 가장 흔한 사용법이다."""
+    data = {
+        "005930": pd.DataFrame(
+            {"close": [1.0, 2.0]},
+            index=pd.to_datetime(["2025-06-02", "2026-09-18"]),
+        ),
+    }
+
+    start, end = resolve_date_range(
+        data, "2026-01-01", None, cache_root=Path(".cache_wf"),
+    )
+
+    assert start == "2026-01-01"
+    assert end == "2026-09-18"
+
+
+def test_캐시가_비면_오류를_낸다():
+    with pytest.raises(SystemExit) as excinfo:
+        resolve_date_range({}, None, None, cache_root=Path(".cache_wf"))
+
+    assert excinfo.value.code == 1
