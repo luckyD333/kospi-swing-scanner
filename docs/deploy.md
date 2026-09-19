@@ -36,7 +36,7 @@
 - `data/market_snapshot.json` — Job A 산출물. 없으면 fundamentals/flow overlay skip(stale 데이터 노출).
 - `data/strategy_performance.json` — Job B 성공 직후 실행되는 Job E 산출물. 없으면 `/api/strategy-performance`가 `not_ready`를 반환하고 ABOUT에 준비 중 상태 표시. 손상 archive가 있으면 정상 파일 결과와 `partial` 경고를 함께 반환.
 - `weights.yml` (프로젝트 루트) — `--decide` 와 ranking.decision 채움. 없으면 FACTOR BREAKDOWN 미노출.
-- `.cache/regime_analysis.json` — `core.decision.market_regime.save_regime_analysis` 산출물. 없으면 MarketRegimePanel 누락.
+- `.cache/regime_analysis.json` — `core.decision.market_regime.save_regime_analysis` 산출물. 없으면 TopNav 국면 뱃지 누락.
 
 **중요**: `signal-web/src/data/` 디렉토리는 사용하지 않아요(레거시). `.gitignore`에 등재되어 있어요. 데이터 갱신은 cli.py 실행 또는 cron Job B 트리거가 유일한 경로예요.
 

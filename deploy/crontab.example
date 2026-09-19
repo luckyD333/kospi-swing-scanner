@@ -22,15 +22,15 @@ LOCK=/tmp/kospi-scanner.lock
 # weights.yml 존재 시 → 모든 종목 regret score 계산 후 signals.json 에 포함 + ranking_report.md 생성
 40 16 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "([ -f weights.yml ] || echo '[WARNING] weights.yml 없음 → 후회값 미계산' >> $LOG_DIR/signals.log) && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals.log 2>&1 && $VENV_PYTHON scripts/aggregate_strategy_performance.py --data-dir data --cache-root .cache --output data/strategy_performance.json >> $LOG_DIR/performance.log 2>&1"
 
-# Job C30 (장중 1h/30m 신호): 30분 간격 collect(1h 30m) → cli 페어링
+# Job C30 (장중 1h 신호): 30분 간격 collect(1h) → cli 페어링
 # flock -n: 이미 실행 중이면 skip (Job B14와 충돌 방지)
 # weights.yml 존재 시 후회값 자동 계산 (signals.json ranking.decision.max_regret)
-1,31 9-15 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1h 30m >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
+1,31 9-15 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1h >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
 
 # Job B14 (14:00 1D 포함 전체 갱신): 오늘 14:00 현재가를 1D close로 반영
 # smart-skip 없이 1D 강제 갱신. flock으로 C30(14:01)과 직렬화
 # weights.yml 존재 시 후회값 자동 계산 (signals.json ranking.decision.max_regret)
-0 14 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h 30m --no-smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
+0 14 * * 1-5 cd $APP_DIR && flock -n $LOCK sh -c "$VENV_PYTHON scripts/collect.py --market KOSPI --cache-root .cache --timeframes 1D 1h --no-smart-skip >> $LOG_DIR/collect_intraday.log 2>&1 && $VENV_PYTHON cli.py --strategy all --cache-root .cache --output-dir data --format signals_ui >> $LOG_DIR/signals_intraday.log 2>&1"
 
 # Job C (실시간 현재가): 시장 지수 + 시그널 종목 현재가만 갱신 (2분 주기, 08:00-19:59)
 */2 8-19 * * 1-5 cd $APP_DIR && $VENV_PYTHON scripts/collect_live.py >> $LOG_DIR/live.log 2>&1

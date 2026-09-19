@@ -87,7 +87,7 @@ signal-api는 응답 시 이 값을 `live_quote`에 자동 반영해요.
 | S2 | Cross-Sectional Momentum | 15일 percentile rank 상위 20% (Jegadeesh-Titman) | ATR 손절, target = entry + ATR × mult |
 | S3 | Trend Following | Donchian 20일 채널 상단 돌파 + ATR 폭 필터 | max(entry−mult×ATR, channel_low−0.5×ATR) 손절, donchian_width 목표 |
 | S4 | Pullback MA | MA20 상승추세 + MA5 눌림목 회복 | ATR 손절, target = entry + ATR × mult |
-| S5 | Bull Flag | Flagpole +8% → flag 거래량 수축 → 돌파 | ATR 손절, target_pct fallback |
+| S5 | Bull Flag | Flagpole +7% → flag 거래량 수축 → 돌파 | ATR 손절, target_pct fallback |
 
 ### 매수 (BUY) 방법
 
@@ -200,7 +200,7 @@ UI 직접 소비. `_display` 서브객체로 포매팅 완료.
    │   ├─ strategy_two_cross_...  Cross-sectional Momentum     │
    │   ├─ strategy_three_trend_.. Donchian 20일 채널 돌파       │
    │   ├─ strategy_four_pullback_ma  MA20+MA5 눌림목 회복      │
-   │   └─ strategy_five_bull_flag    Flagpole+8% → 압축 돌파   │
+   │   └─ strategy_five_bull_flag    Flagpole+7% → 압축 돌파   │
    │   * 모든 전략 1D / 1h 변형 (자동 등록)                     │
    └──────────────────────────────────────────────────────────┘
                             │
@@ -276,7 +276,7 @@ kospi-swing-scanner/
 ├── signal-web/                       # Next.js UI (:3000)
 │   └── src/
 │       ├── app/                      # 라우트 (/, /signals/[ticker])
-│       └── components/               # CatalogClient, DetailClient, MarketRegimePanel, ...
+│       └── components/               # CatalogClient, DetailClient, TopNav, ...
 │
 ├── backtest_engine/                  # 백테스트 엔진
 │   ├── core.py / detectors.py / strategy.py / engine.py / screener.py

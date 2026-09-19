@@ -176,7 +176,7 @@
 | S4 눌림목 | 없음 (MA 과거 봉 기준 + incomplete bar 가드) | WF는 T+1 open | S1과 반등 노출 부분 중복 — 앙상블 중복 추적 없음 | 반복 진입 제한은 freshness·gate 의존 |
 | S5 Bull Flag | 없음 (pole/flag 과거 봉, 돌파만 당일 close) | WF는 T+1 open | 파라미터 출처 (LOW — 롤백 이력 있음), 상한가 (F6) | 객관성 65/100 |
 
-- **incomplete bar 가드 매트릭스**: S2/S3/S4/S5 1D 경로는 `resolve_close_index` 적용 확인. S1은 StrategyD 내부 경로 — 2026-05-08 체크포인트 기록상 보류 항목으로 잔존 (1h/30m cron 경로 검증도 미완).
+- **incomplete bar 가드 매트릭스**: S2~S7 1D 경로는 `resolve_close_index` 적용 확인. S1 은 2026-09-19 에 `scan()` 에 가드를 배선해 해결 (단일 클래스라 `_d_v2`/`_w_v2`/`_1h_v2` 및 r1/r2 변형 9개 등록 이름 전체에 적용). 같은 날 주봉 경로 결함이 새로 드러나 함께 해결 — `W-FRI` 라벨이 월~목에 미래 날짜라 `is_today_bar_complete` 가 진행 중인 주봉을 확정으로 오판했다 (`core/cache/incomplete_bar.py` 에 미래 라벨 분기 추가). 1h cron 경로 검증은 여전히 미완.
 - **scan vs backtest 이중 구현**: S1은 `strategies/strategy_one_d_v2.py:31`이 `backtest_engine.StrategyD`를 import해 재사용 — divergence 없음. S2~S5는 backtest_engine에 별도 구현이 없고 WF가 `strategy.scan()` 자체를 호출 — 정의상 divergence 불가. **에이전트의 divergence CRITICAL 주장은 기각** (§11).
 
 ## 6. HMM Market Regime 감사

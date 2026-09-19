@@ -73,7 +73,7 @@ def test_pass_emits_candidate():
 
 
 def test_fail_pole_too_small():
-    """flagpole +3.5% (< min_pole_pct 8%) → 신호 없음.
+    """flagpole +3.5% (< min_pole_pct 7%) → 신호 없음.
 
     pole_end = close[idx-flag_bars] = 첫 번째 flag 봉이므로
     flag 가격도 pole 상승 범위(~1035)에 맞춰야 한다.

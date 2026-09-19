@@ -182,16 +182,13 @@ class StrategyThreeTrendFollowing:
                 score = float(min(1000.0, max(0.0, breakout_pct * cfg.score_scale)))
                 score *= pump_penalty
 
-                # 6) SL = max(채널 저점 -1%, 진입가 -2.5%)
-                #    더 보수적(=진입가에 가까운) 쪽 선택.
-                #    0.99 배수: 채널 저점이 정확한 지지선이 아닐 수 있으므로 1% safety
-                #    margin 을 추가해 채널 저점을 살짝 하회. 채널이 깊을 때는 자연스럽게
-                #    -2.5% 손절이 더 빡빡하므로 그쪽이 채택됨.
+                # 6) SL: ATR 기반 손절 (strategies/_atr_stop.py)
                 entry = round_to_tick(close_now)
-                # PR-F: ATR 기반 손절폭 (추세 추종)
-                # stop = max(entry-1.5×ATR, channel_low-0.5×ATR), fallback: entry×(1-stop_loss_pct)
-                # invariant (2026-05-19 WF 검증): Donchian channel_low 가 거의 항상 더 깊은 stop
-                # 이라 max() 에서 채택됨 → atr_stop_mult 변화는 stop 에 사실상 영향 없음.
+                # stop = max(entry - atr_stop_mult×ATR, channel_low - atr_stop_swing_buffer×ATR)
+                # max() 는 진입가에 가까운(=얕은) 쪽을 고른다. channel 항이 이기는 조건은
+                # entry - channel_low < (atr_stop_mult - atr_stop_swing_buffer)×ATR 이며,
+                # 두 계수는 StrategyThreeConfig 에 있다.
+                # ATR 결측이거나 stop >= entry 면 entry × (1 - stop_loss_pct) fallback.
                 stop_loss_raw = compute_atr_stop(
                     float(entry), atr_now, channel_low,
                     atr_mult=cfg.atr_stop_mult,

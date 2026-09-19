@@ -23,7 +23,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 - `output/` — 포맷터 (table/json/csv/markdown/**signals_ui**) + signals_builder + snapshot_builder + holding_recommender
 - `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
 - `signal-api/` — FastAPI 서비스 (`/api/signals`, `/api/signals/{ticker}`). signals.json + market_snapshot.json 조인(`services/join.py`)
-- `signal-web/` — Next.js 카탈로그/디테일 UI (`MarketRegimePanel`, `DetailClient`, RR/점수/ATR/RSI 표시)
+- `signal-web/` — Next.js 카탈로그/디테일 UI (`TopNav`, `DetailClient`, RR/점수/ATR/RSI 표시)
 - `scripts/` — collect.py (수집 + ETF + 매크로), backtest_run.py, wf_validate_*.py (WF 검증, wf_validate_s6.py 포함), wf_strategy_compare.py (7 전략 OOS 비교), aggregate_holding_recommendations.py (상황별 holding 집계). 뒤 두 스크립트는 `--lookback-buffer-days` 로 과거 데이터 버퍼를 조절한다 — 기본 150 은 S6 기준이고 S7 은 320 이상 필요(부족하면 그 전략이 집계에서 조용히 빠짐)
 - `tests/` — 통합 테스트 (네이버 mock, CLI E2E, decision/market_axes/breadth/regret)
 - `docs/` — 전략 스펙, 데이터 소스, 배포(`deploy.md`), cron 가이드
@@ -59,7 +59,7 @@ python cli.py --interview
 - `strategy_two_cross_sectional_momentum` (+ `_1h`) — Jegadeesh-Titman 15일 상대 수익률
 - `strategy_three_trend_following` (+ `_1h`) — Donchian 20일 채널 돌파
 - `strategy_four_pullback_ma` (+ `_1h`) — MA20 추세 + MA5 눌림목 회복
-- `strategy_five_bull_flag` (+ `_1h`) — Flagpole +8% → flag 거래량 수축 → 돌파
+- `strategy_five_bull_flag` (+ `_1h`) — Flagpole +7% → flag 거래량 수축 → 돌파
 - `strategy_six_channel_grid` — 추세선·채널 격자. 고점 2개 하락 추세선(레벨 0) 상향 돌파 후 격자선/상승 지지선을 위에서 리테스트하면 매수. 일봉 + 주봉(`strategy_six_channel_grid_w`, 같은 봉 수 규칙). 주봉 80봉 확보를 위해 일봉 수집·스캔 깊이 2년(`_DAILY_HISTORY_FLOOR_DAYS=760`, runner/cli `lookback_days=600`). HMM 국면 창은 `REGIME_LOOKBACK_DAYS=180` 으로 고정. 목표가는 선 값(`apply_dynamic_trade_plan` 미호출)
 - `strategy_seven_cfi` — CFI 하이킨아시 추세 전환. 하이킨아시 종가가 직전 5봉 하이킨아시 채널 상단을 넘어 추세 방향이 하락에서 상승으로 바뀐 봉에서 매수. 매물대 POC 상단 또는 직전 파동 피보나치 61.8% 밴드 중 하나를 충족해야 통과. 일봉 전용, 매물대 룩백 200봉 때문에 215봉 필요. 손절가는 추적 손절선 tsl 을 `trade_plan_support_floor` 로 넘겨 하한 보장 (원본: TradingView Pine Script "CLUVIC Favorite Indicator" 의 CFI기법)
 

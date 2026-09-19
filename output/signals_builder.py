@@ -913,7 +913,8 @@ def build_signals_payload(
         """compute_signal_status 가 VALID 인 신호만 signals.json 에 포함.
 
         '오늘 매수할 종목' 만 노출 — current_price >= target_1 (TARGET_REACHED) /
-        current_price <= stop (STOPPED_OUT) / signal_date 4 거래일 초과 (STALE) 후보 자동 제외.
+        current_price <= stop (STOPPED_OUT) / signal_date 가 STALE 임계(1D=1, 1W=5 거래일)
+        초과 (STALE) 후보 자동 제외.
         """
         status = compute_signal_status(
             current_price=sig.live_quote.current_price,
