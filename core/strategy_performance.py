@@ -48,6 +48,10 @@ STRATEGY_DEFINITIONS: dict[str, dict[str, Any]] = {
         "label": "Strategy Six",
         "source_ids": ("strategy_six_channel_grid",),
     },
+    "strategy_seven": {
+        "label": "Strategy Seven",
+        "source_ids": ("strategy_seven_cfi",),
+    },
 }
 
 _SOURCE_TO_CANONICAL = {

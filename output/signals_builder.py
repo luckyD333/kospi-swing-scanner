@@ -89,9 +89,10 @@ class MarketRankingConfig:
 
 
 def _base_strategy(sid: str) -> str:
-    """strategy id prefix → base name 매핑 (S1~S6)."""
+    """strategy id prefix → base name 매핑 (S1~S7)."""
     for base in ("strategy_one", "strategy_two", "strategy_three",
-                 "strategy_four", "strategy_five", "strategy_six"):
+                 "strategy_four", "strategy_five", "strategy_six",
+                 "strategy_seven"):
         if sid.startswith(base):
             return base
     return sid
@@ -114,6 +115,7 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_four":  0.56,
                 "strategy_five":  0.30,
                 "strategy_six":   0.56,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
+                "strategy_seven": 0.56,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
             },
             factor_label_weights={
                 "bull_reward": 22.0, "max_drawdown": 13.0,
@@ -133,6 +135,7 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_four":  0.99,
                 "strategy_five":  0.27,
                 "strategy_six":   0.99,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
+                "strategy_seven": 0.99,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
             },
             factor_label_weights={
                 "bull_reward":  4.0, "max_drawdown": 61.0,
@@ -198,6 +201,8 @@ _STRATEGY_LABELS: dict[str, tuple[str, str]] = {
     # 전략 6: Channel Grid (추세선·채널 격자)
     "strategy_six_channel_grid": ("STRATEGY SIX", "CHANNEL GRID"),
     "strategy_six_channel_grid_w": ("STRATEGY SIX", "CHANNEL GRID"),
+    # 전략 7: CFI Reversal (하이킨아시 추세 전환)
+    "strategy_seven_cfi": ("STRATEGY SEVEN", "CFI REVERSAL"),
 }
 
 # strategy가 metadata에 저장하는 소문자 값 → Pydantic Literal 대문자 값

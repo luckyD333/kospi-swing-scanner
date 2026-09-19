@@ -54,6 +54,10 @@ from strategies.strategy_four_pullback_ma import (  # noqa: E402
     StrategyFourConfig,
     StrategyFourPullbackMa,
 )
+from strategies.strategy_seven_cfi import (  # noqa: E402
+    StrategySevenCfi,
+    StrategySevenConfig,
+)
 from strategies.strategy_six_channel_grid import (  # noqa: E402
     StrategySixChannelGrid,
     StrategySixConfig,
@@ -125,6 +129,12 @@ def _s6_factory(params: dict):
     base = StrategySixConfig()
     merged = {**base.__dict__, **params}
     return StrategySixChannelGrid(config=StrategySixConfig(**merged), timeframe="1D")
+
+
+def _s7_factory(params: dict):
+    base = StrategySevenConfig()
+    merged = {**base.__dict__, **params}
+    return StrategySevenCfi(config=StrategySevenConfig(**merged), timeframe="1D")
 
 
 # ---- 검증 대상 ---------------------------------------------------------------

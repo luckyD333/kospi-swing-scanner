@@ -60,7 +60,8 @@ def _apply_max_guard(cand, ohlcv_1d, cfg=_MAX_FILTER_CFG) -> bool:
 
 # 추세 추종 전략군 — 인버스 상품은 기초 지수와 반대로 움직여 진입 논리와 충돌한다.
 # 2026-09-16 측정: 전략 4 의 인버스 8건 평균 -4.31%, 승률 25%.
-_INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five", "strategy_six")
+_INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five",
+                              "strategy_six", "strategy_seven")
 
 # 1D/1W 창 확장(600일)과 무관하게 분봉 읽기 창은 120일 유지 (종전 lookback_days(90)+30 과 동일값 보존)
 _MINUTE_LOOKBACK_DAYS = 120

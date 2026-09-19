@@ -1,6 +1,6 @@
-"""scripts/wf_strategy_compare.py — 5 전략 default config OOS 수익률 비교.
+"""scripts/wf_strategy_compare.py — 7 전략 default config OOS 수익률 비교.
 
-본 세션의 BarTracker scan_adapter 를 사용해 S1~S5 의 default config 를 같은
+본 세션의 BarTracker scan_adapter 를 사용해 S1~S7 의 default config 를 같은
 9 OOS 윈도우에서 동일 조건으로 평가. 표 형식 출력.
 
 사용:
@@ -33,6 +33,7 @@ from scripts.wf_validate_s2_to_s5 import (  # noqa: E402
     _s4_factory,
     _s5_factory,
     _s6_factory,
+    _s7_factory,
     load_history,
 )
 from strategies.strategy_one_d_v2 import (  # noqa: E402
@@ -54,6 +55,7 @@ STRATEGIES = [
     ("S4_PullbackMA",     _s4_factory),
     ("S5_BullFlag",       _s5_factory),
     ("S6_ChannelGrid",    _s6_factory),
+    ("S7_CfiReversal",    _s7_factory),
 ]
 
 

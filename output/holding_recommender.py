@@ -36,6 +36,7 @@ _BACKTEST_STRATEGY_KEYS = {
     "S4_PullbackMA",
     "S5_BullFlag",
     "S6_ChannelGrid",
+    "S7_CfiReversal",
 }
 
 _RUNTIME_TO_BACKTEST_STRATEGY: tuple[tuple[str, str], ...] = (
@@ -45,6 +46,7 @@ _RUNTIME_TO_BACKTEST_STRATEGY: tuple[tuple[str, str], ...] = (
     ("strategy_four", "S4_PullbackMA"),
     ("strategy_five", "S5_BullFlag"),
     ("strategy_six", "S6_ChannelGrid"),
+    ("strategy_seven", "S7_CfiReversal"),
 )
 
 

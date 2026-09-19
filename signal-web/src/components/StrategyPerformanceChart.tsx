@@ -22,6 +22,7 @@ const STRATEGY_ORDER = [
   'strategy_four',
   'strategy_five',
   'strategy_six',
+  'strategy_seven',
 ] as const;
 
 const STRATEGY_COLORS: Record<string, string> = {
@@ -32,6 +33,7 @@ const STRATEGY_COLORS: Record<string, string> = {
   strategy_four: '#38bdf8',
   strategy_five: '#facc15',
   strategy_six: '#34d399',
+  strategy_seven: '#f59e0b',
 };
 
 const FALLBACK_LABELS: Record<string, string> = {
@@ -42,6 +44,7 @@ const FALLBACK_LABELS: Record<string, string> = {
   strategy_four: 'Strategy Four',
   strategy_five: 'Strategy Five',
   strategy_six: 'Strategy Six',
+  strategy_seven: 'Strategy Seven',
 };
 
 function formatPct(value: number | null | undefined): string {
