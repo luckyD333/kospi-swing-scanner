@@ -1,8 +1,8 @@
 """Phase 2 Step 4: trade_plan_calc helper 단위 테스트.
 
 - compute_trade_plan: k_adj 동적, r 비율 고정, support_floor floor, edge case
-- resolve_base_strategy_id: REGISTRY 의 모든 variant 키 → 5 base 매핑
-- STRATEGY_PARAMS: 5 base 전략만 (단일 위치 보장)
+- resolve_base_strategy_id: REGISTRY 의 모든 variant 키 → 7 base 매핑
+- STRATEGY_PARAMS: 7 base 전략만 (단일 위치 보장)
 """
 import pytest
 
@@ -17,10 +17,10 @@ from core.trade_plan_calc import (
 # ── STRATEGY_PARAMS 무결성 ────────────────────────────────────────────────────
 
 
-def test_strategy_params_has_exactly_six_base_keys():
+def test_strategy_params_has_exactly_seven_base_keys():
     expected = {
         "strategy_one", "strategy_two", "strategy_three",
-        "strategy_four", "strategy_five", "strategy_six",
+        "strategy_four", "strategy_five", "strategy_six", "strategy_seven",
     }
     assert set(STRATEGY_PARAMS.keys()) == expected
 
@@ -65,7 +65,7 @@ def test_resolve_base_handles_intraday_suffixes():
 
 def test_resolve_base_unknown_raises():
     with pytest.raises(KeyError):
-        resolve_base_strategy_id("strategy_seven_unknown")   # six 는 이제 등록 대상
+        resolve_base_strategy_id("strategy_eight_unknown")   # seven 까지는 등록 대상
     with pytest.raises(KeyError):
         resolve_base_strategy_id("")
     with pytest.raises(KeyError):
@@ -76,8 +76,12 @@ def test_resolve_base_six():
     assert resolve_base_strategy_id("strategy_six_channel_grid") == "strategy_six"
 
 
+def test_resolve_base_seven():
+    assert resolve_base_strategy_id("strategy_seven_cfi") == "strategy_seven"
+
+
 def test_resolve_base_covers_all_registry_keys():
-    """REGISTRY 의 모든 키가 5 base 로 resolve 되는지 — STRATEGY_PARAMS 동기 보장."""
+    """REGISTRY 의 모든 키가 7 base 로 resolve 되는지 — STRATEGY_PARAMS 동기 보장."""
     from strategies import REGISTRY
     for key in REGISTRY.keys():
         base = resolve_base_strategy_id(key)

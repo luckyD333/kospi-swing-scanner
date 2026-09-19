@@ -53,11 +53,13 @@ STRATEGY_PARAMS: dict[str, TradePlanParams] = {
     # strategy_six 는 목표가가 선 값이라 apply_dynamic_trade_plan 을 호출하지 않는다.
     # REGISTRY↔STRATEGY_PARAMS 동기 테스트를 위해 S3 값으로 등록만 한다.
     "strategy_six":   TradePlanParams(base_k_stop=1.8, r_target_1=1.0, r_target_2=2.5),
+    # strategy_seven 은 추적 손절선 tsl 을 support_floor 로 넘긴다. 추세 계열이라 S3 값 사용.
+    "strategy_seven": TradePlanParams(base_k_stop=1.8, r_target_1=1.0, r_target_2=2.5),
 }
 
 # REGISTRY 의 strategy_id (예: strategy_one_d_v2_r1, strategy_two_30m,
-# strategy_five_bull_flag_1h) 에서 base 6 키 (strategy_one ~ strategy_six) 추출.
-_BASE_STRATEGY_RE = re.compile(r"^(strategy_(?:one|two|three|four|five|six))(?:_.*)?$")
+# strategy_five_bull_flag_1h) 에서 base 7 키 (strategy_one ~ strategy_seven) 추출.
+_BASE_STRATEGY_RE = re.compile(r"^(strategy_(?:one|two|three|four|five|six|seven))(?:_.*)?$")
 
 
 def resolve_base_strategy_id(strategy_id: str) -> str:
