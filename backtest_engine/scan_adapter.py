@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from core.decision.per_ticker_regime import regime_at
 from core.strategy_base import ScanContext, Strategy
 
 
@@ -38,10 +39,15 @@ def _build_ctx(
     target_date: pd.Timestamp,
     ohlcv: dict[str, pd.DataFrame],
     market: str,
+    regime_grid: dict[str, pd.Series] | None = None,
 ) -> ScanContext:
     """target_date 이하 봉만 포함한 ScanContext 생성. look-ahead 방지.
 
     lookback 부족 시 스킵은 각 전략이 책임 (S2~S5 의 min_bars 검사).
+
+    regime_grid: build_regime_grid() 결과. 주면 per_ticker_regime 이 채워져
+      entry gate 가 실제로 동작한다. None 이면 entry_gate 가 우회된다.
+      donchian_1h_by_ticker 는 .cache_wf 에 1h 가 없어 항상 비어 있다.
     """
     sliced: dict[str, pd.DataFrame] = {}
     for ticker, df in ohlcv.items():
@@ -49,6 +55,14 @@ def _build_ctx(
         if len(sub) > 0:
             sliced[ticker] = sub
     universe = tuple(sliced.keys())
+
+    per_ticker_regime: dict[str, str] = {}
+    if regime_grid is not None:
+        for ticker in universe:
+            label = regime_at(regime_grid, ticker, target_date)
+            if label is not None:
+                per_ticker_regime[ticker] = label
+
     return ScanContext(
         target_date=target_date.strftime("%Y%m%d"),
         universe=universe,
@@ -56,6 +70,7 @@ def _build_ctx(
         names={t: t for t in universe},
         market_caps={t: 10_000.0 for t in universe},  # fragility 측정에는 무관
         market=market,
+        per_ticker_regime=per_ticker_regime,
     )
 
 
