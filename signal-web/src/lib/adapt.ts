@@ -1,6 +1,10 @@
 import type { Signal, DecisionFactor, RegretFactor, SignalStatus, SignalFreshness } from '@/types/signal';
 import { formatStrategyLabel } from '@/lib/strategy';
 
+// 보유 가이드 노출 스위치. data/holding_recommendations.json 의 일부 셀이 평균 손익 음수인데도
+// 추천으로 나가는 문제가 있어 노출을 끈다 (2026-09-19). 집계 쪽이 정리되면 true 로 되돌린다.
+export const HOLDING_GUIDE_ENABLED = false;
+
 export type SignalComponentStatus = 'ok' | 'warn' | 'miss';
 
 export interface SignalComponent {

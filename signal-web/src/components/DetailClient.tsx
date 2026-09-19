@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DetailProps, MatchProps } from '@/lib/adapt';
+import { HOLDING_GUIDE_ENABLED } from '@/lib/adapt';
 import type { MarketIndex, RegimeScore, BreadthScore, AxesScore, FearGreedSnapshot, VKospiSnapshot } from '@/types/signal';
 import { ts } from '@/lib/typography';
 import { tradingViewUrl } from '@/lib/external-links';
@@ -389,7 +390,7 @@ export default function DetailClient({ detail, marketIndices, targetDateDisplay,
         </div>
 
         {/* 추천 보유 기간 (상황별 holding 추천 — plan: warm-percolating-cosmos.md) */}
-        {holdingStatus && (
+        {HOLDING_GUIDE_ENABLED && holdingStatus && (
           <div style={{
             padding: '16px 0',
             borderBottom: '1px solid var(--hairline)',
