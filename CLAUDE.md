@@ -18,7 +18,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
   - runner 후처리: tradability_filter(거래가능 hard filter)·max_filter(급등 가드 EXCLUDE/PENALTY)
   - 출력/랭킹: regret_scorer·order_type_classifier(주문타입)·signal_status·factors/(momentum_3m·liquidity·signal_freshness)
   - 오프라인: factor_performance(weights.yml 산출, scripts/compute_weights)
-  - 미배선(dormant): squeeze·donchian_levels(use_donchian_levels 기본 False)
+  - 미배선(dormant): squeeze
 - `strategies/` — 전략 plug-in (Strategy Protocol). 7개 전략 × 다중 TF + fallback 변형(r1/r2)
 - `output/` — 포맷터 (table/json/csv/markdown/**signals_ui**) + signals_builder + snapshot_builder + holding_recommender
 - `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
