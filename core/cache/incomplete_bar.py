@@ -1,8 +1,9 @@
 """
-core/cache/incomplete_bar.py — 1D today row 의 종가 확정 여부 판정.
+core/cache/incomplete_bar.py — 봉의 종가 확정 여부 판정.
 
 휴리스틱: fetched_at_kst >= 15:30 KST 이면 confirmed close.
 target_date 가 과거 영업일이면 fetched 시각 무관 항상 confirmed.
+target_date 가 미래면 (주봉 W-FRI 라벨 등) 진행 중인 봉이므로 incomplete.
 네이버 응답에 close_status 메타가 없어 시각 기반 가드만 가능.
 """
 from __future__ import annotations
@@ -33,6 +34,9 @@ def is_today_bar_complete(
     if fetched_at_iso is None:
         return False
     today_kst = datetime.now(KST).strftime("%Y-%m-%d")
+    if target_date > today_kst:
+        # 주봉 W-FRI 라벨처럼 아직 오지 않은 날짜 = 진행 중인 기간 봉
+        return False
     if target_date != today_kst:
         return True
     try:

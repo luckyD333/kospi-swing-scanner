@@ -56,3 +56,25 @@ def test_handles_naive_iso_as_kst():
 def test_handles_invalid_iso_as_incomplete():
     today = _today_str()
     assert is_today_bar_complete(today, "not-an-iso") is False
+
+
+def _tomorrow_str() -> str:
+    return (datetime.now(KST) + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def test_incomplete_when_target_is_future_label():
+    """주봉 W-FRI 라벨처럼 target_date 가 미래면 진행 중인 봉이다.
+
+    월~목 스캔에서 주봉 라벨은 이번 주 금요일이 된다. 기존 구현은
+    '오늘이 아님 → 확정' 규칙에 걸려 진행 중인 봉을 확정으로 오판했다.
+    """
+    tomorrow = _tomorrow_str()
+    fetched = datetime.now(KST).replace(hour=15, minute=35, second=0).isoformat()
+    assert is_today_bar_complete(tomorrow, fetched) is False
+
+
+def test_future_label_incomplete_regardless_of_fetch_time():
+    """미래 라벨은 수집 시각과 무관하게 항상 미완성이다."""
+    tomorrow = _tomorrow_str()
+    morning = datetime.now(KST).replace(hour=9, minute=5, second=0).isoformat()
+    assert is_today_bar_complete(tomorrow, morning) is False
