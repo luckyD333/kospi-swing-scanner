@@ -7,7 +7,6 @@ DOWNTREND_WEAK/STRONG, MIXED 분류.
 위계 원칙:
   - 1d: "이 종목 매수해도 되는 환경인가?" (Yes/No 게이트)
   - 1h: 셋업 품질 점수 (메타)
-  - 30m: 실행 가격
 
 경계값 캘리브레이션 (Phase 2 튜닝 포인트):
   - POSITION_STRONG_UP = 0.70 (strong uptrend 하한)

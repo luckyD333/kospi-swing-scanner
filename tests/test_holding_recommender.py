@@ -199,7 +199,7 @@ def test_runtime_strategy_id_maps_to_backtest_key(mock_recs, tmp_path):
 
 
 def test_intraday_strategy_id_does_not_reuse_1d_holding(mock_recs, tmp_path):
-    """1h/30m 신호에는 1D 보유 추천을 억지 적용하지 않는다."""
+    """1h 신호에는 1D 보유 추천을 억지 적용하지 않는다."""
     p = tmp_path / "rec.json"
     p.write_text(json.dumps(mock_recs))
     recs = load_recommendations(p)

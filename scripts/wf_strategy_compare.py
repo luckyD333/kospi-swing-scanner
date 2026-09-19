@@ -1,6 +1,6 @@
-"""scripts/wf_strategy_compare.py — 5 전략 default config OOS 수익률 비교.
+"""scripts/wf_strategy_compare.py — 7 전략 default config OOS 수익률 비교.
 
-본 세션의 BarTracker scan_adapter 를 사용해 S1~S5 의 default config 를 같은
+본 세션의 BarTracker scan_adapter 를 사용해 S1~S7 의 default config 를 같은
 9 OOS 윈도우에서 동일 조건으로 평가. 표 형식 출력.
 
 사용:
@@ -33,6 +33,7 @@ from scripts.wf_validate_s2_to_s5 import (  # noqa: E402
     _s4_factory,
     _s5_factory,
     _s6_factory,
+    _s7_factory,
     load_history,
 )
 from strategies.strategy_one_d_v2 import (  # noqa: E402
@@ -54,6 +55,7 @@ STRATEGIES = [
     ("S4_PullbackMA",     _s4_factory),
     ("S5_BullFlag",       _s5_factory),
     ("S6_ChannelGrid",    _s6_factory),
+    ("S7_CfiReversal",    _s7_factory),
 ]
 
 
@@ -150,6 +152,11 @@ def main() -> None:
     parser.add_argument("--step-days", type=int, default=30)
     parser.add_argument("--holding-bars", type=int, default=3)
     parser.add_argument("--top-n", type=int, default=5)
+    parser.add_argument(
+        "--lookback-buffer-days", type=int, default=150,
+        help="전략 min_bars 확보용 과거 데이터 버퍼(캘린더 일). "
+             "S6 는 150, S7(vp_lookback=200) 은 320 이상 필요.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -176,7 +183,7 @@ def main() -> None:
         holding_bars=args.holding_bars,
         top_n=args.top_n,
         commission_pct=0.0030,
-        lookback_buffer_days=150,  # S6 min_bars=80(거래일) — 캘린더 150일 필요
+        lookback_buffer_days=args.lookback_buffer_days,
         emit_stats=False,
     )
 

@@ -1,7 +1,7 @@
 """
 core/decision/entry_gate.py — 전략별 entry gate 정책 매트릭스.
 
-7×6 매트릭스: 7개 regime × 6개 전략 = 42개 정책 셀.
+7×7 매트릭스: 7개 regime × 7개 전략 = 49개 정책 셀.
 
 정책 액션:
   - "allow": 진입 허용
@@ -13,7 +13,6 @@ core/decision/entry_gate.py — 전략별 entry gate 정책 매트릭스.
 위계 원칙:
   - 1d regime은 환경 게이트 (Yes/No)
   - 1h setup_score는 메타 정보 (품질 점수)
-  - 30m은 실행 가격 산출 (Task 5d)
 
 Calibration (Phase 2):
   - STRONG_SETUP_THRESHOLD = 60 (adjust via weights.yml or CLI flag)
@@ -27,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 GateAction = Literal["allow", "allow_strong_only", "block"]
 
-# 전략별 entry gate 정책 (7×6 매트릭스)
+# 전략별 entry gate 정책 (7×7 매트릭스)
 ENTRY_GATE_POLICY: dict[str, dict[str, GateAction]] = {
     "strategy_one": {  # 평균 회귀 (RSI+BB+쌍바닥+장악형)
         "UPTREND_STRONG": "allow_strong_only",  # 풀백만 (high setup)
@@ -75,6 +74,15 @@ ENTRY_GATE_POLICY: dict[str, dict[str, GateAction]] = {
         "MIXED": "block",
     },
     "strategy_six": {  # 추세선·채널 격자 (레벨 0 상향 돌파 후 리테스트, 추세 추종 계열)
+        "UPTREND_STRONG": "allow",
+        "UPTREND_WEAK": "allow",
+        "RANGE_TIGHT": "allow",
+        "RANGE": "block",
+        "DOWNTREND_WEAK": "block",
+        "DOWNTREND_STRONG": "block",
+        "MIXED": "block",
+    },
+    "strategy_seven": {  # CFI 하이킨아시 추세 전환 (돌파 계열, S6 정책 복제)
         "UPTREND_STRONG": "allow",
         "UPTREND_WEAK": "allow",
         "RANGE_TIGHT": "allow",
@@ -138,9 +146,8 @@ def _normalize_family(strategy_id: str) -> str:
         - strategy_one_d_v2 → strategy_one
         - strategy_one_w_v2 → strategy_one
         - strategy_two_1h → strategy_two
-        - strategy_three_30m_v2 → strategy_three
         - strategy_four_pullback_ma_1h → strategy_four
-        - strategy_five_bull_flag_30m → strategy_five
+        - strategy_five_bull_flag_1h → strategy_five
     """
     for family in (
         "strategy_one",
@@ -149,6 +156,7 @@ def _normalize_family(strategy_id: str) -> str:
         "strategy_four",
         "strategy_five",
         "strategy_six",
+        "strategy_seven",
     ):
         if strategy_id.startswith(family):
             return family

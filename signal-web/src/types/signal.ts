@@ -40,17 +40,11 @@ export interface TradePlan {
   rsi_14: number | null;
   rsi_1d?: number | null;
   rsi_1h?: number | null;
-  rsi_30m?: number | null;
   derived: TradePlanDerived | null;
-  // 30m 지지선 기반 권장 지정가 진입
-  limit_entry?: number | null;
-  limit_stop?: number | null;
-  rr_ratio_limit?: number | null;
-  rr_band_limit?: string | null;
   // PR-C (P1-1): 주문 타입 의도
   order_type_intent?: string | null;    // BREAKOUT | PULLBACK | IMMEDIATE
   order_type_label_ko?: string | null;  // 역지정가 | 지정가 | 시장가 | 상한 지정가
-  // 감사 F6: limit 부재 + IMMEDIATE 시 갭상승 추격 상한 (entry×1.03 tick 내림)
+  // 감사 F6: IMMEDIATE 시 갭상승 추격 상한 (entry×1.03 tick 내림)
   max_chase?: number | null;
 }
 

@@ -36,6 +36,7 @@ _BACKTEST_STRATEGY_KEYS = {
     "S4_PullbackMA",
     "S5_BullFlag",
     "S6_ChannelGrid",
+    "S7_CfiReversal",
 }
 
 _RUNTIME_TO_BACKTEST_STRATEGY: tuple[tuple[str, str], ...] = (
@@ -45,6 +46,7 @@ _RUNTIME_TO_BACKTEST_STRATEGY: tuple[tuple[str, str], ...] = (
     ("strategy_four", "S4_PullbackMA"),
     ("strategy_five", "S5_BullFlag"),
     ("strategy_six", "S6_ChannelGrid"),
+    ("strategy_seven", "S7_CfiReversal"),
 )
 
 
@@ -63,7 +65,7 @@ def canonical_holding_strategy(
     """런타임 strategy id 를 holding 백테스트 strategy key 로 변환.
 
     현재 data/holding_recommendations.json 은 1D 백테스트 기반 전략군 key
-    (S1_MeanReversion 등) 만 가진다. 1h/30m/1W 신호에는 같은 값을 억지
+    (S1_MeanReversion 등) 만 가진다. 1h/1W 신호에는 같은 값을 억지
     환산하지 않기 위해 None 을 반환한다.
     """
     if timeframe is not None and timeframe != "1D":

@@ -74,8 +74,8 @@ export default React.memo(function TickerCard({ card, onNavigate, index }: Props
     : null;
   const tickerState = formatTickerState(rsi, perTickerRegime, atrBucket);
 
-  // 30m·1h 만료 countdown (signalDate + TF별 임계, KST 고정 파싱). 렌더 시점 계산 — 120s refresh 의존.
-  const isIntraday = timeframe === '30m' || timeframe === '1h';
+  // 1h 만료 countdown (signalDate + TF별 임계, KST 고정 파싱). 렌더 시점 계산 — 120s refresh 의존.
+  const isIntraday = timeframe === '1h';
   const expiryCountdown = (() => {
     if (!isIntraday || !signalDate) return null;
     const sdRaw = signalDate.includes('+') || signalDate.endsWith('Z')

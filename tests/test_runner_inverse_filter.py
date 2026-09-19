@@ -35,7 +35,7 @@ def test_전략사는_인버스를_제외한다():
 
 def test_전략삼과_오도_인버스를_제외한다():
     """돌파와 깃발형도 같은 추세 추종 논리를 쓴다."""
-    for name in ("strategy_three_trend_following", "strategy_five_bull_flag_30m"):
+    for name in ("strategy_three_trend_following", "strategy_five_bull_flag_1h"):
         kept = _drop_inverse_for_trend(name, list(_CANDIDATES))
         assert all("인버스" not in c.name for c in kept)
         assert len(kept) == 2

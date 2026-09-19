@@ -24,9 +24,9 @@ def test_resolve_by_timeframes_1d_1w():
 
 
 def test_resolve_by_timeframes_excludes_others():
-    strategies = _resolve_by_timeframes(["30m"])
+    strategies = _resolve_by_timeframes(["1h"])
     tfs = {getattr(s, "timeframe", None) for s in strategies}
-    assert tfs == {"30m"} or "30m" in tfs
+    assert tfs == {"1h"} or "1h" in tfs
     assert "1D" not in tfs
     assert "1W" not in tfs
 

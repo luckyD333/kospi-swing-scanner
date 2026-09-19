@@ -1,9 +1,9 @@
 """
-Task 5: resample_to (1D→1W, 1m→30m/1h).
+Task 5: resample_to (1D→1W, 1m→1h).
 
 검증:
   - 일봉 10개 (2주) → 주봉 2개, close 가 금요일 close
-  - 분봉 120개 (2시간) → 30m 4개
+  - 분봉 120개 (2시간) → 1h 2개
   - 미지원 timeframe ValueError
   - 빈 DataFrame 입력은 빈 DataFrame 반환
 """
@@ -36,25 +36,6 @@ def test_daily_to_weekly_friday_close():
     assert w["high"].iloc[0] == 4
     # 둘째 주 close = 9
     assert w["close"].iloc[1] == 9
-
-
-def test_minute_to_30m():
-    # 09:00 ~ 10:59 (120 분봉)
-    idx = pd.date_range("2026-04-30 09:00", periods=120, freq="1min")
-    df = pd.DataFrame(
-        {
-            "open": [1.0] * 120,
-            "high": [2.0] * 120,
-            "low": [0.5] * 120,
-            "close": [1.5] * 120,
-            "volume": [10] * 120,
-        },
-        index=idx,
-    )
-    out = resample_to(df, "30m")
-    assert len(out) == 4
-    assert out["high"].iloc[0] == 2.0
-    assert out["volume"].iloc[0] == 300  # 30 * 10
 
 
 def test_minute_to_1h():

@@ -43,6 +43,7 @@ def test_market_config_kospi_returns_rank2_values():
         "strategy_one":   0.88, "strategy_two":   0.46,
         "strategy_three": 1.03, "strategy_four":  0.56,
         "strategy_five":  0.30, "strategy_six":   0.56,
+        "strategy_seven": 0.56,
     }
 
 
@@ -109,10 +110,10 @@ def test_base_strategy_prefix_mapping():
     assert _base_strategy("strategy_one_d_v2") == "strategy_one"
     assert _base_strategy("strategy_one_1h_v2_r2") == "strategy_one"
     assert _base_strategy("strategy_two_cross_sectional_momentum") == "strategy_two"
-    assert _base_strategy("strategy_two_30m") == "strategy_two"
+    assert _base_strategy("strategy_two_1h") == "strategy_two"
     assert _base_strategy("strategy_three_trend_following") == "strategy_three"
     assert _base_strategy("strategy_four_pullback_ma_1h") == "strategy_four"
-    assert _base_strategy("strategy_five_bull_flag_30m") == "strategy_five"
+    assert _base_strategy("strategy_five_bull_flag_1h") == "strategy_five"
     # unknown → 그대로 반환
     assert _base_strategy("strategy_unknown") == "strategy_unknown"
 

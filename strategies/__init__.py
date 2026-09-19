@@ -2,7 +2,7 @@
 strategies/__init__.py — 전략 registry (Open-Closed).
 
 REGISTRY 값은 `Callable[[], Strategy]` (factory). 클래스 그대로(class()) 와 lambda 둘 다 가능.
-StrategyOneDv2 는 timeframe 파라미터로 4 변형(1D/1W/1h/30m) 등록.
+StrategyOneDv2 는 timeframe 파라미터로 3 변형(1D/1W/1h) 등록.
 
 새 전략 추가 절차:
   1. strategies/strategy_<name>.py 작성 — Strategy Protocol 충족 (name 클래스 속성, scan 메서드)
@@ -27,6 +27,7 @@ from .strategy_two_cross_sectional_momentum import (
     StrategyTwoCrossSectionalMomentum,
 )
 from .strategy_six_channel_grid import StrategySixChannelGrid  # noqa: F401  (autodiscover 등록, 명시 import 로 순서 고정)
+from .strategy_seven_cfi import StrategySevenCfi  # noqa: F401  (autodiscover 등록, 명시 import 로 순서 고정)
 
 # strategy_two 운영 cfg — 2026-05-14 최적화: rsi_max 제거 (lookback=20, entry_percentile=0.80)
 _STRATEGY_TWO_CFG = StrategyTwoConfig(rsi_max=None, percentile_max=0.95)
@@ -36,7 +37,6 @@ REGISTRY: dict[str, Callable[[], Strategy]] = {
     "strategy_one_d_v2": lambda: StrategyOneDv2(timeframe="1D"),
     "strategy_one_w_v2": lambda: StrategyOneDv2(timeframe="1W"),
     "strategy_one_1h_v2": lambda: StrategyOneDv2(timeframe="1h"),
-    "strategy_one_30m_v2": lambda: StrategyOneDv2(timeframe="30m"),
     "strategy_one_d_v2_r1": lambda: StrategyOneDv2(
         config=StrategyOneDv2Config(engulf_strict=False),
         timeframe="1D",
@@ -81,39 +81,18 @@ REGISTRY: dict[str, Callable[[], Strategy]] = {
         timeframe="1h",
         name_suffix="_r2",
     ),
-    # 30m 완화 변형
-    "strategy_one_30m_v2_r1": lambda: StrategyOneDv2(
-        config=StrategyOneDv2Config(engulf_strict=False),
-        timeframe="30m",
-        name_suffix="_r1",
-    ),
-    "strategy_one_30m_v2_r2": lambda: StrategyOneDv2(
-        config=StrategyOneDv2Config(
-            engulf_strict=False,
-            db_freshness=4,
-            db_price_tolerance=0.05,
-        ),
-        timeframe="30m",
-        name_suffix="_r2",
-    ),
     "strategy_two_cross_sectional_momentum": lambda: StrategyTwoCrossSectionalMomentum(
         config=_STRATEGY_TWO_CFG, timeframe="1D",
     ),
     "strategy_two_1h": lambda: StrategyTwoCrossSectionalMomentum(
         config=_STRATEGY_TWO_CFG, timeframe="1h",
     ),
-    "strategy_two_30m": lambda: StrategyTwoCrossSectionalMomentum(
-        config=_STRATEGY_TWO_CFG, timeframe="30m",
-    ),
     "strategy_three_trend_following": lambda: StrategyThreeTrendFollowing(timeframe="1D"),
     "strategy_three_1h": lambda: StrategyThreeTrendFollowing(timeframe="1h"),
-    "strategy_three_30m": lambda: StrategyThreeTrendFollowing(timeframe="30m"),
     "strategy_four_pullback_ma":     lambda: StrategyFourPullbackMa(timeframe="1D"),
     "strategy_four_pullback_ma_1h":  lambda: StrategyFourPullbackMa(timeframe="1h"),
-    "strategy_four_pullback_ma_30m": lambda: StrategyFourPullbackMa(timeframe="30m"),
     "strategy_five_bull_flag":       lambda: StrategyFiveBullFlag(timeframe="1D"),
     "strategy_five_bull_flag_1h":    lambda: StrategyFiveBullFlag(timeframe="1h"),
-    "strategy_five_bull_flag_30m":   lambda: StrategyFiveBullFlag(timeframe="30m"),
     "strategy_six_channel_grid_w": lambda: StrategySixChannelGrid(timeframe="1W"),
 }
 
@@ -150,7 +129,6 @@ FALLBACKS: dict[str, list[str]] = {
     "strategy_one_d_v2": ["strategy_one_d_v2_r1", "strategy_one_d_v2_r2"],
     "strategy_one_w_v2": ["strategy_one_w_v2_r1", "strategy_one_w_v2_r2"],
     "strategy_one_1h_v2": ["strategy_one_1h_v2_r1", "strategy_one_1h_v2_r2"],
-    "strategy_one_30m_v2": ["strategy_one_30m_v2_r1", "strategy_one_30m_v2_r2"],
 }
 
 

@@ -10,7 +10,7 @@ core/runner.py — 멀티 전략 + 멀티 타임프레임 스캔 오케스트레
 설계 결정:
   - 전략 인스턴스는 호출자가 주입 (Strategy Protocol 충족 + .timeframe 속성)
   - Cache 는 인스턴스 생명주기 = run() 1회. cache_root 주어지면 디스크 영속화.
-  - 30m/1h 는 1m fetch 후 resample. 1W 는 1D fetch 후 resample.
+  - 1h 는 1m fetch 후 resample. 1W 는 1D fetch 후 resample.
   - run() 안에서 예외 → 해당 전략만 실패 표시, 다른 전략은 계속 진행
 """
 from __future__ import annotations
@@ -60,7 +60,8 @@ def _apply_max_guard(cand, ohlcv_1d, cfg=_MAX_FILTER_CFG) -> bool:
 
 # 추세 추종 전략군 — 인버스 상품은 기초 지수와 반대로 움직여 진입 논리와 충돌한다.
 # 2026-09-16 측정: 전략 4 의 인버스 8건 평균 -4.31%, 승률 25%.
-_INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five", "strategy_six")
+_INVERSE_EXCLUDED_FAMILIES = ("strategy_three", "strategy_four", "strategy_five",
+                              "strategy_six", "strategy_seven")
 
 # 1D/1W 창 확장(600일)과 무관하게 분봉 읽기 창은 120일 유지 (종전 lookback_days(90)+30 과 동일값 보존)
 _MINUTE_LOOKBACK_DAYS = 120
@@ -511,7 +512,7 @@ class ScanRunner:
             )
             funnel["source_counts"][source] += 1
             return resample_to(df_d, "1W") if not df_d.empty else df_d
-        if tf in ("30m", "1h", "2h", "4h"):
+        if tf in ("1h", "2h", "4h"):
             # 분봉 end 는 YYYYMMDD2359 — 그 날 분봉 raw 끝까지 포함 (장중 미완료 분봉도)
             minute_end = f"{end_str}2359"
             source, df_m = cache.get_or_fetch_with_source(

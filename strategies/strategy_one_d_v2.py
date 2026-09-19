@@ -33,7 +33,7 @@ from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
 from ._atr_stop import compute_atr_stop
-from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+from .price_utils import floor_to_tick, round_to_tick
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,6 @@ class StrategyOneDv2Config:
     atr_stop_mult: float = 2.0              # PR-F: stop = entry - mult×ATR(14)
     atr_stop_support_buffer: float = 1.0    # PR-F: prev_support - buffer×ATR(14)
     prev_support_lookback: int = 20         # PR-F: prev_support = 최근 N봉 저점
-    use_donchian_levels: bool = False       # 30m Donchian 기반 trade_plan 산출 (Optional)
 
 
 def _build_detector(
@@ -72,18 +71,17 @@ def _build_detector(
 
 
 # timeframe → registry name suffix 매핑 (단일 클래스 멀티 등록용)
-_TF_SUFFIX = {"1D": "d", "1W": "w", "1h": "1h", "30m": "30m"}
+_TF_SUFFIX = {"1D": "d", "1W": "w", "1h": "1h"}
 
 
 class StrategyOneDv2:
     """
     Strategy Protocol 구현 — RSI + BB + 쌍바닥 + 장악형 양봉.
 
-    `timeframe` 파라미터로 4개 타임프레임 변형을 단일 클래스로 처리:
+    `timeframe` 파라미터로 3개 타임프레임 변형을 단일 클래스로 처리:
       - "1D" → name="strategy_one_d_v2"
       - "1W" → name="strategy_one_w_v2"
       - "1h" → name="strategy_one_1h_v2"
-      - "30m" → name="strategy_one_30m_v2"
     scan() 은 ctx.ohlcv_by_tf[self.timeframe] 을 사용한다 (없으면 빈 결과).
     """
 
@@ -223,23 +221,14 @@ class StrategyOneDv2:
                 triggers = {k for k, v in signal.conditions_met.items() if v}
                 conf_level, conf_scale = eval_confirmation(triggers, rsi_14_val)
 
-                # PR-I: 멀티 TF RSI — 1h/30m 계산 + 동시 과열/과매도 페널티
+                # PR-I: 멀티 TF RSI — 1h 계산 + 동시 과열/과매도 페널티
                 df_1h = ctx.ohlcv_by_tf.get("1h", {}).get(ticker)
                 rsi_1h = (
                     latest_rsi_or_none(df_1h["close"], period=14)
                     if df_1h is not None and len(df_1h) >= 14 else None
                 )
-                df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
-                rsi_30m = (
-                    latest_rsi_or_none(df_30m["close"], period=14)
-                    if df_30m is not None and len(df_30m) >= 14 else None
-                )
                 conf_scale *= compute_multi_tf_penalty(
-                    {"1D": rsi_14_val, "1h": rsi_1h, "30m": rsi_30m}
-                )
-
-                limit_entry, limit_stop = populate_limit_fields(
-                    df_30m, entry_price, stop_loss
+                    {"1D": rsi_14_val, "1h": rsi_1h}
                 )
 
                 candidates.append(Candidate(
@@ -273,15 +262,12 @@ class StrategyOneDv2:
                         "triggers_fired": sorted(triggers),
                         # PR-I: 멀티 TF RSI
                         "rsi_1h": rsi_1h,
-                        "rsi_30m": rsi_30m,
                         # Task 5a: entry gate
                         "per_ticker_regime": regime,
                         "setup_score": setup_score,
                         "setup_reasons": setup_reasons,
                         "bars_since_trigger": 0,
                     },
-                    limit_entry=limit_entry,
-                    limit_stop=limit_stop,
                 ))
             except Exception as e:
                 failed += 1

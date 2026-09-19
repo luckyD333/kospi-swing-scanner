@@ -1,7 +1,7 @@
 """
 screener.py — 다중 타임프레임 스크리너
 
-여러 종목 × 여러 타임프레임(30m/1h/2h/4h/1D)을 스크리닝하여
+여러 종목 × 여러 타임프레임(1h/2h/4h/1D)을 스크리닝하여
 현재 진입 시그널이 있는 종목 리스트 + 매수/매도/손절 가격을 반환한다.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from .detectors import (
 from .strategy import StrategyD, StrategyDConfig
 
 # 지원 타임프레임
-SUPPORTED_TIMEFRAMES = ["30m", "1h", "2h", "4h", "1D"]
+SUPPORTED_TIMEFRAMES = ["1h", "2h", "4h", "1D"]
 
 
 @dataclass
@@ -210,10 +210,9 @@ def resample_ohlcv(
 
     Args:
         df_1m: OHLCV DataFrame (index=datetime)
-        target_timeframe: "30m", "1h", "2h", "4h", "1D"
+        target_timeframe: "1h", "2h", "4h", "1D"
     """
     freq_map = {
-        "30m": "30min",
         "1h": "1h",
         "2h": "2h",
         "4h": "4h",

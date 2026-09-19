@@ -28,7 +28,7 @@ from core.decision.signal_status import (  # noqa: E402
 )
 
 # UI catalog 카드용 timeframe 라벨 (signal-web/src/types/signal.ts 와 매칭)
-_TIMEFRAME_KEYS = {"1D": "rsi_1d", "1h": "rsi_1h", "30m": "rsi_30m"}
+_TIMEFRAME_KEYS = {"1D": "rsi_1d", "1h": "rsi_1h"}
 _KST = ZoneInfo("Asia/Seoul")
 
 
@@ -42,7 +42,7 @@ def compute_freshness_meta(
     """응답 시점의 신호 신선도 메타 (UI 표시·필터용).
 
     keys:
-      bars_since_trigger: 신호 발생일 이후 경과 봉 수 (1D=거래일, 1h=거래일×6, 30m×13)
+      bars_since_trigger: 신호 발생일 이후 경과 봉 수 (1D=거래일, 1h=거래일×6)
       price_drift_pct: (current - entry) / entry × 100, current 없으면 None
       plan_expired: bars_since_trigger > timeframe별 STALE 임계
     """
@@ -58,8 +58,6 @@ def compute_freshness_meta(
             elapsed_days = trading_days_since(sd, today)
             if timeframe == "1h":
                 bars = elapsed_days * 6  # 한국 장중 6.5h ≈ 6봉
-            elif timeframe == "30m":
-                bars = elapsed_days * 13
             else:
                 bars = elapsed_days  # 1D / 1W 등 거래일 기준
         except ValueError:
@@ -140,9 +138,9 @@ def apply_snapshot_overlay(
                 },
             }
 
-    # signal_status 계산 — limit_stop 우선, 없으면 stop
+    # signal_status 계산
     tp = out.get("trade_plan") or {}
-    stop_for_compare = tp.get("limit_stop") or tp.get("stop")
+    stop_for_compare = tp.get("stop")
     target_for_compare = tp.get("target_1")
     cp_for_compare = (out.get("live_quote") or {}).get("current_price")
     strategy_dict = out.get("strategy") or {}
@@ -173,9 +171,9 @@ def merge_rsi_by_timeframe(
     우선순위: snapshot.tickers[ticker].rsi_by_tf (ticker 의 indicator, strategy 후보 여부와 무관) →
     signals 의 strategy entries 의 rsi_14 (fallback).
 
-    반환: {"rsi_1d": ..., "rsi_1h": ..., "rsi_30m": ...}.
+    반환: {"rsi_1d": ..., "rsi_1h": ...}.
     """
-    out: dict[str, float | None] = {"rsi_1d": None, "rsi_1h": None, "rsi_30m": None}
+    out: dict[str, float | None] = {"rsi_1d": None, "rsi_1h": None}
     # 1) snapshot 의 ticker 단위 RSI 우선
     if snapshot_rsi:
         for tf, key in _TIMEFRAME_KEYS.items():
@@ -271,7 +269,7 @@ def aggregate_entries_for_ticker(
 
         match_status = compute_signal_status(
             current_price=base_cp,
-            stop=trade_plan.get("limit_stop") or trade_plan.get("stop"),
+            stop=trade_plan.get("stop"),
             target_1=trade_plan.get("target_1"),
             signal_date_str=e.get("signal_date"),
             timeframe=strategy.get("timeframe"),

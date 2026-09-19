@@ -36,14 +36,13 @@ from core.indicators import latest_rsi_or_none
 from core.strategy_base import Candidate, ScanContext
 
 from ._trade_plan_apply import apply_dynamic_trade_plan
-from .price_utils import floor_to_tick, populate_limit_fields, round_to_tick
+from .price_utils import floor_to_tick, round_to_tick
 
 logger = logging.getLogger(__name__)
 
 _TF_NAMES: dict[str, str] = {
     "1D": "strategy_two_cross_sectional_momentum",
     "1h": "strategy_two_1h",
-    "30m": "strategy_two_30m",
 }
 
 
@@ -57,7 +56,6 @@ class StrategyTwoConfig:
     target_1_pct: float = 0.03          # +3%
     target_2_pct: float = 0.05          # +5% (ATR 미산출 시 fallback)
     atr_target_mult: float = 3.0        # target_2 = entry + ATR×mult
-    use_donchian_levels: bool = False   # 30m Donchian 기반 trade_plan 산출 (Optional)
     # over-extension 가드 — None 이면 비활성 (legacy 호환). 운영 cfg 는 registry 에서 활성.
     rsi_max: float | None = None        # RSI 14 ≥ rsi_max 는 차단
     percentile_max: float | None = None  # percentile rank ≥ percentile_max 는 차단
@@ -233,9 +231,6 @@ class StrategyTwoCrossSectionalMomentum:
 
             rsi_14_val = latest_rsi_or_none(df["close"], period=14)
 
-            df_30m = ctx.ohlcv_by_tf.get("30m", {}).get(ticker)
-            limit_entry, limit_stop = populate_limit_fields(df_30m, entry, sl)
-
             candidates.append(Candidate(
                 ticker=ticker,
                 name=ctx.names.get(ticker, ticker),
@@ -246,8 +241,6 @@ class StrategyTwoCrossSectionalMomentum:
                 stop_loss=sl,
                 target_1=t1,
                 target_2=t2,
-                limit_entry=limit_entry,
-                limit_stop=limit_stop,
                 market_cap_bil=cap_bil,
                 volume_20d_avg=avg_vol_20,
                 conditions_met={

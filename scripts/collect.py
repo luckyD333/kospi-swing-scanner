@@ -3,9 +3,9 @@ scripts/collect.py — OHLCV 데이터 수집 Job.
 
 사용:
     python scripts/collect.py --market KOSPI --max-universe 100 --max-etf 30 \\
-        --cache-root .cache --timeframes 1D 1W 1h 30m
+        --cache-root .cache --timeframes 1D 1W 1h
 
-TF 매핑: 1D/1W → base_tf=1D, 1h/30m/2h/4h → base_tf=1m
+TF 매핑: 1D/1W → base_tf=1D, 1h/2h/4h → base_tf=1m
 수집된 데이터는 {cache_root}/{base_tf}/{ticker}.parquet 에 증분 저장.
 """
 from __future__ import annotations
@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 # TF별 최소 재수집 주기 (--smart-skip 용)
 _TF_MIN_INTERVAL: dict[str, timedelta] = {
     "1m":  timedelta(minutes=1),
-    "30m": timedelta(minutes=30),
     "1h":  timedelta(hours=1),
     "2h":  timedelta(hours=2),
     "4h":  timedelta(hours=4),
@@ -55,7 +54,7 @@ _TF_MIN_INTERVAL: dict[str, timedelta] = {
 _TF_TO_BASE = {
     "1D": "1D", "1W": "1D",
     "1m": "1m",
-    "30m": "1m", "1h": "1m", "2h": "1m", "4h": "1m",
+    "1h": "1m", "2h": "1m", "4h": "1m",
 }
 
 _VKOSPI_CANDLES_URL = (
@@ -75,7 +74,7 @@ class CollectConfig:
     max_universe_size: int = 100
     max_etf_size: int = 30
     min_etf_volatility_pct: float = 0.5
-    # 1D+1W는 base 1D로, 1h/30m는 base 1m으로 저장 후 리샘플링
+    # 1D+1W는 base 1D로, 1h는 base 1m으로 저장 후 리샘플링
     base_tfs: list[str] = field(default_factory=lambda: ["1D", "1m"])
     lookback_days: int = 90
     min_market_cap_bil: float = 0.0
@@ -204,7 +203,7 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         _DAILY_HISTORY_FLOOR_DAYS,
     )
     day_start = (target_dt - timedelta(days=daily_history_days)).strftime("%Y%m%d")
-    # 분봉(1m) lookback. HMM 학습용 1h regime, 30m/1h RSI(14) 안정성을 위해 30일치.
+    # 분봉(1m) lookback. HMM 학습용 1h regime, 1h RSI(14) 안정성을 위해 30일치.
     min_start = (target_dt - timedelta(days=30)).strftime("%Y%m%d")
 
     start_ts = time.monotonic()
@@ -754,7 +753,7 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
         # 1D RSI — strategy 후보 여부와 무관하게 ticker 의 indicator
         rsi_by_tf: dict[str, float | None] = {"1D": _rsi_last(df["close"])}
 
-        # 1m raw → 30m/1h 리샘플 + 마지막 분봉 close
+        # 1m raw → 1h 리샘플 + 마지막 분봉 close
         mpq = minute_cache / f"{ticker}.parquet"
         if mpq.exists():
             try:
@@ -769,18 +768,16 @@ def _extract_ohlcv_latest(cache_root: str, tickers_meta: dict) -> dict[str, dict
                             # 분봉 volume 은 누적 — 마지막 분봉의 volume = 그날 누적 거래량.
                             # 1D parquet 의 stale row volume 회피용으로 snapshot_builder 가 사용.
                             entry["minute_volume_today"] = float(mdf_full.loc[last_idx, "volume"])
-                        for tf in ("30m", "1h"):
-                            try:
-                                resampled = resample_to(mdf_full, tf)
-                                rsi_by_tf[tf] = _rsi_last(resampled["close"]) if not resampled.empty else None
-                            except Exception:
-                                rsi_by_tf[tf] = None
+                        try:
+                            resampled = resample_to(mdf_full, "1h")
+                            rsi_by_tf["1h"] = _rsi_last(resampled["close"]) if not resampled.empty else None
+                        except Exception:
+                            rsi_by_tf["1h"] = None
             except Exception as e:
                 logger.debug(f"  {ticker}/1m 분봉 처리 실패: {e}")
 
-        # 분봉 raw 가 없거나 리샘플 실패 시 1h/30m 키는 None 으로 명시
+        # 분봉 raw 가 없거나 리샘플 실패 시 1h 키는 None 으로 명시
         rsi_by_tf.setdefault("1h", None)
-        rsi_by_tf.setdefault("30m", None)
         entry["rsi_by_tf"] = rsi_by_tf
 
         result[ticker] = entry
@@ -913,8 +910,8 @@ def main() -> None:
         help="ETF 1D 수익률 표준편차 최소값(%%). 미만이면 수집 제외 (기본: 0.5, 0=비활성화)",
     )
     parser.add_argument(
-        "--timeframes", nargs="+", default=["1D", "1W", "1h", "30m"],
-        metavar="TF", help="1D 1W 1h 30m → 내부에서 base TF로 변환 (기본: 전 구간)",
+        "--timeframes", nargs="+", default=["1D", "1W", "1h"],
+        metavar="TF", help="1D 1W 1h → 내부에서 base TF로 변환 (기본: 전 구간)",
     )
     parser.add_argument(
         "--lookback-days", type=int, default=90,

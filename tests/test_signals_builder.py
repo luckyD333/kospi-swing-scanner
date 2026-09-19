@@ -70,12 +70,10 @@ def test_rr_band_mapping():
 
 
 def test_max_chase_set_when_limit_absent_and_immediate():
-    """감사 F6: limit 부재 + IMMEDIATE → max_chase = entry×1.03 tick 내림 + '상한 지정가' 라벨."""
+    """감사 F6: IMMEDIATE → max_chase = entry×1.03 tick 내림 + '상한 지정가' 라벨."""
     snap = _make_snapshot()  # current_price=7120
     c = _make_candidate()
     c.entry_price = 7120     # entry≈현재가 → IMMEDIATE
-    c.limit_entry = None
-    c.limit_stop = None
     payload = build_signals_payload(snap, {"strategy_one_d_v2": [c]})
     tp = payload.signals[0].trade_plan
     assert tp.order_type_intent == "IMMEDIATE"
@@ -83,26 +81,11 @@ def test_max_chase_set_when_limit_absent_and_immediate():
     assert tp.order_type_label_ko == "상한 지정가"
 
 
-def test_max_chase_none_when_limit_present():
-    """limit_entry 있으면 갭상승은 구조적 차단 — max_chase 불필요."""
-    snap = _make_snapshot()
-    c = _make_candidate()
-    c.entry_price = 7120
-    c.limit_entry = 7000
-    c.limit_stop = 6800
-    payload = build_signals_payload(snap, {"strategy_one_d_v2": [c]})
-    tp = payload.signals[0].trade_plan
-    assert tp.max_chase is None
-    assert tp.order_type_label_ko != "상한 지정가"
-
-
 def test_max_chase_none_for_breakout_intent():
     """BREAKOUT(역지정가)은 돌파 매수가 설계 의도 — max_chase 미적용, 라벨 유지."""
     snap = _make_snapshot()
     c = _make_candidate()
     c.entry_price = 7200     # 7200/7120=1.011 > 1.005 → BREAKOUT
-    c.limit_entry = None
-    c.limit_stop = None
     payload = build_signals_payload(snap, {"strategy_one_d_v2": [c]})
     tp = payload.signals[0].trade_plan
     assert tp.order_type_intent == "BREAKOUT"
@@ -277,17 +260,17 @@ def test_timeframe_filters_follow_actual_signal_timeframes():
     cand_1d = _make_cand_for("001", 90.0)
     cand_1w = _make_cand_for("002", 80.0)
     cand_1w.timeframe = "1W"
-    cand_30m = _make_cand_for("003", 70.0)
-    cand_30m.timeframe = "30m"
+    cand_1h = _make_cand_for("003", 70.0)
+    cand_1h.timeframe = "1h"
     cands = {
         "strategy_one_d_v2": [cand_1d],
         "strategy_one_w_v2": [cand_1w],
-        "strategy_one_30m_v2": [cand_30m],
+        "strategy_one_1h_v2": [cand_1h],
     }
 
     payload = build_signals_payload(snap, cands, weight_config=cfg)
 
-    assert payload.filters["timeframes"] == ["ALL", "1D", "1W", "30m"]
+    assert payload.filters["timeframes"] == ["ALL", "1D", "1W", "1h"]
     assert "4H" not in payload.filters["timeframes"]
 
 

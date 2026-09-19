@@ -49,7 +49,7 @@ def test_get_ohlcv_day_default():
 def test_get_ohlcv_unsupported_timeframe_raises():
     src = NaverSource()
     with pytest.raises(NotImplementedError, match="미지원"):
-        src.get_ohlcv("005930", "20260430", "20260430", timeframe="30m")
+        src.get_ohlcv("005930", "20260430", "20260430", timeframe="4h")
 
 
 def test_minute_response_preserves_close_only_rows():

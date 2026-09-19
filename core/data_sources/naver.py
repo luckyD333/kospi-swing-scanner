@@ -110,7 +110,7 @@ class NaverSource(DailyDataSource):
     )
 
     # 타임프레임 → siseJson API 의 timeframe 파라미터 값
-    # probe 결과 (Task 2): "minute" 만 인트라데이 지원. "1m"/"30m"/"1h" 토큰은 빈 응답.
+    # probe 결과 (Task 2): "minute" 만 인트라데이 지원. "1m"/"1h" 토큰은 빈 응답.
     _TF_MAP = {"1D": "day", "1m": "minute"}
 
     def __init__(self):

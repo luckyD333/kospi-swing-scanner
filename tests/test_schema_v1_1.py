@@ -51,8 +51,6 @@ def _make_candidate(ticker: str = "TEST01", confirmation_level: str | None = "ST
     c.target_1 = 10400
     c.target_2 = 10700
     c.signal_date = None
-    c.limit_entry = None
-    c.limit_stop = None
     c.metadata = {
         "rr_ratio": 2.0, "rr_band": "sweet", "atr_14": 300,
         "confirmation_level": confirmation_level,

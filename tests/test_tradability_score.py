@@ -161,8 +161,6 @@ def test_tradability_score_in_signal():
     c.target_1 = 10300
     c.target_2 = 10600
     c.signal_date = None
-    c.limit_entry = None
-    c.limit_stop = None
     c.metadata = {
         "rr_ratio": 2.0, "rr_band": "sweet", "atr_14": 300,
         "momentum_pct": 0.05,

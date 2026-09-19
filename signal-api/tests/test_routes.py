@@ -142,8 +142,8 @@ async def test_signals_ticker_uses_snapshot_rsi_by_tf_first(
 ):
     """snapshot.tickers[ticker].rsi_by_tf 가 있으면 그게 우선 (ticker 의 indicator).
 
-    SAMPLE_MARKET 에 rsi_by_tf={1D:60.0, 1h:50.0, 30m:45.0}, signals entries 는
-    rsi_14={1D:65.5, 1h:72.3, 30m:58.1}. 응답은 snapshot 값 우선.
+    SAMPLE_MARKET 에 rsi_by_tf={1D:60.0, 1h:50.0}, signals entries 는
+    rsi_14={1D:65.5, 1h:72.3}. 응답은 snapshot 값 우선.
     """
     monkeypatch.setattr(signals_module, "_loader", SignalLoader(signals_multi_tf_file))
     async with _make_client() as c:
@@ -154,7 +154,6 @@ async def test_signals_ticker_uses_snapshot_rsi_by_tf_first(
     tp = body["matches"][0]["trade_plan"]
     assert tp["rsi_1d"] == 60.0
     assert tp["rsi_1h"] == 50.0
-    assert tp["rsi_30m"] == 45.0
     # base entry = highest score (1h, score 90.0)
     assert body["matches"][0]["strategy"]["timeframe"] == "1h"
 
@@ -170,22 +169,20 @@ async def test_signals_ticker_falls_back_to_entries_rsi(
     tp = r.json()["matches"][0]["trade_plan"]
     assert tp["rsi_1d"] == 65.5
     assert tp["rsi_1h"] == 72.3
-    assert tp["rsi_30m"] == 58.1
 
 
 async def test_signals_ticker_snapshot_rsi_when_only_one_strategy_candidate(
     with_signals, with_market,
 ):
-    """ticker 가 1D strategy 만 후보여도 snapshot.rsi_by_tf 로 1h/30m 표시."""
+    """ticker 가 1D strategy 만 후보여도 snapshot.rsi_by_tf 로 1h 표시."""
     async with _make_client() as c:
         r = await c.get("/api/signals/006340")
     assert r.status_code == 200
     tp = r.json()["matches"][0]["trade_plan"]
     # SAMPLE_SIGNALS 의 006340 는 1D strategy 1개만 후보. 그래도 snapshot 의
-    # rsi_by_tf 가 1h/30m 채워줘야 함.
+    # rsi_by_tf 가 1h 를 채워줘야 함.
     assert tp["rsi_1d"] == 60.0
     assert tp["rsi_1h"] == 50.0
-    assert tp["rsi_30m"] == 45.0
 
 
 async def test_signals_ticker_overlays_fundamentals(

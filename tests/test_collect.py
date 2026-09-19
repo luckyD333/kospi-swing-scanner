@@ -307,12 +307,11 @@ def test_collect_excludes_ineligible_etf_from_cache_and_manifest(tmp_path):
 
 
 def test_collect_tf_to_base_mapping():
-    """--timeframes 1D 1W 30m → base_tfs = ["1D", "1m"]."""
+    """--timeframes 1D 1W 1h → base_tfs = ["1D", "1m"]."""
     from scripts.collect import _TF_TO_BASE
 
     assert _TF_TO_BASE["1D"] == "1D"
     assert _TF_TO_BASE["1W"] == "1D"
-    assert _TF_TO_BASE["30m"] == "1m"
     assert _TF_TO_BASE["1h"] == "1m"
 
 
@@ -630,15 +629,15 @@ def test_extract_ohlcv_latest_sets_minute_close_for_today(tmp_path):
 
 
 def test_rsi_by_tf_computed_even_when_last_idx_is_not_today(tmp_path):
-    """1m 마지막 바가 전일이어도 1h/30m RSI가 None이 아니어야 한다.
+    """1m 마지막 바가 전일이어도 1h RSI가 None이 아니어야 한다.
 
-    30m RSI(14기간)는 최소 15봉 필요 = 450분 이상의 1m 데이터.
-    여러 날에 걸쳐 데이터를 생성해 리샘플 후 30m 봉 15개 이상 확보.
+    1h RSI(14기간)는 최소 15봉 필요 = 900분 이상의 1m 데이터.
+    여러 날에 걸쳐 데이터를 생성해 리샘플 후 1h 봉 15개 이상 확보.
     """
     from scripts.collect import _extract_ohlcv_latest
 
     ticker = "005930"
-    # 20거래일치 1m 데이터: 1일 390분(09:00~15:30) × 20일 = 7800봉 → 30m 260봉
+    # 20거래일치 1m 데이터: 1일 390분(09:00~15:30) × 20일 = 7800봉 → 1h 130봉
     base = pd.Timestamp("2026-04-01 09:00")
     minute_idx = pd.date_range(base, periods=7800, freq="1min")
     closes = [100.0 + i * 0.01 for i in range(7800)]
@@ -653,9 +652,9 @@ def test_rsi_by_tf_computed_even_when_last_idx_is_not_today(tmp_path):
 
     # minute_close는 today가 아니므로 없어야 함
     assert "minute_close" not in result[ticker]
-    # 1h/30m RSI는 전일 데이터로도 계산되어야 함 (None이 아님)
+    # 1h RSI는 전일 데이터로도 계산되어야 함 (None이 아님)
     rsi = result[ticker]["rsi_by_tf"]
-    assert rsi.get("30m") is not None, "전일 1m 데이터로도 30m RSI 계산되어야 함"
+    assert rsi.get("1h") is not None, "전일 1m 데이터로도 1h RSI 계산되어야 함"
 
 
 def test_realized_volatility_pct_는_최근_120봉_창으로_고정된다():

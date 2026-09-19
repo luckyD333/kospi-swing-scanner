@@ -18,34 +18,29 @@ _STRATEGY_ID_BASE: dict[str, str] = {
     "strategy_one_d_v2":      "strategy_one",
     "strategy_one_w_v2":      "strategy_one",
     "strategy_one_1h_v2":     "strategy_one",
-    "strategy_one_30m_v2":    "strategy_one",
     "strategy_one_d_v2_r1":   "strategy_one",
     "strategy_one_d_v2_r2":   "strategy_one",
     "strategy_one_w_v2_r1":   "strategy_one",
     "strategy_one_w_v2_r2":   "strategy_one",
     "strategy_one_1h_v2_r1":  "strategy_one",
     "strategy_one_1h_v2_r2":  "strategy_one",
-    "strategy_one_30m_v2_r1": "strategy_one",
-    "strategy_one_30m_v2_r2": "strategy_one",
 
     "strategy_two_cross_sectional_momentum": "strategy_two",
     "strategy_two_1h":  "strategy_two",
-    "strategy_two_30m": "strategy_two",
 
     "strategy_three_trend_following": "strategy_three",
     "strategy_three_1h":  "strategy_three",
-    "strategy_three_30m": "strategy_three",
 
     "strategy_four_pullback_ma":     "strategy_four",
     "strategy_four_pullback_ma_1h":  "strategy_four",
-    "strategy_four_pullback_ma_30m": "strategy_four",
 
     "strategy_five_bull_flag":     "strategy_five",
     "strategy_five_bull_flag_1h":  "strategy_five",
-    "strategy_five_bull_flag_30m": "strategy_five",
 
     "strategy_six_channel_grid": "strategy_six",
     "strategy_six_channel_grid_w": "strategy_six",
+
+    "strategy_seven_cfi": "strategy_seven",
 }
 
 
@@ -298,6 +293,44 @@ def _six_baseline_slope(m: dict) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
+# 전략 7 — CFI Reversal (하이킨아시 추세 전환)
+# ---------------------------------------------------------------------------
+
+def _seven_breakout(m: dict) -> dict | None:
+    strength = m.get("breakout_strength")
+    if strength is None:
+        return None
+    return _component("ha_breakout", "하이킨아시 채널 돌파", "ok",
+                      f"채널 상단 +{float(strength):.2f}×ATR")
+
+
+def _seven_flip(m: dict) -> dict | None:
+    if not m.get("direction_flipped"):
+        return None
+    tsl = m.get("tsl")
+    value = f"tsl {float(tsl):,.0f}원 상향" if tsl is not None else "하락 → 상승"
+    return _component("dir_flip", "추세 전환", "ok", value)
+
+
+def _seven_poc(m: dict) -> dict | None:
+    poc = m.get("poc")
+    if poc is None:
+        return None
+    above = bool(m.get("poc_above"))
+    value = f"POC {float(poc):,.0f}원 {'위' if above else '아래'}"
+    return _component("poc_above", "매물대", "ok" if above else "warn", value)
+
+
+def _seven_fib(m: dict) -> dict | None:
+    fib = m.get("fib_618")
+    if fib is None:
+        return None
+    touched = bool(m.get("fib_touch"))
+    value = f"61.8% {float(fib):,.0f}원 {'접점' if touched else '이탈'}"
+    return _component("fib_touch", "피보나치 되돌림", "ok" if touched else "warn", value)
+
+
+# ---------------------------------------------------------------------------
 # 전략 ID → 룰 매핑
 # ---------------------------------------------------------------------------
 
@@ -334,6 +367,12 @@ _RULES_BY_BASE: dict[str, list[_Rule]] = {
         _Rule("target_line",       "목표선",        _six_target_line),
         _Rule("channel_width",     "채널 폭 W",     _six_channel_width),
         _Rule("baseline_slope",    "기준선 기울기", _six_baseline_slope),
+    ],
+    "strategy_seven": [
+        _Rule("ha_breakout", "하이킨아시 채널 돌파", _seven_breakout),
+        _Rule("dir_flip",    "추세 전환",           _seven_flip),
+        _Rule("poc_above",   "매물대",              _seven_poc),
+        _Rule("fib_touch",   "피보나치 되돌림",     _seven_fib),
     ],
 }
 

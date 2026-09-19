@@ -2,7 +2,7 @@
 Task 7: ScanContext + ScanRunner + StrategyOneDv2 multi-tf 통합.
 
 검증:
-  - REGISTRY 에 4 변형 등록 (strategy_one_{d,w,1h,30m}_v2)
+  - REGISTRY 에 3 변형 등록 (strategy_one_{d,w,1h}_v2)
   - StrategyOneDv2(timeframe=) 파라미터화 — name/timeframe 자동 매핑
   - ScanRunner.run(timeframes=["1D","1W"]) 가 (strategy, tf) 키로 결과 분리
   - ScanContext.ohlcv_by_tf 자동 동기화 (legacy ohlcv → 1D)
@@ -59,12 +59,11 @@ class _StubSource(DailyDataSource):
 # ---------------------------------------------------------------- REGISTRY
 
 
-def test_registry_has_four_strategy_one_variants():
+def test_registry_has_three_strategy_one_variants():
     for name in [
         "strategy_one_d_v2",
         "strategy_one_w_v2",
         "strategy_one_1h_v2",
-        "strategy_one_30m_v2",
     ]:
         assert name in REGISTRY, f"missing: {name}"
 
@@ -160,10 +159,10 @@ def test_runner_scans_1D_and_1W(tmp_path):
     assert result.funnel_stats["per_tf_size"]["1W"] >= 0
 
 
-def test_runner_scans_30m_with_minute_resample(tmp_path):
+def test_runner_scans_1h_with_minute_resample(tmp_path):
     cfg = RunnerConfig(
         market="KOSPI",
-        timeframes=["30m"],
+        timeframes=["1h"],
         cache_root=tmp_path / ".cache",
         max_universe_size=10,
         min_market_cap_bil=10.0,
@@ -171,5 +170,5 @@ def test_runner_scans_30m_with_minute_resample(tmp_path):
         min_daily_volume=10_000,
     )
     runner = ScanRunner(_make_client(), cfg)
-    result = runner.run([REGISTRY["strategy_one_30m_v2"]()], target_date="20260430")
-    assert ("strategy_one_30m_v2", "30m") in result.candidates_by_strategy_tf
+    result = runner.run([REGISTRY["strategy_one_1h_v2"]()], target_date="20260430")
+    assert ("strategy_one_1h_v2", "1h") in result.candidates_by_strategy_tf

@@ -7,7 +7,7 @@
   - target_1 = entry + r_target_1 × R  (R = entry - stop)
   - target_2 = entry + r_target_2 × R
 
-전략별 base k/r 은 STRATEGY_PARAMS 단일 module constant 에서 lookup. r1/r2/_d_v2/_1h/_30m
+전략별 base k/r 은 STRATEGY_PARAMS 단일 module constant 에서 lookup. r1/r2/_d_v2/_1h
 등 variant 는 resolve_base_strategy_id() 의 regex 로 base 5 키에 매핑.
 
 운영 retune: STRATEGY_PARAMS 의 base_k_stop 값을 walk-forward 결과로 직접 수정.
@@ -53,11 +53,13 @@ STRATEGY_PARAMS: dict[str, TradePlanParams] = {
     # strategy_six 는 목표가가 선 값이라 apply_dynamic_trade_plan 을 호출하지 않는다.
     # REGISTRY↔STRATEGY_PARAMS 동기 테스트를 위해 S3 값으로 등록만 한다.
     "strategy_six":   TradePlanParams(base_k_stop=1.8, r_target_1=1.0, r_target_2=2.5),
+    # strategy_seven 은 추적 손절선 tsl 을 support_floor 로 넘긴다. 추세 계열이라 S3 값 사용.
+    "strategy_seven": TradePlanParams(base_k_stop=1.8, r_target_1=1.0, r_target_2=2.5),
 }
 
-# REGISTRY 의 strategy_id (예: strategy_one_d_v2_r1, strategy_two_30m,
-# strategy_five_bull_flag_1h) 에서 base 6 키 (strategy_one ~ strategy_six) 추출.
-_BASE_STRATEGY_RE = re.compile(r"^(strategy_(?:one|two|three|four|five|six))(?:_.*)?$")
+# REGISTRY 의 strategy_id (예: strategy_one_d_v2_r1, strategy_two_1h,
+# strategy_five_bull_flag_1h) 에서 base 7 키 (strategy_one ~ strategy_seven) 추출.
+_BASE_STRATEGY_RE = re.compile(r"^(strategy_(?:one|two|three|four|five|six|seven))(?:_.*)?$")
 
 
 def resolve_base_strategy_id(strategy_id: str) -> str:
@@ -65,7 +67,7 @@ def resolve_base_strategy_id(strategy_id: str) -> str:
 
     예:
       strategy_one_d_v2_r1 → strategy_one
-      strategy_two_30m → strategy_two
+      strategy_two_1h → strategy_two
       strategy_five_bull_flag_1h → strategy_five
 
     매칭 실패 시 KeyError (REGISTRY 와 STRATEGY_PARAMS 동기 깨짐 신호).

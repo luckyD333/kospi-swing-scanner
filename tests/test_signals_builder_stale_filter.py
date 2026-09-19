@@ -32,8 +32,6 @@ def _candidate(entry: int = 7070, stop: int = 6820, target_1: int = 7580, target
     c.target_1 = target_1
     c.target_2 = target_2
     c.signal_date = None
-    c.limit_entry = None  # MagicMock auto-attr 회피 (None 명시)
-    c.limit_stop = None
     c.metadata = {
         "rr_ratio": 2.04,
         "rr_band": "sweet",

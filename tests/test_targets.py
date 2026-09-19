@@ -238,8 +238,6 @@ def _make_mock_candidate(
     c.target_1 = t1
     c.target_2 = t2
     c.signal_date = None
-    c.limit_entry = None
-    c.limit_stop = None
     c.metadata = {"rr_ratio": 2.0, "rr_band": "sweet", "atr_14": 200}
     return c
 
