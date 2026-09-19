@@ -33,10 +33,10 @@ def compute_signal_status(
     """API 응답 시점에 신호 상태 계산.
 
     우선순위:
-      1. 장외 시간 (signal_date 거래일 ≠ 오늘 거래일) → STALE 또는 VALID
+      1. 거래일 교차 + 임계 초과 → STALE
          (임계: 1D 는 1거래일, 1W 는 5거래일, 1h 등 장중 TF 는 거래일 교차 즉시)
-      2. 같은 거래일 + cp ≤ stop → STOPPED_OUT
-      3. 같은 거래일 + cp ≥ target_1 → TARGET_REACHED
+      2. cp ≤ stop → STOPPED_OUT (거래일 교차 여부와 무관)
+      3. cp ≥ target_1 → TARGET_REACHED (거래일 교차 여부와 무관)
       4. 장중 TF 신호 만료 (1h: 2봉) → STALE
       5. 그 외 → VALID
 
@@ -69,7 +69,8 @@ def compute_signal_status(
                 threshold = 0
             if trading_days_since(sd, today) > threshold:
                 return "STALE"
-            return "VALID"
+            # STALE 이 아니면 아래 가격 검사·1h 만료 검사로 계속 진행한다.
+            # 조기 반환하면 휴장일에 손절·목표가 도달을 영영 판정하지 못한다.
 
     # STOPPED_OUT / TARGET_REACHED 는 신호 발생 시각과 무관하게 우선 적용
     if current_price is not None and stop is not None and current_price <= stop:

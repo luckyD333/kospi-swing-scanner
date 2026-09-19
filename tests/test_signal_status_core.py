@@ -77,3 +77,46 @@ def test_weekly_signal_stale_after_one_week():
         now=now, timeframe="1W",
     )
     assert status == "STALE"
+
+
+def test_휴장일에도_손절_도달을_판정한다():
+    """토요일에 금요일 신호를 조회해도 손절 도달은 STOPPED_OUT 이어야 한다."""
+    now = datetime(2026, 5, 16, 11, 0, tzinfo=KST)  # 토요일
+    status = compute_signal_status(
+        current_price=9400.0, stop=9500.0, target_1=10500.0,
+        signal_date_str="2026-05-15T14:00:00+09:00",  # 직전 금요일
+        now=now, timeframe="1D",
+    )
+    assert status == "STOPPED_OUT"
+
+
+def test_휴장일에도_목표가_도달을_판정한다():
+    """토요일에 금요일 신호를 조회해도 목표가 도달은 TARGET_REACHED 여야 한다."""
+    now = datetime(2026, 5, 16, 11, 0, tzinfo=KST)
+    status = compute_signal_status(
+        current_price=10500.0, stop=9500.0, target_1=10400.0,
+        signal_date_str="2026-05-15T14:00:00+09:00",
+        now=now, timeframe="1D",
+    )
+    assert status == "TARGET_REACHED"
+
+
+def test_금요일_1h_신호는_토요일에_STALE_이다():
+    """1h 신호는 2시간이 지나면 거래일 교차 여부와 무관하게 만료다."""
+    now = datetime(2026, 5, 16, 11, 0, tzinfo=KST)
+    status = compute_signal_status(
+        current_price=10000.0, stop=9500.0, target_1=10500.0,
+        signal_date_str="2026-05-15T14:00:00+09:00",
+        now=now, timeframe="1h",
+    )
+    assert status == "STALE"
+
+
+def test_날짜가_깨진_신호는_손절_도달보다_STALE_이_우선이다():
+    """Review Focus 1 — 파싱 실패는 가격과 무관하게 STALE 로 못 박는다."""
+    now = datetime(2026, 5, 16, 11, 0, tzinfo=KST)
+    status = compute_signal_status(
+        current_price=9400.0, stop=9500.0, target_1=10500.0,
+        signal_date_str="어제쯤", now=now, timeframe="1D",
+    )
+    assert status == "STALE"
