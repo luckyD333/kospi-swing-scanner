@@ -67,12 +67,18 @@ def test_wf_factory_와_compare_목록():
     assert ("S6_ChannelGrid", _s6_factory) in STRATEGIES
 
 
-def test_signal_components_세_개의_근거_칩():
+def test_signal_components_여섯_개의_근거_칩():
     from output.signal_components import build_signal_components
     meta = {"bars_since_breakout": 17, "touch_kind": "grid", "grid_level": 0.5,
-            "confluence": False, "target_level": 1.0, "target_confluence": True}
+            "confluence": False, "target_kind": "grid", "target_level": 1.0,
+            "target_confluence": True, "channel_width": 46.92, "atr_14": 6.44,
+            "baseline_slope": -1.668}
     comps = build_signal_components(meta, SID)
     keys = [c["key"] for c in comps]
-    assert keys == ["baseline_breakout", "line_touch", "confluence"]
+    assert keys == ["baseline_breakout", "line_touch", "confluence",
+                     "target_line", "channel_width", "baseline_slope"]
     assert all(set(c) == {"key", "label", "status", "value"} for c in comps)
     assert comps[2]["status"] == "warn"          # 합류 없음 → warn
+    assert comps[3]["value"] == "레벨 1.0 · 합류"
+    assert comps[4]["value"] == "47원 (7.3×ATR)"
+    assert comps[5]["value"] == "-1.67원/봉"
