@@ -55,7 +55,7 @@ def test_no_cache_root_uses_7day_minute_window():
 
 
 def test_cache_root_extends_minute_start_to_lookback(tmp_path):
-    """cache_root 지정 시 minute_start_str 이 start_str(lookback+30일 전)와 동일해야 함."""
+    """cache_root 지정 시 minute_start_str 은 lookback_days 와 무관하게 _MINUTE_LOOKBACK_DAYS 고정."""
     captured_starts = []
 
     import core.runner as runner_mod
@@ -113,8 +113,10 @@ def test_cache_root_extends_minute_start_to_lookback(tmp_path):
 
     minute_starts = [s for (tf, s) in captured_starts if tf == "1m"]
     if minute_starts:
+        from core.runner import _MINUTE_LOOKBACK_DAYS
+
         target_dt = datetime(2026, 4, 30)
-        expected = (target_dt - timedelta(days=60 + 30)).strftime("%Y%m%d")
+        expected = (target_dt - timedelta(days=_MINUTE_LOOKBACK_DAYS)).strftime("%Y%m%d")
         assert minute_starts[0] == expected, (
             f"기대 1m start={expected}, 실제={minute_starts[0]}"
         )

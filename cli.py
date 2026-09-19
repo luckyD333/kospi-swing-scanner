@@ -71,8 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="최소 20일 평균 거래량",
     )
     parser.add_argument(
-        "--lookback-days", type=int, default=90,
-        help="지표 계산용 과거 일수",
+        "--lookback-days", type=int, default=600,
+        help="지표 계산용 과거 일수 (1W 전략 80봉 = 약 560 캘린더일)",
     )
     parser.add_argument("--output-dir", help="JSON/CSV 저장 디렉토리. 미지정 시 stdout만")
     parser.add_argument(

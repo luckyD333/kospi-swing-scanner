@@ -6,7 +6,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 - **Runtime**: Python 3.10+
 - **Core**: pandas, numpy, scipy
 - **Data sources**: 네이버 금융 — `stock.naver.com` 주식 목록 JSON(KOSPI/KOSDAQ 종목·시총·거래량·PER/ROE/외인비율) + `etfItemList`(ETF) + `siseJson` API + `m.stock` 지수·`marketIndex/productDetail`(USD/KRW, WTI, 국고채3Y) + VIX(yfinance). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
-- **Test**: pytest (현재 1304개)
+- **Test**: pytest (현재 1317개)
 
 ## Project Structure
 - `cli.py` — CLI 진입점 (스캔 + Phase 2 가중치 인터뷰 모드 `--interview`)
@@ -19,7 +19,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
   - 출력/랭킹: regret_scorer·order_type_classifier(주문타입)·signal_status·factors/(momentum_3m·liquidity·signal_freshness)
   - 오프라인: factor_performance(weights.yml 산출, scripts/compute_weights)
   - 미배선(dormant): squeeze·donchian_levels(use_donchian_levels 기본 False)
-- `strategies/` — 전략 plug-in (Strategy Protocol). 6개 전략(S6 는 일봉 전용) × 다중 TF + fallback 변형(r1/r2)
+- `strategies/` — 전략 plug-in (Strategy Protocol). 6개 전략 × 다중 TF + fallback 변형(r1/r2)
 - `output/` — 포맷터 (table/json/csv/markdown/**signals_ui**) + signals_builder + snapshot_builder + holding_recommender
 - `backtest_engine/` — Strategy D v2 백테스트 엔진 (core/detectors/strategy/engine/screener)
 - `signal-api/` — FastAPI 서비스 (`/api/signals`, `/api/signals/{ticker}`). signals.json + market_snapshot.json 조인(`services/join.py`)
@@ -60,10 +60,10 @@ python cli.py --interview
 - `strategy_three_trend_following` (+ `_1h`/`_30m`) — Donchian 20일 채널 돌파
 - `strategy_four_pullback_ma` (+ `_1h`/`_30m`) — MA20 추세 + MA5 눌림목 회복
 - `strategy_five_bull_flag` (+ `_1h`/`_30m`) — Flagpole +8% → flag 거래량 수축 → 돌파
-- `strategy_six_channel_grid` — 추세선·채널 격자. 고점 2개 하락 추세선(레벨 0) 상향 돌파 후 격자선/상승 지지선을 위에서 리테스트하면 매수. 일봉 전용. 목표가는 선 값(`apply_dynamic_trade_plan` 미호출)
+- `strategy_six_channel_grid` — 추세선·채널 격자. 고점 2개 하락 추세선(레벨 0) 상향 돌파 후 격자선/상승 지지선을 위에서 리테스트하면 매수. 일봉 + 주봉(`strategy_six_channel_grid_w`, 같은 봉 수 규칙). 주봉 80봉 확보를 위해 일봉 수집·스캔 깊이 2년(`_DAILY_HISTORY_FLOOR_DAYS=760`, runner/cli `lookback_days=600`). 목표가는 선 값(`apply_dynamic_trade_plan` 미호출)
 
 ## Verification
-변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1304개 이상 통과해야 함.
+변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1317개 이상 통과해야 함.
 정적 분석: `.venv/bin/ruff check . --exclude .venv` 통과 유지.
 
 ## Conventions

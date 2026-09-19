@@ -68,7 +68,7 @@ def test_collect_defaults_to_100_stocks_and_30_etfs():
 
 
 def test_collect_keeps_enough_daily_history_for_fng(tmp_path):
-    """짧은 scan lookback을 요청해도 F&G용 1D 이력은 180일 확보한다."""
+    """짧은 scan lookback을 요청해도 1D 이력은 760일(주봉 S6 80주분) 확보한다."""
     from scripts.collect import CollectConfig, run_collect
 
     cache = MagicMock()
@@ -97,7 +97,7 @@ def test_collect_keeps_enough_daily_history_for_fng(tmp_path):
         for call in cache.get_or_fetch.call_args_list
         if call.kwargs["timeframe"] == "1D"
     }
-    assert daily_starts == {"20251101"}
+    assert daily_starts == {"20240331"}
 
 
 def test_market_state_tickers_exclude_etf_and_etn():

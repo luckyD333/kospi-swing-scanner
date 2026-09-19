@@ -64,7 +64,8 @@ _VKOSPI_CANDLES_URL = (
 )
 
 # F&G 90일 percentile + 20일 rolling 준비 구간을 거래일 기준으로 확보한다.
-_DAILY_HISTORY_FLOOR_DAYS = 180
+# 주봉 전략 S6(strategy_six_channel_grid_w)가 80주 필요. 2년 + 버퍼.
+_DAILY_HISTORY_FLOOR_DAYS = 760
 
 
 @dataclass
@@ -84,7 +85,7 @@ class CollectConfig:
     smart_skip: bool = True
     include_etf: bool = True
     force_refetch: bool = False  # True면 기존 parquet 무시하고 전 구간 재수집
-    max_cache_days: int = 365   # 0이면 비활성화
+    max_cache_days: int = 800   # 0이면 비활성화
     scan_root: Path = field(default_factory=lambda: Path("scan_results"))
 
 
@@ -527,9 +528,13 @@ def run_collect(cfg: CollectConfig, target_date: str | None = None) -> None:
         logger.warning(f"market_snapshot.json 저장 실패 (skip): {e}")
 
     if cfg.max_cache_days > 0:
-        pruned_files, pruned_rows = disk.prune_old(max_days=cfg.max_cache_days)
+        pruned_files, pruned_rows = disk.prune_old(max_days=cfg.max_cache_days, tf="1D")
         if pruned_files:
-            logger.info(f"캐시 정리: {pruned_files}개 파일, {pruned_rows}행 삭제 ({cfg.max_cache_days}일 초과)")
+            logger.info(f"캐시 정리(1D): {pruned_files}개 파일, {pruned_rows}행 삭제 ({cfg.max_cache_days}일 초과)")
+        # 1m 은 종전 365일 유지 (디스크 증가 방지) — 1D/1W 창 확장(max_cache_days)과 무관
+        pruned_files_1m, pruned_rows_1m = disk.prune_old(max_days=365, tf="1m")
+        if pruned_files_1m:
+            logger.info(f"캐시 정리(1m): {pruned_files_1m}개 파일, {pruned_rows_1m}행 삭제 (365일 초과)")
 
 
 def _subprocess_run(cmd: list[str], **kw):
@@ -927,8 +932,8 @@ def main() -> None:
         help="기존 parquet 캐시를 무시하고 전 구간 재수집 (schema migration 즉시 적용)",
     )
     parser.add_argument(
-        "--max-cache-days", type=int, default=365,
-        help="캐시 보관 기간 (일). 초과 데이터는 수집 완료 후 자동 삭제 (기본: 365, 0=비활성화)",
+        "--max-cache-days", type=int, default=800,
+        help="캐시 보관 기간 (일). 초과 데이터는 수집 완료 후 자동 삭제 (기본: 800, 0=비활성화)",
     )
     args = parser.parse_args()
 
