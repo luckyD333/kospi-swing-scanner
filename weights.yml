@@ -78,7 +78,10 @@ strategy_weights:
   strategy_two_30m: 0.8
   strategy_six_channel_grid: 1.0   # 2026-09-18 신규. 백테스트 전 중립값
   strategy_six_channel_grid_w: 1.0
-  strategy_seven_cfi: 1.0   # 2026-09-19 신규. WF 측정 전 임시값
+  # strategy_seven: WF OOS 실측(2026-09-19, 버퍼 350일) — 455건/승률 42.2%/총 +16.15%/
+  # 평균 +0.036%/샤프 0.052. 손익분기 근처 플러스라 중립값 유지. 단 WF 경로는 entry gate
+  # 미적용이고 로컬 캐시가 얕아 대상 종목이 1360개 중 189개뿐이다. 서버 이력으로 재측정 필요.
+  strategy_seven_cfi: 1.0
 
 # Phase 3 (2026-05-19): Regime-Conditional Parameter Optimization
 # 매칭 우선순위:

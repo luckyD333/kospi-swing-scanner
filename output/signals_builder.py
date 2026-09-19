@@ -115,7 +115,8 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_four":  0.56,
                 "strategy_five":  0.30,
                 "strategy_six":   0.56,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
-                "strategy_seven": 0.56,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
+                "strategy_seven": 0.56,  # 2026-09-19 WF OOS 455건 손익분기 근처(+0.036%/건).
+                # 이 표는 scripts/compute_weights 산출식이라 WF 수치를 직접 대입하지 않고 중앙값 유지
             },
             factor_label_weights={
                 "bull_reward": 22.0, "max_drawdown": 13.0,
@@ -135,7 +136,8 @@ def _build_market_configs() -> dict[str, MarketRankingConfig]:
                 "strategy_four":  0.99,
                 "strategy_five":  0.27,
                 "strategy_six":   0.99,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
-                "strategy_seven": 0.99,  # 2026-09-19 미검증 → 추세 계열 실측 중앙값. WF 후 재조정
+                "strategy_seven": 0.99,  # 2026-09-19 WF OOS 455건 손익분기 근처(+0.036%/건).
+                # 이 표는 scripts/compute_weights 산출식이라 WF 수치를 직접 대입하지 않고 중앙값 유지
             },
             factor_label_weights={
                 "bull_reward":  4.0, "max_drawdown": 61.0,

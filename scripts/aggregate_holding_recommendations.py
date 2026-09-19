@@ -150,14 +150,15 @@ def collect_trades(
     windows: list,
     holdings: list[int],
     label_cache: dict[pd.Timestamp, dict],
+    lookback_buffer_days: int = 150,
 ) -> list[dict]:
-    """5 전략 × holdings × WF OOS 윈도우 trade 수집."""
+    """전 전략 × holdings × WF OOS 윈도우 trade 수집."""
     all_trades: list[dict] = []
     for strat_name, factory in STRATEGIES:
         for hold in holdings:
             cfg = ScanBarConfig(
                 holding_bars=hold, top_n=5, commission_pct=0.0030,
-                lookback_buffer_days=150, emit_per_trade=True,  # S6 min_bars=80(거래일) — 캘린더 150일 필요
+                lookback_buffer_days=lookback_buffer_days, emit_per_trade=True,
             )
             scorer = make_scan_bartracker_scorer(factory, cfg)
             for _ts, _te, test_start, test_end in windows:
@@ -278,6 +279,11 @@ def main() -> None:
     parser.add_argument("--end-date", default="2026-05-19")
     parser.add_argument("--holdings", default="1,3,5,7")
     parser.add_argument("--min-trades", type=int, default=30)
+    parser.add_argument(
+        "--lookback-buffer-days", type=int, default=150,
+        help="전략 min_bars 확보용 과거 데이터 버퍼(캘린더 일). "
+             "S6 는 150, S7(vp_lookback=200) 은 320 이상 필요.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -315,7 +321,10 @@ def main() -> None:
 
     # WF 수집
     logger.info("=== WF trade 수집 ===")
-    trades = collect_trades(data, windows, holdings, label_cache)
+    trades = collect_trades(
+        data, windows, holdings, label_cache,
+        lookback_buffer_days=args.lookback_buffer_days,
+    )
     logger.info(f"총 trade 수: {len(trades)}")
 
     # Marginal aggregation

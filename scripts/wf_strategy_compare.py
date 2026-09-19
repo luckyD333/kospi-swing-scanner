@@ -152,6 +152,11 @@ def main() -> None:
     parser.add_argument("--step-days", type=int, default=30)
     parser.add_argument("--holding-bars", type=int, default=3)
     parser.add_argument("--top-n", type=int, default=5)
+    parser.add_argument(
+        "--lookback-buffer-days", type=int, default=150,
+        help="전략 min_bars 확보용 과거 데이터 버퍼(캘린더 일). "
+             "S6 는 150, S7(vp_lookback=200) 은 320 이상 필요.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -178,7 +183,7 @@ def main() -> None:
         holding_bars=args.holding_bars,
         top_n=args.top_n,
         commission_pct=0.0030,
-        lookback_buffer_days=150,  # S6 min_bars=80(거래일) — 캘린더 150일 필요
+        lookback_buffer_days=args.lookback_buffer_days,
         emit_stats=False,
     )
 
