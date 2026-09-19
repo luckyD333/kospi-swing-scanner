@@ -25,6 +25,20 @@ logger = logging.getLogger(__name__)
 _HMM_SCORE_WEIGHT = 0.45
 _MARKET_HEALTH_SCORE_WEIGHT = 0.55
 
+# 일봉 캐시가 2년으로 늘어도 HMM 입력은 최근 180 캘린더일로 고정. 창을 바꾸면
+# 국면 라벨이 바뀌므로 별도 검토 대상.
+REGIME_LOOKBACK_DAYS = 180
+
+
+def _clip_recent(df: pd.DataFrame, days: int) -> pd.DataFrame:
+    """DatetimeIndex 기준 최근 days 일만 남긴다. attrs(n_tickers 등)는 보존."""
+    if df.empty:
+        return df
+    attrs = dict(df.attrs)
+    clipped = df[df.index >= df.index.max() - pd.Timedelta(days=days)]
+    clipped.attrs.update(attrs)
+    return clipped
+
 
 def _market_cap_for_sort(meta: dict) -> float:
     """manifest meta 의 market_cap_bil 을 정렬 가능한 숫자로 정규화."""
@@ -386,6 +400,7 @@ def analyze_regime(
         ValueError: 캐시 부족 또는 HMM 학습 실패 시
     """
     proxy_1d = build_market_proxy(cache_root, allowed_tickers=allowed_tickers)
+    proxy_1d = _clip_recent(proxy_1d, REGIME_LOOKBACK_DAYS)
     if proxy_1d.empty:
         raise ValueError("캐시 부족: HMM 학습 불가")
 

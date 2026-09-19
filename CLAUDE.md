@@ -6,7 +6,7 @@ KOSPI/KOSDAQ 일봉 기반 1~7일 보유 단기 스윙 매수 후보 자동 스�
 - **Runtime**: Python 3.10+
 - **Core**: pandas, numpy, scipy
 - **Data sources**: 네이버 금융 — `stock.naver.com` 주식 목록 JSON(KOSPI/KOSDAQ 종목·시총·거래량·PER/ROE/외인비율) + `etfItemList`(ETF) + `siseJson` API + `m.stock` 지수·`marketIndex/productDetail`(USD/KRW, WTI, 국고채3Y) + VIX(yfinance). 1D/1m raw, 30m/1h/4h는 1m 리샘플링.
-- **Test**: pytest (현재 1317개)
+- **Test**: pytest (현재 1319개)
 
 ## Project Structure
 - `cli.py` — CLI 진입점 (스캔 + Phase 2 가중치 인터뷰 모드 `--interview`)
@@ -60,10 +60,10 @@ python cli.py --interview
 - `strategy_three_trend_following` (+ `_1h`/`_30m`) — Donchian 20일 채널 돌파
 - `strategy_four_pullback_ma` (+ `_1h`/`_30m`) — MA20 추세 + MA5 눌림목 회복
 - `strategy_five_bull_flag` (+ `_1h`/`_30m`) — Flagpole +8% → flag 거래량 수축 → 돌파
-- `strategy_six_channel_grid` — 추세선·채널 격자. 고점 2개 하락 추세선(레벨 0) 상향 돌파 후 격자선/상승 지지선을 위에서 리테스트하면 매수. 일봉 + 주봉(`strategy_six_channel_grid_w`, 같은 봉 수 규칙). 주봉 80봉 확보를 위해 일봉 수집·스캔 깊이 2년(`_DAILY_HISTORY_FLOOR_DAYS=760`, runner/cli `lookback_days=600`). 목표가는 선 값(`apply_dynamic_trade_plan` 미호출)
+- `strategy_six_channel_grid` — 추세선·채널 격자. 고점 2개 하락 추세선(레벨 0) 상향 돌파 후 격자선/상승 지지선을 위에서 리테스트하면 매수. 일봉 + 주봉(`strategy_six_channel_grid_w`, 같은 봉 수 규칙). 주봉 80봉 확보를 위해 일봉 수집·스캔 깊이 2년(`_DAILY_HISTORY_FLOOR_DAYS=760`, runner/cli `lookback_days=600`)(HMM 국면 창은 `REGIME_LOOKBACK_DAYS=180` 으로 고정). 목표가는 선 값(`apply_dynamic_trade_plan` 미호출)
 
 ## Verification
-변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1317개 이상 통과해야 함.
+변경 후: `.venv/bin/python -m pytest backtest_engine/tests/ tests/ -q` 통과 필수. 1319개 이상 통과해야 함.
 정적 분석: `.venv/bin/ruff check . --exclude .venv` 통과 유지.
 
 ## Conventions

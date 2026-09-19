@@ -15,7 +15,9 @@ import pytest
 
 from core.decision.config import Priority, WeightConfig
 from core.decision.market_regime import (
+    REGIME_LOOKBACK_DAYS,
     RegimeAnalysis,
+    _clip_recent,
     _compute_market_health_scores,
     apply_regime_overlay,
     analyze_regime,
@@ -490,3 +492,20 @@ def test_regime_overlay_score_boundaries():
         total = sum(p.weight for p in result.priorities)
         assert abs(total - 100.0) < 0.01
         assert result is not None
+
+
+def test_clip_recent_2년_캐시를_180일로_자른다():
+    """일봉 캐시가 2년으로 늘어도 HMM 입력(proxy)은 REGIME_LOOKBACK_DAYS 로 고정."""
+    dates = pd.date_range("2024-01-01", periods=760, freq="D")
+    df = pd.DataFrame({"mean_return": np.linspace(0, 1, 760)}, index=dates)
+    df.attrs["n_tickers"] = 42
+
+    clipped = _clip_recent(df, REGIME_LOOKBACK_DAYS)
+
+    assert len(clipped) < len(df)
+    assert clipped.index.min() >= clipped.index.max() - pd.Timedelta(days=REGIME_LOOKBACK_DAYS)
+    assert clipped.attrs["n_tickers"] == 42  # attrs 보존
+
+
+def test_clip_recent_빈_df는_그대로_반환한다():
+    assert _clip_recent(pd.DataFrame(), REGIME_LOOKBACK_DAYS).empty
