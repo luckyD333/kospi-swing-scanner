@@ -11,6 +11,7 @@ Walk-forward:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import math
@@ -52,8 +53,8 @@ logger = logging.getLogger(__name__)
 
 # ----- 설정 -----
 CACHE_ROOT = Path(".cache")
-KOSPI_TICKERS_FILE = Path("/tmp/kospi_tickers_pre.txt")
-KOSDAQ_TICKERS_FILE = Path("/tmp/kosdaq_tickers.txt")
+DEFAULT_KOSPI_TICKERS = Path("/tmp/kospi_tickers_pre.txt")
+DEFAULT_KOSDAQ_TICKERS = Path("/tmp/kosdaq_tickers.txt")
 RUN_DIR_ROOT = Path("/tmp/optimize_full_runs")
 
 N_TRIALS_PHASE_A = 400      # KOSPI train random samples
@@ -224,8 +225,10 @@ def build_strategies(c: Config) -> list:
 
 # ============================ Data Loading ============================
 
-def load_data(market: str) -> dict[str, pd.DataFrame]:
-    tickers_file = KOSPI_TICKERS_FILE if market == "KOSPI" else KOSDAQ_TICKERS_FILE
+def load_data(market: str, tickers_file: Path) -> dict[str, pd.DataFrame]:
+    if not tickers_file.exists():
+        print(f"  ✗ 종목 파일이 없습니다: {tickers_file}")
+        raise SystemExit(1)
     tickers = set(tickers_file.read_text().split())
     result: dict[str, pd.DataFrame] = {}
     for t in tickers:
@@ -441,17 +444,17 @@ def deflated_sharpe(observed_sr: float, n_trials: int) -> float:
 
 # ============================ Main ============================
 
-def main():
+def main(args: argparse.Namespace) -> None:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = RUN_DIR_ROOT / ts
+    run_dir = Path(args.run_dir_root) / ts
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"\n{'=' * 70}\n  KOSPI Train + KOSDAQ Fresh OOS 통합 최적화\n  Run dir: {run_dir}\n{'=' * 70}")
 
     # ---- 데이터 로드 ----
     print("\n[1/5] 데이터 로드...")
-    kospi_data = load_data("KOSPI")
+    kospi_data = load_data("KOSPI", Path(args.kospi_tickers))
     print(f"  KOSPI: {len(kospi_data)} ticker")
-    kosdaq_data = load_data("KOSDAQ")
+    kosdaq_data = load_data("KOSDAQ", Path(args.kosdaq_tickers))
     print(f"  KOSDAQ: {len(kosdaq_data)} ticker")
     if len(kosdaq_data) < 50:
         print(f"\n  ⚠ KOSDAQ ticker {len(kosdaq_data)} 개 < 50 → OOS 불가, 종료")
@@ -612,6 +615,25 @@ def _write_report(run_dir, results_oos, m_default, pbo, n_train, n_val, n_oos):
     (run_dir / "oos_top5.md").write_text("\n".join(lines))
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="KOSPI 학습 + KOSDAQ OOS 통합 파라미터 최적화",
+    )
+    parser.add_argument(
+        "--kospi-tickers", default=str(DEFAULT_KOSPI_TICKERS),
+        help="KOSPI 종목코드 목록 파일 (공백·줄바꿈 구분)",
+    )
+    parser.add_argument(
+        "--kosdaq-tickers", default=str(DEFAULT_KOSDAQ_TICKERS),
+        help="KOSDAQ 종목코드 목록 파일",
+    )
+    parser.add_argument(
+        "--run-dir-root", default=str(RUN_DIR_ROOT),
+        help="실행 산출물을 남길 디렉토리",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     random.seed(42)
-    main()
+    main(parse_args())
