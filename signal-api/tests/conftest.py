@@ -96,7 +96,7 @@ SAMPLE_MARKET = {
             "external_links": {
                 "naver_finance": "https://finance.naver.com/item/main.naver?code=006340"
             },
-            "rsi_by_tf": {"1D": 60.0, "1h": 50.0},
+            "rsi_by_tf": {"1D": 60.0, "1W": 55.0, "1h": 50.0},
         }
     },
 }

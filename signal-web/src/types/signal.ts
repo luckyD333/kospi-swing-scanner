@@ -39,6 +39,7 @@ export interface TradePlan {
   atr_14: number | null;
   rsi_14: number | null;
   rsi_1d?: number | null;
+  rsi_1w?: number | null;
   rsi_1h?: number | null;
   derived: TradePlanDerived | null;
   // PR-C (P1-1): 주문 타입 의도

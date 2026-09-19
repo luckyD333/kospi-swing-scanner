@@ -75,6 +75,7 @@ export interface DetailProps {
   } | null;
   matches: MatchProps[];
   rsi1d: number | null;
+  rsi1w: number | null;
   rsi1h: number | null;
   atr14: number | null;
   confirmationLevel: string | null;
@@ -243,6 +244,7 @@ export function adaptDetailV2(raw: any): DetailProps {
       : null,
     matches,
     rsi1d: firstMatch?.trade_plan?.rsi_1d ?? null,
+    rsi1w: firstMatch?.trade_plan?.rsi_1w ?? null,
     rsi1h: firstMatch?.trade_plan?.rsi_1h ?? null,
     atr14: firstMatch?.trade_plan?.atr_14 ?? null,
     confirmationLevel: raw.confirmation_level ?? null,
