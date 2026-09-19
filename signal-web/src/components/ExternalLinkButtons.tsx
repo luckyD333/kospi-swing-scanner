@@ -6,25 +6,36 @@ import { naverFinanceUrl, tradingViewUrl } from '@/lib/external-links';
 
 const MARK_SIZE = 22;
 
-/** 네이버 브랜드 마크 — 초록 배지 안의 N */
+/**
+ * 네이버 브랜드 마크 — 초록 배지 안의 N.
+ * 윤곽은 simple-icons(CC0) 가 배포하는 공식 로고 path 를 배지 크기에 맞춰 축소한 것.
+ */
 function NaverMark() {
   return (
     <svg width={MARK_SIZE} height={MARK_SIZE} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <rect width="24" height="24" rx="5" fill="#03C75A" />
-      <path d="M5 5h5.1l3.8 5.7V5H19v14h-5.1l-3.8-5.7V19H5z" fill="#fff" />
+      <path
+        d="M16.273 12.845 7.376 0H0v24h7.726V11.156L16.624 24H24V0h-7.727v12.845Z"
+        fill="#fff"
+        transform="translate(5.04 5.04) scale(0.58)"
+      />
     </svg>
   );
 }
 
-/** 트레이딩뷰 브랜드 마크 — 파랑 배지 안의 T 와 삼각형 (기하 근사) */
+/**
+ * 트레이딩뷰 브랜드 마크 — 파랑 배지 안의 심볼(원·T·삼각형).
+ * 윤곽은 simple-icons(CC0) 가 배포하는 공식 로고 path 를 배지 크기에 맞춰 축소한 것.
+ */
 function TradingViewMark() {
   return (
     <svg width={MARK_SIZE} height={MARK_SIZE} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <rect width="24" height="24" rx="5" fill="#2962FF" />
-      <g fill="#fff">
-        <path d="M4 6h9v3h-3v9H7V9H4z" />
-        <path d="M14 6h6l-3 12z" />
-      </g>
+      <path
+        d="M15.8654 8.2789c0 1.3541-1.0978 2.4519-2.452 2.4519-1.354 0-2.4519-1.0978-2.4519-2.452 0-1.354 1.0978-2.4518 2.452-2.4518 1.3541 0 2.4519 1.0977 2.4519 2.4519zM9.75 6H0v4.9038h4.8462v7.2692H9.75Zm8.5962 0H24l-5.1058 12.173h-5.6538z"
+        fill="#fff"
+        transform="translate(3 3) scale(0.75)"
+      />
     </svg>
   );
 }
